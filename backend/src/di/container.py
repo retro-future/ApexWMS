@@ -8,8 +8,8 @@ codebase.
 from dishka import AsyncContainer, make_async_container
 from dishka.integrations.fastapi import FastapiProvider
 
-from apexwms.di.providers import ConfigProvider, MasterDbProvider, TenantDbProvider
-from apexwms.infrastructure.config import Settings
+from di.providers import ConfigProvider, MasterDbProvider, TenantDbProvider
+from infrastructure.config import Settings
 
 
 def create_container(settings: Settings | None = None) -> AsyncContainer:

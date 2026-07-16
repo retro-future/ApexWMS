@@ -6,10 +6,10 @@ these tests prove the DI graph is sound without needing Postgres.
 
 from dishka import Scope
 
-from apexwms.di import create_container
-from apexwms.infrastructure.config import Settings
-from apexwms.infrastructure.database import MasterEngine, MasterSession, TenantSession
-from apexwms.infrastructure.tenancy import TenantContext, TenantEngineRegistry
+from di import create_container
+from infrastructure.config import Settings
+from infrastructure.database import MasterEngine, MasterSession, TenantSession
+from infrastructure.tenancy import TenantContext, TenantEngineRegistry
 
 TEST_URL = "postgresql+asyncpg://user:pass@localhost:5432/apexwms_master_test"
 

@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Self
 
-from apexwms.domain.errors import CurrencyMismatchError, InvalidMoneyError
+from domain.errors import CurrencyMismatchError, InvalidMoneyError
 
 
 class Currency(StrEnum):

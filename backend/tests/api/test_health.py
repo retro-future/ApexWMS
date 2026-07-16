@@ -1,6 +1,6 @@
 import httpx
 
-from apexwms.presentation.app import create_app
+from presentation.app import create_app
 
 
 async def test_health_responds_ok():

@@ -1,7 +1,7 @@
 import pytest
 
-from apexwms.domain.errors import InvalidIMEIError
-from apexwms.domain.value_objects import IMEI
+from domain.errors import InvalidIMEIError
+from domain.value_objects import IMEI
 
 # Luhn-valid 15-digit IMEIs (check digit correct).
 VALID_IMEIS = [

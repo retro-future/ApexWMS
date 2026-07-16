@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from apexwms.domain.errors import InvalidIMEIError
+from domain.errors import InvalidIMEIError
 
 IMEI_LENGTH = 15
 

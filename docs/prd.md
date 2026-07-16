@@ -534,12 +534,13 @@ This puts the entire burden on the API being fast and unambiguous:
 apexwms/
 ├── apps/
 │   ├── backend/
-│   │   ├── src/apexwms/
+│   │   ├── src/
 │   │   │   ├── domain/          # entities, value objects, domain errors
 │   │   │   ├── application/     # use cases, ports (protocols), DTOs
 │   │   │   ├── infrastructure/  # SQLAlchemy, tenancy, JWT, PDF, Alembic
 │   │   │   ├── presentation/    # FastAPI routers, schemas
-│   │   │   └── di/              # composition root: Dishka providers & container
+│   │   │   ├── di/              # composition root: Dishka providers & container
+│   │   │   └── main.py          # ASGI entry point
 │   │   ├── tests/
 │   │   └── pyproject.toml
 │   └── frontend/                # Next.js — later

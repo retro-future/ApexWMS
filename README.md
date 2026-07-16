@@ -8,12 +8,13 @@ sales. See [docs/prd.md](docs/prd.md) for the full PRD.
 
 ```
 backend/            # FastAPI + Dishka + SQLAlchemy (Clean Architecture)
-  src/apexwms/
+  src/
     domain/         # entities, value objects (Money, IMEI), domain errors
     application/    # use cases, ports, DTOs
     infrastructure/ # SQLAlchemy, tenancy, JWT, PDF, Alembic
     presentation/   # FastAPI routers, schemas
     di/             # composition root: Dishka providers & container
+    main.py         # ASGI entry point
   tests/
 docs/prd.md         # product requirements
 docker-compose.yml  # PostgreSQL 16
@@ -26,7 +27,7 @@ docker compose up -d          # PostgreSQL
 uv sync --all-packages --dev  # install
 cd backend
 uv run pytest                 # tests
-uv run uvicorn apexwms.main:app --reload   # http://localhost:8000/api/v1/health
+uv run uvicorn main:app --reload   # http://localhost:8000/api/v1/health
 ```
 
 Requires Python 3.14+, uv, Docker.

@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
-from apexwms.domain.errors import CurrencyMismatchError, InvalidMoneyError
-from apexwms.domain.value_objects import Currency, Money
+from domain.errors import CurrencyMismatchError, InvalidMoneyError
+from domain.value_objects import Currency, Money
 
 
 class TestExponents:
