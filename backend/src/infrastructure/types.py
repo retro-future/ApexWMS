@@ -1,4 +1,4 @@
-"""Database type aliases.
+"""Infrastructure type aliases.
 
 Two kinds of database exist (PRD §3.2):
 

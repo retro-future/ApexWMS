@@ -61,7 +61,7 @@ presentation ──▶ application ──▶ domain
 - **`application/`** — use cases (one class, one `execute()`, one business operation) and the **ports** they need, as `Protocol`s (`DeviceUnitRepository`, `UnitOfWork`, `Clock`, ...). Depends on `domain` only. Currently empty — this is where M1+ work lands.
 - **`infrastructure/`** — implementations of those ports: SQLAlchemy repositories, the tenant engine registry, JWT, PDF rendering. `application` never imports from here — the port lives in `application`, the implementation lives here, satisfying it (dependency inversion).
 - **`presentation/`** — FastAPI routers, request/response schemas. Thin: parse, authorize, call a use case, serialize. Does **not** contain DI wiring (see below).
-- **`di/`** — the composition root. The only package allowed to import from every other layer. `di/providers.py` holds Dishka `Provider`s; `di/container.py`'s `create_container()` assembles them. Add new providers here as milestones add dependencies — don't scatter container-building code elsewhere.
+- **`di/`** — the composition root. The only package allowed to import from every other layer. `di/providers/` holds Dishka `Provider`s, one module per concern (`config.py`, `master_db.py`, `tenant_db.py`); `di/container.py`'s `create_container()` assembles them. As milestones add dependencies, add a new module under `di/providers/`, re-export it from its `__init__.py`, and register it in `create_container()` — don't scatter container-building code elsewhere.
 
 **Why ports live in `application`, not `infrastructure`:** the use case declares what it needs; infrastructure satisfies it. This lets `application` be tested with in-memory fakes and no database at all — keep it that way.
 
@@ -81,7 +81,7 @@ This is the most consequential and expensive-to-reverse decision in the codebase
 - **`APP`** scope: `Settings`, `MasterEngine`, `TenantEngineRegistry`. Later: JWT service, PDF renderer.
 - **`REQUEST`** scope: `MasterSession`, `TenantEngine`/`TenantSession` (resolved per-request from `TenantContext`). Later: authenticated user, `UnitOfWork`, repositories, use cases.
 
-`MasterEngine`, `MasterSession`, `TenantEngine`, `TenantSession` are `NewType`-wrapped `AsyncEngine`/`AsyncSession` (`infrastructure/database.py`) purely so the container can't hand a repository the wrong database — keep using these aliases (not bare `AsyncEngine`/`AsyncSession`) whenever wiring new providers that touch either database.
+`MasterEngine`, `MasterSession`, `TenantEngine`, `TenantSession` are `NewType`-wrapped `AsyncEngine`/`AsyncSession` (`infrastructure/types.py`) purely so the container can't hand a repository the wrong database — keep using these aliases (not bare `AsyncEngine`/`AsyncSession`) whenever wiring new providers that touch either database.
 
 Settings enter the container via `from_context` + `context={Settings: ...}` in `create_container()`, not a provider that closes over a constructor argument — follow that pattern for other request-scoped context values.
 

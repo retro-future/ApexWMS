@@ -8,8 +8,8 @@ from dishka import Scope
 
 from di import create_container
 from infrastructure.config import Settings
-from infrastructure.database import MasterEngine, MasterSession, TenantSession
 from infrastructure.tenancy import TenantContext, TenantEngineRegistry
+from infrastructure.types import MasterEngine, MasterSession, TenantSession
 
 TEST_URL = "postgresql+asyncpg://user:pass@localhost:5432/apexwms_master_test"
 
