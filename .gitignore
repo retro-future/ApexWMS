@@ -14,10 +14,6 @@ __pycache__/
 .idea/
 .vscode/
 
-# Tooling
-.claude/
-.github/
-
 # OS
 .DS_Store
 Thumbs.db
