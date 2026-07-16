@@ -4,13 +4,13 @@ services:
     environment:
       POSTGRES_USER: apexwms
       POSTGRES_PASSWORD: apexwms
-      POSTGRES_DB: apexwms_control
+      POSTGRES_DB: apexwms_master
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U apexwms -d apexwms_control"]
+      test: ["CMD-SHELL", "pg_isready -U apexwms -d apexwms_master"]
       interval: 5s
       timeout: 3s
       retries: 10

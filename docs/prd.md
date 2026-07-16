@@ -98,14 +98,14 @@ This is the single most consequential decision in this document, and the most ex
 
 ### 3.1 The model
 
-- **One control-plane database.** Holds `tenants`, `tenant_databases`, global `users`, and `memberships` (which user belongs to which tenant, with which role). This is the *only* database reachable without a tenant context. Login happens here.
+- **One master database (MasterDB).** Holds `tenants`, `tenant_databases`, global `users`, and `memberships` (which user belongs to which tenant, with which role). This is the *only* database reachable without a tenant context. Login happens here.
 - **One database per tenant.** Created at provisioning. Holds *all* business data: products, device units, movements, documents, locations, suppliers, customers. **There is no `tenant_id` column anywhere inside a tenant database** — isolation is physical, not a `WHERE` clause. A missing filter cannot leak another tenant's data because that data is not in the database you are connected to.
 
 ### 3.2 What this costs us
 
 | Cost | Mitigation |
 |---|---|
-| **Migrations fan out.** Every schema change must run against the control DB *and* every tenant DB. With 200 tenants, that's 201 migration runs, and a failure halfway leaves the fleet on mixed schema versions. | A migration CLI (`apexwms migrate --all-tenants`) that runs tenant migrations idempotently, records per-tenant schema version, is resumable, and reports the fleet's version spread. Treat a partial migration as an expected state, not an emergency. |
+| **Migrations fan out.** Every schema change must run against the master DB *and* every tenant DB. With 200 tenants, that's 201 migration runs, and a failure halfway leaves the fleet on mixed schema versions. | A migration CLI (`apexwms migrate --all-tenants`) that runs tenant migrations idempotently, records per-tenant schema version, is resumable, and reports the fleet's version spread. Treat a partial migration as an expected state, not an emergency. |
 | **Connection pools multiply.** Each tenant needs its own `AsyncEngine` and pool. 200 tenants × 5 connections = 1000 connections; Postgres will refuse. | A bounded **LRU engine registry**: at most *N* live engines (default 50), each with a small pool (default 5). Idle engines are disposed on eviction. Scale beyond that requires PgBouncer or a shift to shared-schema — a known ceiling, documented here so it isn't a surprise. |
 | **Cross-tenant queries are hard.** "Total devices sold across all tenants" requires querying N databases. | Accepted. v1 has no cross-tenant reporting requirement. If one appears, it needs an analytics pipeline, not a JOIN. |
 | **Provisioning is a real operation** that can fail halfway (DB created, migrations failed). | Provisioning is a state machine on the `tenants` row: `pending → provisioning → active | failed`. A tenant is not usable until `active`. Failed provisioning is retryable and idempotent. |
@@ -538,7 +538,8 @@ apexwms/
 │   │   │   ├── domain/          # entities, value objects, domain errors
 │   │   │   ├── application/     # use cases, ports (protocols), DTOs
 │   │   │   ├── infrastructure/  # SQLAlchemy, tenancy, JWT, PDF, Alembic
-│   │   │   └── presentation/    # FastAPI routers, schemas, DI wiring
+│   │   │   ├── presentation/    # FastAPI routers, schemas
+│   │   │   └── di/              # composition root: Dishka providers & container
 │   │   ├── tests/
 │   │   └── pyproject.toml
 │   └── frontend/                # Next.js — later
@@ -582,7 +583,7 @@ The use case does not know a tenant exists. It does not know Postgres exists. Th
 
 | Scope | Provides |
 |---|---|
-| `APP` | Settings, the control-plane engine, the tenant `EngineRegistry`, the JWT service, the PDF renderer. |
+| `APP` | Settings, the MasterDB engine, the tenant `EngineRegistry`, the JWT service, the PDF renderer. |
 | `REQUEST` | The authenticated user, the resolved tenant, that tenant's `AsyncSession`, the `UnitOfWork`, repositories, and every use case. |
 
 The tenant-scoped `AsyncSession` is the linchpin: it's provided at `REQUEST` scope by pulling the tenant from the validated JWT and asking the registry for that tenant's engine. Everything downstream — every repository, every use case — is automatically bound to the right database without a single line of code below `presentation` mentioning tenancy.
@@ -706,7 +707,7 @@ All routes are prefixed `/api/v1`. All except auth require a bearer token carryi
 
 **Observability**
 - Structured JSON logs, every line carrying `tenant_id` and `request_id`.
-- Health endpoint reports control-DB reachability and the count of live tenant engines.
+- Health endpoint reports master-DB reachability and the count of live tenant engines.
 
 **Testing**
 - **Domain layer: pure unit tests, no I/O.** If a domain test needs a database, the domain is wrong.
@@ -730,7 +731,7 @@ Each milestone is independently demoable.
 | # | Milestone | Delivers |
 |---|---|---|
 | **M0** | **Bootstrap** | uv workspace, FastAPI + Dishka skeleton, the four-layer structure, docker-compose (Postgres), CI. Demo: `/health` responds. |
-| **M1** | **Tenancy & Auth** | Control-plane DB, tenant provisioning, engine registry, migration fan-out CLI, JWT, roles. Demo: sign up two tenants; prove tenant A cannot see tenant B. |
+| **M1** | **Tenancy & Auth** | MasterDB, tenant provisioning, engine registry, migration fan-out CLI, JWT, roles. Demo: sign up two tenants; prove tenant A cannot see tenant B. |
 | **M2** | **Catalog** | Products (both tracking types), locations, suppliers, customers. Demo: build a catalog. |
 | **M3** | **The ledgers** | `StockMovement` **and** `FinancialTransaction`, projections, valuation rules, `verify-projections` + financial reconciliation. Demo: a confirm writes both a stock movement and its money entry, and both reconcile. |
 | **M4** | **Inbound** | PO → Goods Receipt, IMEI scan-in, Luhn + duplicate rejection, `PURCHASE` financial entries. Demo: **scan 10 phones into stock with a real scanner.** |

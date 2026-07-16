@@ -1,6 +1,6 @@
 """Application settings, loaded from environment / .env.
 
-All variables are prefixed APEXWMS_ (e.g. APEXWMS_CONTROL_DB_URL).
+All variables are prefixed APEXWMS_ (e.g. APEXWMS_MASTER_DB_URL).
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,9 +17,9 @@ class Settings(BaseSettings):
     app_name: str = "ApexWMS"
     debug: bool = False
 
-    # Control-plane database (tenants, users, memberships). Tenant
-    # databases are created next to it at provisioning time (M1).
-    control_db_url: str = "postgresql+asyncpg://apexwms:apexwms@localhost:5432/apexwms_control"
+    # Master database (tenants, users, memberships). Tenant databases
+    # are created next to it at provisioning time (M1).
+    master_db_url: str = "postgresql+asyncpg://apexwms:apexwms@localhost:5432/apexwms_master"
 
     # JWT (used from M1 on)
     jwt_secret: str = "change-me"

@@ -5,8 +5,8 @@ from contextlib import asynccontextmanager
 from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI
 
+from apexwms.di import create_container
 from apexwms.infrastructure.config import Settings
-from apexwms.presentation.di import create_container
 from apexwms.presentation.routers import health
 
 API_PREFIX = "/api/v1"

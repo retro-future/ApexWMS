@@ -12,7 +12,8 @@ backend/            # FastAPI + Dishka + SQLAlchemy (Clean Architecture)
     domain/         # entities, value objects (Money, IMEI), domain errors
     application/    # use cases, ports, DTOs
     infrastructure/ # SQLAlchemy, tenancy, JWT, PDF, Alembic
-    presentation/   # FastAPI routers, schemas, DI wiring
+    presentation/   # FastAPI routers, schemas
+    di/             # composition root: Dishka providers & container
   tests/
 docs/prd.md         # product requirements
 docker-compose.yml  # PostgreSQL 16
