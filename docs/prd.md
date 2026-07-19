@@ -14,7 +14,7 @@ A phone store's inventory is not a pile of interchangeable units. Every handset 
 
 - **Nobody can trace a device.** A customer returns a phone claiming they bought it here. Was it sold here? On what invoice? For how much? At what cost? A spreadsheet cannot answer this reliably.
 - **Stock and reality diverge silently.** Devices go missing, get "borrowed" for demos, or get written off informally. Without an audit trail, the discrepancy is only discovered at year-end, with no way to reconstruct when it happened.
-- **Money is fuzzy.** Devices are frequently bought in USD and sold in local currency. If the exchange rate isn't captured at the moment of the transaction, margin becomes unknowable after the fact.
+- **Money is fuzzy.** Phones trade in USD and accessories in som, and the two are tracked in the same notebook. Costs, prices, and margins get mixed together across currencies until nobody can say what any part of the business actually earned.
 
 ### 1.2 Goals (MVP v1)
 
@@ -24,7 +24,7 @@ A phone store's inventory is not a pile of interchangeable units. Every handset 
 4. **Produce the paperwork.** Purchase Orders to suppliers, Sales Invoices to customers, Return-to-Supplier notes — as PDFs, with the tenant's own details on them.
 5. **Isolate tenants completely.** One store's data is physically unreachable from another's.
 6. **Record the money, not just the goods.** Every stock event that has a financial consequence — a purchase, a sale, a write-off, a supplier credit — writes a matching entry to a financial ledger. At month's end the owner gets a report on the state of the warehouse and store: what was bought, what was sold, what it cost, what's left on the shelves and what it's worth, and the margin earned.
-7. **Sell on credit and installments, and know who owes what.** A phone can leave the store before it is paid for — on an open credit balance or a fixed installment schedule. The system tracks each customer's outstanding balance, what has been paid and when, what is still due and by when, and who is overdue.
+7. **Sell on credit, and know who owes the store money.** Two credit paths exist. A **credit-company sale** (Uzum Nasiya and similar) is settled instantly — the company pays the store in full and collects from the customer itself; the system merely labels the sale with the company for reference. A **store-credit sale** opens a simple open balance **in soums**: the seller writes the total som debt, and the system tracks how much the customer has paid and how much is left. No schedules, no interest, no overdue engine — a shopkeeper's notebook, made auditable.
 
 ### 1.3 Non-Goals (explicitly NOT in v1)
 
@@ -33,8 +33,8 @@ Naming these is the point of this section. If a request falls in this list, it i
 | Not in v1 | Why / when |
 |---|---|
 | **Inter-location transfers** | The schema will model `Location` and record it on every movement, so transfers are additive in v2. Deliberately deferred to keep v1 shippable. |
-| **Payment *processing*** | The system **records** payments received (cash handed over, a transfer that landed) against an invoice or installment — that's core to credit tracking (§4.7). It does **not** *process* payments: no card rails, no payment gateway, no cash drawer, no till reconciliation. "Customer paid 2,000,000 today" is a recorded fact, not a transaction the system executes. |
-| **Lending mechanics beyond a schedule** | v1 tracks balances, schedules, and lateness. It does **not** compute interest/APR (installments are interest-free, §4.7), charge automatic late fees, run credit scoring, or handle repossession/default workflows. Those are v2. |
+| **Payment *processing*** | The system **records** payments received (cash handed over, a transfer that landed) against a store-credit balance — that's core to debt tracking (§4.7). It does **not** *process* payments: no card rails, no payment gateway, no cash drawer, no till reconciliation. "Customer paid 2,000,000 today" is a recorded fact, not a transaction the system executes. |
+| **Lending mechanics** | Store credit is an **open balance only** (§4.7): no schedules, no due dates, no interest/APR, no late fees, no credit scoring, no overdue engine, no repossession workflow. The credit company's own repayment plan is its business, not this system's. |
 | **Repairs / service tickets** | A separate domain with its own workflow. Out of scope. |
 | **E-commerce / marketplace sync** | No Shopify, no marketplace feeds. |
 | **External accounting integration** | The system keeps its *own* internal financial ledger (§4.6) and produces a month-end report (§5.10). What it does **not** do in v1: export to QuickBooks/1C, file taxes, run a chart of accounts, or do full double-entry bookkeeping. It is an inventory-and-margin ledger, not a general ledger. |
@@ -62,7 +62,7 @@ MVP is done when a store owner can, on real hardware: create a PO, receive the g
 | Operation | Owner | Manager | Storekeeper | Seller |
 |---|:--:|:--:|:--:|:--:|
 | Manage users & roles | ✅ | ❌ | ❌ | ❌ |
-| Manage tenant settings (currency, letterhead) | ✅ | ❌ | ❌ | ❌ |
+| Manage tenant settings (timezone, letterhead) | ✅ | ❌ | ❌ | ❌ |
 | Manage locations | ✅ | ✅ | ❌ | ❌ |
 | Manage catalog (products, suppliers) | ✅ | ✅ | ❌ | ❌ |
 | Create / send Purchase Order | ✅ | ✅ | ❌ | ❌ |
@@ -70,11 +70,11 @@ MVP is done when a store owner can, on real hardware: create a PO, receive the g
 | **See acquisition cost / margin** | ✅ | ✅ | ❌ | ❌ |
 | Sell / issue stock | ✅ | ✅ | ❌ | ✅ |
 | Set / override sale price | ✅ | ✅ | ❌ | ❌ |
-| Sell on credit / installment | ✅ | ✅ | ❌ | ✅ |
+| Sell via credit company / store credit | ✅ | ✅ | ❌ | ✅ |
+| Manage credit companies (reference list) | ✅ | ❌ | ❌ | ❌ |
 | Record a customer payment | ✅ | ✅ | ❌ | ✅ |
 | Reverse a payment | ✅ | ✅ | ❌ | ❌ |
-| Set customer credit limit / override it | ✅ | ✅¹ | ❌ | ❌ |
-| View customer balances & AR aging | ✅ | ✅ | ❌ | ✅² |
+| View customer balances & debtor list | ✅ | ✅ | ❌ | ✅¹ |
 | Return to supplier | ✅ | ✅ | ❌ | ❌ |
 | Run stock count | ✅ | ✅ | ✅ | ❌ |
 | Confirm count adjustments | ✅ | ✅ | ❌ | ❌ |
@@ -83,12 +83,11 @@ MVP is done when a store owner can, on real hardware: create a PO, receive the g
 | Look up stock / IMEI | ✅ | ✅ | ✅ | ✅ |
 | Operational reporting | ✅ | ✅ | ❌ | ❌ |
 | **Financial ledger & month-end report** | ✅ | ✅ | ❌ | ❌ |
-| Set / update tenant exchange rate | ✅ | ❌ | ❌ | ❌ |
+| Set a product's currency (at creation) | ✅ | ✅ | ❌ | ❌ |
 
 > **Note on cost visibility:** hiding acquisition cost from Storekeeper and Seller is a *response-shaping* requirement, not just a UI concern. The API must omit cost fields for those roles — not send them and rely on the frontend to hide them.
 >
-> ¹ A Manager can override a customer's credit limit at sale time; **setting** the limit is Owner-only.
-> ² A Seller sees the balance and status of the customer they are serving (needed to take a payment), but AR aging *totals across all customers* — a business-health figure — are Owner/Manager only.
+> ¹ A Seller sees the balance of the customer they are serving (needed to take a payment); the *full debtor list across all customers* — a business-health figure — is Owner/Manager only.
 
 ---
 
@@ -130,7 +129,7 @@ The tenant is resolved **once**, at the edge. Nothing in the `domain` or `applic
 2. `CREATE DATABASE apexwms_tenant_<uuid>` (autocommit, outside a transaction — Postgres requires this).
 3. Record connection info in `tenant_databases`.
 4. Run Alembic to head against the new DB.
-5. Seed: a default `Location` ("Main Store"), the tenant's base currency, and the Owner membership for the signing-up user.
+5. Seed: a default `Location` ("Main Store"), the tenant's timezone, and the Owner membership for the signing-up user.
 6. Mark `status = active`.
 
 Steps 2–5 are idempotent and retryable.
@@ -168,7 +167,9 @@ A single flag on `Product` decides which path every stock operation takes. Both 
 
 **`Location`** — a store, a stockroom, a warehouse. Present from day one even though transfers are v2, because retrofitting a location column onto a populated movements table is a migration nobody wants.
 
-**`Supplier`** — name, contact, default currency.
+**`Supplier`** — name, contact. *(No currency field — currency belongs to products, §4.5, not to suppliers or documents.)*
+
+**`CreditCompany`** — a third-party financing partner (§4.7): name, contact, active flag. A label on financed sales, nothing more — the company pays in full at sale time, so no money is tracked against it.
 
 **`Customer`** — name, phone. Deliberately anemic; this is not a CRM.
 
@@ -224,7 +225,30 @@ Documents carry a human-readable, per-tenant sequential number (`PO-2026-0001`, 
 
 ### 4.5 Money — UZS and USD
 
-The system supports exactly **two currencies in v1: `UZS` (Uzbek som) and `USD`**. This is not a placeholder for "any currency" — it is the real, and typical, shape of an Uzbek phone business: **devices are bought from suppliers in USD and sold to customers in UZS.**
+> #### The complete money model, in seven rules
+>
+> This box is the final word. Every money question in this document reduces to one of these rules; if a future change contradicts one, that change reopens the model — otherwise the model is closed.
+>
+> 1. **Two currencies exist: `USD` and `UZS`. There is no exchange rate anywhere in the system.** Nothing converts, ever.
+> 2. **An amount is an integer in minor units plus a currency** (`BIGINT`; USD exponent 2 = cents, UZS exponent 0 = whole som). Floats are rejected. A bare int is not money.
+> 3. **Currency belongs to the product** (phones default USD, accessories default UZS) and is immutable once the product has movement history.
+> 4. **Documents may mix lines of both currencies; every total anywhere is per-currency.** Two subtotals side by side, never added together, never converted.
+> 5. **Margin is same-currency subtraction**: a phone's USD price minus its own USD cost (specific identification); an accessory's UZS price minus its UZS weighted-average cost.
+> 6. **All customer debt is one som number**: the seller writes the total som debt at the counter; `remaining = debt − Σ payments`. Credit-company sales settle instantly and create no debt.
+> 7. **Reports show a USD column and a UZS column** and re-running any past report yields identical figures — structurally, because rule 1 leaves nothing that could drift.
+>
+> Rules 1–2 and 5's arithmetic guard are already **implemented and tested** in `domain/value_objects/money.py` (42 domain tests passing as of M0).
+
+The system supports exactly **two currencies in v1: `UZS` (Uzbek som) and `USD`**. This is not a placeholder for "any currency" — it is the real shape of an Uzbek phone business:
+
+- **Phones are bought *and* sold in USD.**
+- **Accessories, cases, and chargers are bought *and* sold in UZS.**
+
+**Each line of business is internally single-currency, so no conversion ever happens.** A phone costing $500 and selling for $600 has a margin of $100 — both sides are already USD. A case costing 30,000 so'm and selling for 50,000 so'm has a margin of 20,000 so'm. Subtraction works because the units already match.
+
+> **This is the single most important simplification in the document.** An earlier draft assumed devices were bought in USD and sold in UZS, forcing *every* sale to carry an exchange rate. That machinery is **gone**: there is no tenant base currency, no rate on ordinary sales or purchases, no conversion at report time, and no FX settings screen. Reports present **separate totals per currency, side by side, never merged** (§5.10). Confirmed with the target users: phone sellers are content with a USD total and a UZS total and do not want them combined into one number.
+>
+> Even credit needs no rate: a credit company pays the store in full at sale time (nothing to convert), and a store-credit debt is written directly in som by the seller — the som figure *is* the debt, no conversion field involved (§4.7).
 
 Every monetary amount is stored as:
 
@@ -250,22 +274,36 @@ The consequence: **the code may never assume a fixed exponent.** `Money` is a va
 
 UZS amounts are large (a mid-range phone is ~12,000,000 so'm; annual turnover runs into the trillions). `BIGINT` is required — a 32-bit int overflows at ~2.1 billion, which is roughly 175 phones.
 
-#### Base currency and frozen rates
+#### Currency is a property of the product
 
-Each **tenant has a `base_currency`** (default `UZS` — it is the currency the business reports, banks, and pays taxes in). Each **document captures, at confirm time**:
-- the transaction currency (`UZS` or `USD`),
-- the `USD→UZS` rate used,
-- the resulting base-currency amount, stored alongside the original.
+A **`Product` carries a `currency`**, chosen when the product is created:
 
-Because *both* the transaction amount and the base-currency amount are persisted, reports can be run in either currency without re-converting anything.
+- **`SERIAL` products (phones) default to `USD`.**
+- **`QUANTITY` products (accessories) default to `UZS`.**
 
-**Why the rate is frozen onto the document:** a phone is bought for $500 when the rate is 12,600, and sold for 7,000,000 so'm when the rate is 12,900. If we recompute historical documents against today's rate, **last quarter's margin changes every morning** — the books become unreproducible. Freezing the rate at confirm time means a confirmed document's numbers never move again, ever.
+The default is a convenience, not a constraint — a tenant who buys accessories in USD can say so. Like `tracking_type`, **a product's currency is immutable once any stock movement references it** (§FR-2.1): changing the currency of a product that already has purchase and sale history would silently reinterpret every past amount by a factor of ~12,600.
 
-**Where the rate comes from (v1):** entered manually on the document, defaulting to a tenant-level "current rate" setting that an Owner updates. No automatic FX feed — that's v2. The rate is a required field at confirm time when the document's currency differs from the tenant's base currency.
+Everything downstream inherits this currency: the product's cost on a receipt, its sale price on an invoice, its COGS, and its share of inventory value are all denominated in the product's own currency, start to finish.
 
-**Margin is only meaningful in one currency.** A device costing $500 and selling for 7,000,000 UZS has no margin until both sides are expressed in the same currency at their respective frozen rates. All margin reporting is computed in the tenant's base currency, from the frozen base-currency amounts — never by converting on the fly.
+#### Documents may mix currencies; totals are per currency
 
-**What this costs us:** every money field is two columns, every comparison must check currency, and cross-currency sums require an explicit conversion decision. Accepted — the alternative is a system that cannot state its own margin.
+**A document has no single currency of its own.** Each line carries the currency of *its* product, and the document totals are **one subtotal per currency present**:
+
+```
+INVOICE INV-2026-0042
+  iPhone 15 Pro   IMEI 35…21     $600.00
+  Silicone case                 50 000 so'm
+  ─────────────────────────────────────────
+  TOTAL:  $600.00  ·  50 000 so'm      ← two totals, never added together
+```
+
+A customer buying a phone and a case is **one sale on one invoice**. The system does not force the counter to split a single basket into two documents just to satisfy its own bookkeeping.
+
+**This is the same "separate totals" principle already applied to reports (§5.10), applied consistently here:** amounts of different currencies sit side by side and are never merged into one number. Nothing is converted; there is simply more than one total.
+
+**Credit does not complicate this.** Mixed currencies exist only on the *revenue* side (per-currency subtotals, per-currency margin). The *debt* side is untouched: a store-credit sale's debt is a single som figure the seller enters for the whole invoice, whatever mix of currencies its lines carry (§4.7). One invoice, two revenue subtotals, one som debt.
+
+**What this costs us:** every money field is two columns (`amount_minor` + `currency`), and every comparison must check currency — the `Money` value object enforces this. **What it saves us:** no exchange rates, no conversion, no rate-freezing, no FX settings, and reports whose numbers are reproducible because nothing is ever recalculated.
 
 ### 4.6 `FinancialTransaction` — the money ledger
 
@@ -275,12 +313,13 @@ The stock ledger (§4.3) answers *"what happened to the goods?"*. It cannot answ
 
 ```
 id, occurred_at, txn_type, direction (+/-),
-amount_minor, currency,                 -- as transacted (USD or UZS)
-base_amount_minor, base_currency, rate, -- frozen at confirm time (§4.5)
+amount_minor, currency,          -- the product's own currency; never converted
 category, document_type, document_id,
 location_id, product_id (nullable), device_unit_id (nullable),
 user_id, note
 ```
+
+**Every aggregate over this ledger is grouped by `currency`.** There is no total that spans both — a `SUM(amount_minor)` without a `GROUP BY currency` is a bug, and adding 500 (USD cents) to 30000 (som) is meaningless arithmetic the `Money` value object exists to prevent.
 
 **Transaction categories** (the vocabulary the month-end report groups by):
 
@@ -292,15 +331,15 @@ user_id, note
 | `WRITE_OFF_LOSS` | − | Write-Off confirmed | Book value of stock destroyed/lost. |
 | `SUPPLIER_RETURN_CREDIT` | + | Supplier Return confirmed | Value credited back for goods sent to the supplier. |
 | `COUNT_ADJUSTMENT` | ± | Stock Count confirmed | Value of surplus (+) or shortage (−) found in a physical count. |
-| `PAYMENT_RECEIVED` | + | A customer payment is recorded (§4.7) | **Cash collected**, not revenue. Settles a receivable; does **not** re-book revenue. |
+| `PAYMENT_RECEIVED` | + | A customer pays down a store-credit balance (§4.7) | **Cash collected**, always UZS, not revenue. Settles debt; does **not** re-book revenue. |
 
 The same rules as the stock ledger apply, and for the same reasons:
 
 1. **Nothing records money except by writing a transaction.** No code sets a running total directly.
 2. **Transactions are immutable.** Cancelling a document writes **reversing transactions**, never deletes.
-3. **Every transaction names its cause and author** and carries its frozen base-currency amount, so the report never re-converts history.
+3. **Every transaction names its cause and author**, and records the amount in the product's own currency — the report never converts anything, so historical figures cannot drift.
 
-> **Revenue is not cash — and this is the trap credit introduces.** `SALE_REVENUE` (and its `COGS`) is booked in full **the moment a sale is confirmed**, whether or not a single som has been paid. That is *accrual* accounting, and it is what makes margin correct: the profit on a phone is earned when it is sold, not dribbled in as the customer pays. `PAYMENT_RECEIVED` is a separate, *cash* dimension — it settles the receivable the sale created. **A payment must never write `SALE_REVENUE`**, or every installment would inflate revenue and the books would double-count. The month-end report (§5.10) therefore presents two distinct views: an **accrual view** (revenue, COGS, margin — unchanged by credit) and a **receivables/cash view** (who owes what, what was collected).
+> **Revenue is not cash — and this is the trap credit introduces.** `SALE_REVENUE` (and its `COGS`) is booked in full **the moment a sale is confirmed**, whether or not a single som has been paid. That is *accrual* accounting, and it is what makes margin correct: the profit on a phone is earned when it is sold, not dribbled in as the customer pays. `PAYMENT_RECEIVED` is a separate, *cash* dimension — it settles the debt the sale created. **A payment must never write `SALE_REVENUE`**, or every store-credit payment would inflate revenue and the books would double-count. The month-end report (§5.10) therefore presents two distinct views: an **accrual view** (revenue, COGS, margin — unchanged by credit) and a **debt/cash view** (who owes what, what was collected).
 
 #### Inventory valuation — how COGS and on-hand value are costed
 
@@ -309,56 +348,53 @@ This is the one genuinely new decision the financial ledger forces, and it diffe
 - **Serialized phones → specific identification.** Every `DeviceUnit` carries *its own* `acquisition_cost`. When that exact unit sells, its COGS is its own cost — exact, no estimation. This is the payoff of serializing: valuation is not a model, it's a fact.
 - **Quantity accessories → weighted-average cost.** A box of cases has no per-unit identity, so on-hand value is `average_unit_cost × quantity`, where the average is maintained from the purchase ledger. When accessory prices move, the average moves; COGS uses the average at time of sale. Simple, standard, and computable from the ledger.
 
-**On-hand inventory value** at any instant = (Σ `acquisition_cost` of every `IN_STOCK` device unit) + (Σ `avg_cost × qty` for every accessory stock level), all in the tenant's base currency at each item's frozen acquisition rate.
+**On-hand inventory value** at any instant is reported **per currency**: (Σ `acquisition_cost` of every `IN_STOCK` device unit) in USD, and (Σ `avg_cost × qty` for every accessory stock level) in UZS — shown side by side, never summed together.
 
 **What this buys us:** the month-end report (§5.10) is a *grouping query over one ledger*, and closing inventory value can be independently recomputed from stock and cross-checked. Money and goods reconcile by construction.
 
 **What this costs us:** a second ledger write on every confirm, a valuation rule to maintain for accessories, and a reconciliation check to run. Accepted — without it, "how did the store do this month?" has no answer.
 
-### 4.7 Credit, Installments & Receivables
+### 4.7 Credit Sales & Customer Debt
 
-A sale can leave the store before it is paid for. This section models *who owes what and how it gets paid down*, and it rests on one hard rule already stated in §4.6: **the goods and the revenue leave at the sale; the money is a separate, later stream.**
+A phone can leave the store before the customer has paid for it, in exactly two ways — and they could hardly be more different in what the system must do:
 
-#### The customer stops being anemic
-
-In §4.2, `Customer` was "name + phone, deliberately anemic." Credit changes that: a customer is now a **party the store holds a balance against**. It gains an **outstanding balance** (a projection, never edited directly) and, optionally, a **credit limit** the Owner can set. It is still not a CRM — no marketing, no history of interactions — but it is now a debtor.
-
-#### Payment terms on a sale
-
-Every `SalesInvoice` gains a `payment_type`:
-
-| `payment_type` | Meaning | Receivable created on confirm |
+| `payment_type` | What happens | What the store must track |
 |---|---|---|
-| `PAID_IN_FULL` | Paid on the spot. The existing v1 flow, unchanged. | None. |
-| `CREDIT` | Open balance, no fixed schedule. Pay it down whenever. | `total − down_payment` |
-| `INSTALLMENT` | Fixed schedule of dated instalments. | `total − down_payment`, split across the schedule |
+| `PAID_IN_FULL` | Paid on the spot. The ordinary sale. | Nothing. Settled. |
+| `CREDIT_COMPANY` | A third-party credit company (Uzum Nasiya, Alif Nasiya, …) finances the customer and **pays the store the full price immediately**. The customer's monthly schedule is calculated and collected by the company. | **Nothing about the money.** From the store's side this is a settled sale — it differs from `PAID_IN_FULL` only by a label: *which company* financed it, and optionally their contract number, for later lookup ("which sales went through Uzum?"). |
+| `STORE_CREDIT` | The store itself lets the customer pay later. | **An open balance in UZS**: total owed, paid so far, remaining. No schedule, no due dates, no interest. |
 
-- **Interest-free (decided).** The installment total **equals** the cash price. There is no markup, no APR, no amortization math. The financed amount is simply `price − down_payment`, divided across N installments. *(If a shop wants to charge more for installments, it sets a higher line price at sale time — the system does not compute interest.)*
-- **Optional down payment (decided).** At confirm, the seller may record an initial payment of zero or more. The remainder is what's financed.
-- **The phone still leaves at confirm.** A `CREDIT` or `INSTALLMENT` sale marks its `DeviceUnit`s `SOLD` and writes the `−` stock movement and full `SALE_REVENUE`/`COGS` exactly like a paid sale. The customer walks out with the device; the store carries the debt. **This is the entire point of credit and the reason revenue must be accrual, not cash.**
+Two decided simplifications, stated so nobody re-complicates them later:
+
+- **Credit-company sales carry no financial machinery.** The company pays in full, immediately. No receivable, no payout tracking, no commission, no exchange rate. If a company ever starts paying less than full price or paying late, that becomes a v2 conversation — the schema records which sales were financed by whom, so history survives such a change.
+- **Store credit is an open balance, not a schedule.** The system answers "how much has this customer paid and how much is left" — the exact question asked — and nothing more. No installment rows, no due dates, no overdue computation. The debtor list shows days-since-sale, so old debts are still plainly visible.
+
+#### Store credit: the debt is written in soums
+
+**The debt of a store-credit sale is always denominated in UZS, even when the phone itself is priced in USD.** At the counter, the seller enters the **total som amount the customer will pay** (e.g. phone priced `$600`, debt written as `7 800 000 so'm`), plus any down payment in som. That som figure *is* the debt — there is no rate field and no conversion; whatever conversion happened was in the seller's head when they quoted the price, which is how these deals are actually struck.
+
+The invoice line keeps its USD price, so **revenue and margin are booked in USD exactly as for a cash sale** (§4.6, accrual). The som debt is the *collection* side, tracked separately — the same accrual-vs-cash separation the ledger already makes everywhere.
+
+```
+invoice_debt_uzs      (entered at sale)  −  Σ payments_uzs  =  invoice_remaining_uzs
+customer_balance_uzs  =  Σ invoice_remaining_uzs over their open invoices
+```
+
+**All customer debt in the entire system is a single som number per customer.** No per-currency balances, no schedules — a shopkeeper's notebook, made auditable.
 
 #### Entities
 
-**`InstallmentPlan`** — belongs to one `INSTALLMENT` invoice. Holds `financed_amount`, `down_payment`, `installment_count`, `start_date`, `interval` (monthly), and its `schedule`.
+**`CreditCompany`** — reference data, Owner-maintained: `name`, contact, `is_active`. A `CREDIT_COMPANY` invoice stores `credit_company_id` + optional `contract_ref`. That is the entire model.
 
-**`Installment`** — one scheduled row of a plan: `sequence`, `due_date`, `amount_due`, `amount_paid`, and a derived `status` ∈ `PENDING | PARTIAL | PAID | OVERDUE`. Status is computed, not stored as truth — `OVERDUE` is simply `due_date < today AND amount_paid < amount_due`, evaluated in the tenant's timezone.
-
-**`Payment`** — an **append-only** record of money received. `occurred_at`, `amount` (Money), `method` (cash / transfer / card — a *label*, not a processed transaction), `customer_id`, `invoice_id`, `user_id`, `note`. A payment is **allocated** against the invoice's balance — for an installment plan, oldest-due-first by default, with the option to target a specific installment. Confirming a payment writes a `PAYMENT_RECEIVED` financial transaction (§4.6) and reduces the outstanding balance. **Payments are never edited; a mistaken payment is reversed by a compensating negative payment**, same as every other ledger in this system.
+**`Payment`** — an **append-only** record of money received from a customer against a store-credit invoice: `occurred_at`, `amount` (UZS), `method` (cash / transfer / card — a *label*, not a processed transaction), `invoice_id`, `user_id`, `note`. Confirming a payment writes a `PAYMENT_RECEIVED` financial transaction (§4.6) and reduces the remaining balance. A payment cannot exceed the invoice's remaining balance. **Payments are never edited; a mistaken payment is reversed by a compensating negative payment**, same as every other ledger in this system.
 
 #### Balances are projections, not stored counters
 
-The single source of truth is the append-only pair *(receivable opened by the sale) + (payments applied)*. Every "how much is owed" number is derived:
+`customer_balance_uzs` and `invoice_remaining_uzs` are always derived from the append-only pair *(debt entered at sale) − (payments recorded)* — no code ever assigns `customer.balance = X`. Same discipline as the stock and money ledgers, same reason: a balance recomputable from immutable history is a balance you can trust. A `verify-balances` check (sibling of `verify-projections`) recomputes every balance from the ledger and asserts it against any cached projection.
 
-```
-customer_outstanding = Σ(financed amounts of their credit/installment sales)
-                     − Σ(their payments)
-invoice_outstanding  = invoice_financed − Σ(payments allocated to it)
-installment_status   = f(due_date, amount_due, amount_paid, today@tenant_tz)
-```
+**A customer financed by a credit company owes the store nothing** — their balance correctly reads zero, with the sale visible in their history labelled with the company. Attributing the company's debt to the customer would be the most misleading thing this system could do.
 
-No code ever assigns `customer.balance = X`. This is the same discipline as the stock and money ledgers, for the same reason: a balance you can recompute from an immutable history is a balance you can trust and audit. A `verify-balances` check (sibling of `verify-projections`) recomputes every outstanding figure from the ledgers and asserts it against any cached projection.
-
-**What this costs us:** a third thing to reconcile, an allocation rule for partial payments, and the accrual-vs-cash discipline that makes revenue and collections two different questions. **What it buys us:** an exact, auditable answer to "who owes us money, how much, and since when" — which is the feature that was asked for.
+**The phone leaves at confirm on every payment type** — units go `SOLD`, full `SALE_REVENUE`/`COGS` booked (§4.6). The only difference between the three types is who, if anyone, still owes the store money afterwards: nobody, nobody, the customer.
 
 ---
 
@@ -378,24 +414,24 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 
 ### 5.2 Catalog & Reference Data
 
-- **FR-2.1** A Manager can create a product with a `tracking_type`; the type is **immutable** once any stock movement references the product.
+- **FR-2.1** A Manager can create a product with a `tracking_type` **and a `currency`**; both are **immutable** once any stock movement references the product.
 - **FR-2.2** A Manager can create locations, suppliers, and customers.
 - **FR-2.3** A product with `tracking_type = QUANTITY` may carry a barcode (EAN/UPC), unique within the tenant.
 - **FR-2.4** Deactivating a product prevents new movements against it but preserves all history.
 
 ### 5.2b Currency (UZS / USD)
 
-- **FR-2.5** A tenant has a `base_currency`, set at signup, defaulting to `UZS`. Only `UZS` and `USD` are accepted.
-- **FR-2.6** An Owner maintains a tenant-level current `USD→UZS` rate, used as the default on new documents.
-- **FR-2.7** Any document whose transaction currency differs from the tenant's base currency **cannot be confirmed without an exchange rate**. Confirmation is rejected, not defaulted to 1.
-- **FR-2.8** On confirm, a document persists its transaction amount, the rate used, **and** the resulting base-currency amount. *(Test: confirm a USD purchase, change the tenant's current rate, re-read the document — every figure on it is unchanged.)*
+- **FR-2.5** Only `UZS` and `USD` are accepted. **There is no tenant base currency and no exchange rate anywhere in the system** — a store-credit debt is written directly in som by the seller (§4.7), not converted.
+- **FR-2.6** Every product is created with a currency, **defaulting to `USD` for `SERIAL` (phones) and `UZS` for `QUANTITY` (accessories)**. The user may override the default at creation.
+- **FR-2.7** A document (PO, Goods Receipt, Sales Invoice, Supplier Return) **may contain lines in both currencies**. Each line takes its currency from its product, and the document presents **one subtotal per currency present**, never a combined total. *(Test: create an invoice, add a USD phone and a UZS accessory, confirm it — the document reports exactly two totals, `$600.00` and `50 000 so'm`, and no field anywhere holds their sum.)*
+- **FR-2.8** A document's amounts are stored and reported **as transacted, with no conversion**. *(Test: confirm a $500 purchase; re-read it a year later — it is still exactly `$500`, having passed through no rate at all.)*
 - **FR-2.9** Amounts are stored in minor units with **per-currency exponents: USD = 2, UZS = 0**. *(Test: `Money(1000, "UZS")` renders as `1 000 so'm`; `Money(1000, "USD")` renders as `$10.00`.)*
 - **FR-2.10** Adding or comparing two `Money` values of different currencies raises a domain error. There is no implicit conversion anywhere in the domain.
-- **FR-2.11** Margin in any report is computed **from the frozen base-currency amounts**, never by converting historical amounts at the current rate.
+- **FR-2.11** **Every monetary total in every report is grouped by currency and presented per currency.** No figure anywhere sums USD and UZS into a single number. *(Test: a report over a period containing both phone and accessory sales returns a USD total and a UZS total as separate values — never one combined figure.)*
 
 ### 5.3 Inbound — Purchase Orders & Receiving
 
-- **FR-3.1** A Manager creates a Purchase Order: supplier, currency, and lines of `(product, quantity, unit_cost)`. It is a `DRAFT`.
+- **FR-3.1** A Manager creates a Purchase Order: supplier and lines of `(product, quantity, unit_cost)` — each line's currency comes from its product (FR-2.7); the document has no currency of its own. It is a `DRAFT`.
 - **FR-3.2** Confirming a PO fixes its numbers and generates a PDF. **It does not change stock.**
 - **FR-3.3** A Storekeeper creates a Goods Receipt, optionally from a PO (which pre-fills its lines).
 - **FR-3.4** For a `SERIAL` line, the Storekeeper scans one IMEI per unit. The system validates the Luhn check digit and rejects malformed IMEIs **at scan time**, not on submit.
@@ -407,12 +443,12 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 
 ### 5.4 Outbound — Sales & Issue
 
-- **FR-4.1** A Seller creates a Sales Invoice: customer (optional), location, currency.
+- **FR-4.1** A Seller creates a Sales Invoice: customer (optional) and location. Line currencies come from their products (FR-2.7); the invoice has no currency of its own.
 - **FR-4.2** The Seller scans an IMEI; the system resolves it to a `DeviceUnit` and adds it as a line at the product's default sale price.
 - **FR-4.3** Scanning an IMEI that is not `IN_STOCK` is rejected, stating the actual status. *(You cannot sell a phone that is already sold.)*
 - **FR-4.4** Scanning an IMEI held at a different location than the invoice's is rejected.
 - **FR-4.5** Only Owner/Manager may override a line's price. A Seller's invoice uses the catalog price.
-- **FR-4.6** Confirming the invoice marks each unit `SOLD`, decrements quantity lines, writes one `−` movement per line, freezes the exchange rate, and generates the invoice PDF.
+- **FR-4.6** Confirming the invoice marks each unit `SOLD`, decrements quantity lines, writes one `−` movement per line, and generates the invoice PDF.
 - **FR-4.7** Confirming an invoice whose line quantity exceeds available stock is rejected atomically — no partial fulfilment.
 - **FR-4.8** Cancelling a confirmed invoice returns the units to `IN_STOCK` **by writing compensating `+` movements**. The original movements remain.
 
@@ -442,7 +478,7 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 - **FR-8.1** Confirming a PO, Sales Invoice, or Supplier Return generates a PDF carrying the tenant's name, address, and logo.
 - **FR-8.2** Invoice lines show the IMEI for serialized items. *(This is the customer's proof of which handset they bought.)*
 - **FR-8.3** A document's PDF is **immutable once confirmed**; regenerating it produces byte-identical content. Cancellation overlays a "CANCELLED" mark rather than deleting the file.
-- **FR-8.4** Documents show amounts in the transaction currency, with the base-currency equivalent and the frozen rate in the footer where they differ.
+- **FR-8.4** Each document line shows its amount in its own currency, correctly formatted (`$1,000.00` vs `1 000 so'm`), and the document footer shows **one subtotal per currency present** — never a combined total, and never a converted one.
 
 ### 5.9 Reporting
 
@@ -457,8 +493,8 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 - **FR-10.1** Every confirmed document that has a financial consequence writes its `FinancialTransaction` row(s) **in the same database transaction** as its stock movements. A confirm either records both goods and money, or neither.
 - **FR-10.2** Cancelling a confirmed document writes **reversing** financial transactions; the originals remain. *(Test: confirm a sale, cancel it, and assert the net financial effect for that document is zero while both transactions are visible in the ledger.)*
 - **FR-10.3** An Owner/Manager can pull a **financial transaction log** over any date range, filterable by category, location, and document — the raw money ledger, mirroring the movement log.
-- **FR-10.4** An Owner/Manager can run a **Month-End Report** for a given month and location (or consolidated across all locations), reported in the tenant's base currency.
-- **FR-10.5** The Month-End Report presents, for the period:
+- **FR-10.4** An Owner/Manager can run a **Month-End Report** for a given month and location (or consolidated across all locations). **Every figure in it is reported per currency — a USD column and a UZS column, side by side, never merged into one number.**
+- **FR-10.5** The Month-End Report presents the following, **each as a pair of independent per-currency figures (USD for the phone business, UZS for accessories)**:
   - **Opening inventory value** (= previous period's closing).
   - **Purchases** — value of goods received.
   - **COGS** — cost of goods sold (specific-identification for phones, weighted-average for accessories, per §4.6).
@@ -466,33 +502,31 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
   - **Write-offs** and **count adjustments** — value lost or corrected.
   - **Supplier-return credits**.
   - **Closing inventory value** (= opening + purchases − COGS − write-offs − returns ± adjustments).
-  - **Receivables movement** (cash view): opening receivables, + credit/installment sales booked, − payments collected, = **closing receivables outstanding**.
-  - **Cash collected** in the period (Σ `PAYMENT_RECEIVED`) — distinct from revenue, so the owner sees the gap between what was earned and what actually came in.
+  - **Customer debt movement** (UZS): opening debt, + store-credit sales booked, − payments collected, = **closing debt outstanding**.
+  - **Cash collected on store credit** in the period (Σ `PAYMENT_RECEIVED`, UZS) — distinct from revenue, so the owner sees the gap between what was earned and what actually came in.
+  - **Sales by financing type** — counts and revenue split across paid-in-full / credit-company (by company) / store-credit, so the owner sees how the store actually sells.
 - **FR-10.6** The report breaks the closing inventory figure down **by location** — the warehouse's stock value and each store's stock value shown separately, then totalled — so the owner sees where the value physically sits.
-- **FR-10.7** The report's **closing inventory value must equal the independently-computed on-hand value** (Σ cost of `IN_STOCK` units + Σ accessory average-cost value) at period end. A mismatch is surfaced as a reconciliation error, not silently reconciled. *(This is the money-side analogue of `verify-projections`.)*
-- **FR-10.7b** The report's **closing receivables must equal the sum of every customer's outstanding balance** (§4.7) at period end — the `verify-balances` check, run as part of the report.
+- **FR-10.7** The report's **closing inventory value must equal the independently-computed on-hand value** at period end, **checked per currency** (USD serialized units against the USD figure, UZS accessory value against the UZS figure). A mismatch is surfaced as a reconciliation error, not silently reconciled. *(This is the money-side analogue of `verify-projections`.)*
+- **FR-10.7b** The report's **closing customer debt must equal the sum of every customer's balance** (§4.7) at period end — the `verify-balances` check, run as part of the report. All debt is UZS, so this is a single-figure reconciliation.
 - **FR-10.8** All period boundaries are computed in the **tenant's timezone**: a month runs `[00:00 on the 1st, 00:00 on the 1st of next month)` in that timezone, so a sale at 23:30 on the 31st lands in the correct month.
 - **FR-10.9** The Month-End Report is exportable as a PDF carrying the tenant's letterhead and the period.
-- **FR-10.10** Because every figure derives from the frozen base-currency amounts on the ledger (§4.5), **re-running a past month's report always yields identical numbers**, regardless of today's exchange rate. *(Test: generate March's report, change the current USD→UZS rate, regenerate March — byte-identical figures.)*
+- **FR-10.10** Because no figure is ever converted (§4.5), **re-running a past month's report always yields identical numbers.** Reproducibility here is structural: there is no rate that could have moved. *(Test: generate March's report twice, months apart — byte-identical figures.)*
 
 > **On "opening = previous closing":** in v1 both are computed live from the ledger since inception — the ledger is complete and immutable, so no stored month-end snapshot is required for correctness. Snapshotting closing balances is a v2 performance optimization (see risks), not a correctness need.
 
-### 5.11 Credit, Installments & Payments
+### 5.11 Credit Sales & Payments
 
-- **FR-11.1** When creating a Sales Invoice, a Seller chooses a `payment_type` of `PAID_IN_FULL`, `CREDIT`, or `INSTALLMENT`. `PAID_IN_FULL` behaves exactly as the existing outbound flow.
-- **FR-11.2** For `CREDIT` or `INSTALLMENT`, the Seller may record an optional **down payment** (≥ 0, ≤ total). The financed amount is `total − down_payment`.
-- **FR-11.3** For `INSTALLMENT`, the Seller specifies the number of installments and a start date; the system generates an equal-split schedule of dated installments whose amounts sum **exactly** to the financed amount (the rounding remainder lands on the final installment, never lost). *(Test: a 10,000,003-som balance over 3 installments produces rows summing to exactly 10,000,003.)*
-- **FR-11.4** The installment total equals the cash price — **no interest or markup is added by the system** (FR references §4.7).
-- **FR-11.5** Confirming a credit/installment sale marks the device(s) `SOLD`, writes the `−` stock movement and full `SALE_REVENUE`/`COGS`, records any down payment as a `Payment`, and opens a receivable for the financed amount — **all in one transaction.**
-- **FR-11.6** A user with the right role can **record a payment** against an outstanding invoice: an amount, a date, and a method label (cash/transfer/card). The payment reduces the invoice balance and, for installment plans, is allocated oldest-due-first unless a specific installment is targeted.
-- **FR-11.7** A payment cannot exceed the invoice's outstanding balance. Overpayment is rejected. *(No customer credit balances in v1.)*
-- **FR-11.8** Recording a payment writes a `PAYMENT_RECEIVED` financial transaction and **never** a `SALE_REVENUE` one. *(Test: sell on installment, pay all installments, assert total `SALE_REVENUE` equals the sale price exactly once — not once per payment.)*
-- **FR-11.9** A mistaken payment is reversed by recording a compensating negative payment; the original stays in the ledger.
-- **FR-11.10** Any user (cost-visibility aside) can view a **customer's account**: total sold on credit, total paid, current outstanding balance, and the list of open invoices/installments with due dates and statuses.
-- **FR-11.11** An installment is `OVERDUE` when `due_date < today` (tenant timezone) and it is not fully paid. This is **computed at read time**, so an installment becomes overdue by the passage of time with no batch job required.
-- **FR-11.12** An Owner/Manager can run an **Accounts-Receivable / aging report**: every customer with an outstanding balance, bucketed by how overdue (current, 1–30, 31–60, 60+ days), with totals. *(This is the "who owes what" answer.)*
-- **FR-11.13** Cancelling a credit/installment invoice reverses the stock, revenue, and COGS as in FR-4.8, **and** voids the receivable and its remaining schedule. Payments already received against it are surfaced for refund handling but not silently deleted. *(A sale with money already collected cannot be cancelled without an explicit resolution — the system flags it rather than losing the payment record.)*
-- **FR-11.14** An Owner can set an optional **credit limit** per customer; a new credit/installment sale that would push the customer's outstanding balance over the limit requires Owner/Manager override.
+- **FR-11.1** When creating a Sales Invoice, a Seller chooses a `payment_type` of `PAID_IN_FULL`, `CREDIT_COMPANY`, or `STORE_CREDIT`. `PAID_IN_FULL` behaves exactly as the existing outbound flow.
+- **FR-11.2** The phone leaves at confirm on every payment type: units are marked `SOLD` and the full `SALE_REVENUE`/`COGS` is booked in the product's own currency, whether or not any money has been received.
+- **FR-11.3** An Owner can maintain the **credit companies** reference list (name, contact, active).
+- **FR-11.4** A `CREDIT_COMPANY` sale records the company and an optional contract reference, and is **settled at confirm** — it creates no debt, no receivable, and no schedule. *(Test: confirm a financed sale; the customer's balance is zero and no open debt exists anywhere; the sale is filterable by company.)*
+- **FR-11.5** For a `STORE_CREDIT` sale, the Seller enters the **total debt in UZS** (regardless of the line currencies) and an optional **down payment in UZS**. Confirming books revenue/COGS as usual, opens the debt, and **records the down payment as the first `Payment`** (writing its `PAYMENT_RECEIVED` entry) — so the projection formula `remaining = debt − Σ payments` holds with no special case, and the down payment appears in "cash collected" like any other payment. *(Test: sell a $600 phone with `debt = 7 800 000 so'm`, `down = 800 000` — revenue is $600, one payment of 800 000 exists, and the customer owes exactly 7 000 000 so'm.)*
+- **FR-11.6** A user with the right role can **record a payment** (UZS, date, method label) against an open store-credit invoice, reducing its remaining balance. A payment exceeding the remaining balance is rejected.
+- **FR-11.7** Recording a payment writes a `PAYMENT_RECEIVED` transaction and **never** a `SALE_REVENUE` one. *(Test: pay a store-credit sale down to zero across several payments — total `SALE_REVENUE` for the sale equals its price exactly once.)*
+- **FR-11.8** A mistaken payment is reversed by a compensating negative payment; the original stays in the ledger.
+- **FR-11.9** Any user (cost-visibility aside) can view a **customer's account**: open invoices with entered debt, paid so far, remaining, and days since sale; plus their financed sales labelled by company (informational, zero balance).
+- **FR-11.10** An Owner/Manager can run a **debtor list**: every customer with a balance > 0, their total UZS balance, and the age of their oldest open invoice, sorted worst-first. *(This is the "who owes what" answer — no buckets, no schedule needed.)*
+- **FR-11.11** Cancelling a store-credit invoice reverses stock, revenue, and COGS as in FR-4.8 and voids the remaining debt. Payments already received are surfaced for refund handling, never silently deleted. Cancelling a credit-company sale is the plain FR-4.8 flow — there was no debt to void.
 
 ---
 
@@ -519,6 +553,7 @@ This puts the entire burden on the API being fast and unambiguous:
 | Language | Python 3.14 |
 | Package/env manager | **uv** |
 | Web framework | FastAPI |
+| Validation & serialization | **Pydantic v2** — request/response schemas in `presentation`, `pydantic-settings` for `Settings` in `infrastructure`. **Never imported by `domain` or `application`** (§7.3). |
 | DI | **Dishka** |
 | ORM | SQLAlchemy 2.x (async) |
 | Driver | **asyncpg** (0.31+ ships cp314 wheels; **psycopg3** is the fallback) |
@@ -569,6 +604,32 @@ presentation ──▶ application ──▶ domain
 
 **Why the ports live in `application`, not `infrastructure`:** this is the inversion in "dependency inversion," and it's the bit people get backwards. The use case *declares its needs*; infrastructure *satisfies them*. Consequence: `application` can be tested with in-memory fakes and no database at all.
 
+#### Data shapes across the layers — where Pydantic v2 lives, and what a DTO is
+
+Three kinds of data-carrying classes exist, one per layer. They look similar and are **not interchangeable** — each exists to keep its layer's dependencies clean:
+
+| Layer | Class kind | Example | Job |
+|---|---|---|---|
+| `presentation` | **Pydantic v2 `BaseModel` schemas** | `ConfirmInvoiceRequest`, `InvoiceResponse` | Parse and validate raw HTTP input; serialize responses. This is also where **role-based field omission** happens (FR-1.7): a Staff-facing response model simply has no cost fields. |
+| `application` | **DTOs: frozen `@dataclass`es** | `ReceiveGoodsCommand`, `ScanResult` | Carry structured data across the use-case boundary. No behavior, no validation logic, no framework imports. |
+| `domain` | **Entities & value objects** | `Money`, `IMEI`, `GoodsReceipt` | Not DTOs at all — they hold *behavior and invariants*. An `IMEI` validates itself; a DTO never does. |
+| `infrastructure` | **SQLAlchemy models** | `DeviceUnitModel` (mapped to `device_units`) | The *persistence* shape of an entity. **Never escapes the repository**: each repository maps row ↔ domain entity internally, so `application` never sees the ORM. |
+
+**Who maps what:** row ↔ entity mapping lives **inside repositories** (`infrastructure`) — the repository's public signatures speak domain types only. Schema → DTO/args and entity → response-model mapping lives in **`presentation`** (a `from_entity()` classmethod on the response schema is the idiomatic form). No mapping code exists in `domain` or `application` — those layers are mapped *to*, never mapping themselves.
+
+**Why application DTOs are dataclasses and not Pydantic models:** `application` depends on `domain` only — that rule is what makes use cases testable with in-memory fakes. Pulling Pydantic into `application` would work mechanically, but it drags a validation framework into the one layer whose tests are supposed to run with zero framework, and it creates a second place where validation *could* live. The split is deliberate: **structural validation** (types, required fields, ranges) happens once, at the edge, in the Pydantic schema; **semantic validation** (a well-formed IMEI, a non-negative Money, a confirmable receipt) happens in the domain. A DTO in between carries data and validates nothing, so there is never a question about which layer owns a rule.
+
+The flow for one request:
+
+```
+HTTP JSON ──▶ Pydantic schema (presentation: shape, types)
+          ──▶ DTO / plain args (application boundary)
+          ──▶ entities & value objects (domain: invariants)
+          ──▶ result DTO ──▶ Pydantic response model ──▶ JSON
+```
+
+**When to actually write a DTO — and when not to.** A use case taking two scalars needs no ceremony: `ReceiveGoods.execute(receipt_id, user_id)` (§7.4) takes plain arguments, and that is the correct form. A DTO earns its place when the input is *compound* — `CreateInvoiceCommand` with customer, location, payment type, and a list of lines — or when a use case returns a structured result the router must serialize. The rule mirrors §7.6: no mapping class exists before there's a concrete shape that needs carrying. Mapping code (schema → DTO, entity → response model) lives in `presentation`, because it is presentation that knows both sides.
+
 ### 7.4 A use case end to end: `ReceiveGoods`
 
 Tracing one operation through every layer, because this is the pattern every other operation copies:
@@ -597,7 +658,7 @@ DDD concepts will be introduced **against real code, at the moment the code need
 
 - **Value objects** — arrive immediately, in `IMEI` and `Money`. The simplest DDD idea and the one with the fastest payoff: an `IMEI` that cannot exist in an invalid state deletes an entire class of bugs.
 - **Entities & identity** — `DeviceUnit` is the obvious teaching case: two handsets of the same model are *not* equal, even with identical attributes, because identity is not attributes.
-- **Aggregates & invariants** — when we build `GoodsReceipt.confirm()`. A receipt and its lines are one consistency boundary: you cannot confirm a receipt whose lines don't add up, so they must be loaded, validated, and saved as a unit. This is where "aggregate" stops being jargon and starts being obvious. `InstallmentPlan` (a plan and its installments, whose amounts must always sum to the financed total) is the second worked example, at M5b.
+- **Aggregates & invariants** — when we build `GoodsReceipt.confirm()`. A receipt and its lines are one consistency boundary: you cannot confirm a receipt whose lines don't add up, so they must be loaded, validated, and saved as a unit. This is where "aggregate" stops being jargon and starts being obvious. The store-credit invoice (whose remaining balance must always equal entered debt minus its payments, never negative) is the second worked example, at M5b.
 - **Domain events** — deferred. Not needed in v1. When a stock movement needs to trigger a low-stock alert, that's the moment to introduce them, and not before.
 
 The rule: no DDD concept enters this codebase before there's a concrete problem in *this* system that it solves.
@@ -644,19 +705,18 @@ All routes are prefixed `/api/v1`. All except auth require a bearer token carryi
 | `GET` / `POST` | `/invoices` | Seller+ |
 | `POST` | `/invoices/{id}/scan` | Seller+ |
 | `PATCH` | `/invoices/{id}/lines/{line_id}` | Manager (price override) |
-| `POST` | `/invoices/{id}/confirm` | Seller+ (body carries `payment_type`, down payment, installment terms) |
+| `POST` | `/invoices/{id}/confirm` | Seller+ (body carries `payment_type`; for store credit: som debt total + down payment; for credit company: company + contract ref) |
 | `POST` | `/invoices/{id}/cancel` | Manager |
 | `GET` | `/invoices/{id}/pdf` | Seller+ |
 
-### Credit, Installments & Payments
+### Credit Sales & Payments
 | Method | Path | Role |
 |---|---|---|
-| `GET` | `/invoices/{id}/schedule` | Seller+ (installment schedule + status) |
-| `POST` | `/invoices/{id}/payments` | Seller+ (record a payment) |
+| `GET` / `POST` | `/credit-companies` | read: Seller+ · write: Owner |
+| `POST` | `/invoices/{id}/payments` | Seller+ (record a UZS payment on store credit) |
 | `POST` | `/payments/{id}/reverse` | Manager |
-| `GET` | `/customers/{id}/account` | Seller+ (balance, invoices, schedule) |
-| `PUT` | `/customers/{id}/credit-limit` | Owner (Manager may override at sale) |
-| `GET` | `/reports/receivables?as_of=&bucket=` | Manager (AR aging) |
+| `GET` | `/customers/{id}/account` | Seller+ (open debts, paid, remaining; financed sales labelled, zero balance) |
+| `GET` | `/reports/debtors` | Manager (every customer with balance > 0, worst-first) |
 
 ### Returns, Counts, Write-offs
 | Method | Path | Role |
@@ -684,7 +744,7 @@ All routes are prefixed `/api/v1`. All except auth require a bearer token carryi
 | `GET` | `/reports/financial-ledger?from=&to=&category=&location=` | Manager |
 | `GET` | `/reports/month-end?year=&month=&location=` | Manager |
 | `GET` | `/reports/month-end/pdf?year=&month=&location=` | Manager |
-| `GET` / `PUT` | `/settings/exchange-rate` | read: Manager · write: Owner |
+| `GET` / `PUT` | `/settings/tenant` | read: any · write: Owner (timezone, letterhead) |
 
 ---
 
@@ -719,9 +779,10 @@ All routes are prefixed `/api/v1`. All except auth require a bearer token carryi
 - `verify-balances` runs in CI: recompute every customer's outstanding balance from the sale/payment ledgers, assert it matches any cached projection.
 
 **Financial correctness invariants** (asserted by tests, since a wrong number here is invisible until it's expensive)
-- Revenue is booked once per sale, never per payment — total `SALE_REVENUE` for a sale equals its price regardless of how many installments were paid.
-- A fully-paid credit sale nets `customer_outstanding = 0`; a cancelled-with-payment sale is flagged, never silently zeroed.
-- Installment schedule amounts sum exactly to the financed amount (no rounding leak).
+- Revenue is booked once per sale, never per payment — total `SALE_REVENUE` for a sale equals its price regardless of how many payments were recorded.
+- A fully-paid store-credit sale nets the customer's balance to 0; a cancelled-with-payment sale is flagged, never silently zeroed.
+- A credit-company sale creates no debt anywhere — the customer's balance is unchanged by it.
+- An invoice's remaining balance never goes negative (overpayment rejected).
 
 ---
 
@@ -733,15 +794,15 @@ Each milestone is independently demoable.
 |---|---|---|
 | **M0** | **Bootstrap** | uv workspace, FastAPI + Dishka skeleton, the four-layer structure, docker-compose (Postgres), CI. Demo: `/health` responds. |
 | **M1** | **Tenancy & Auth** | MasterDB, tenant provisioning, engine registry, migration fan-out CLI, JWT, roles. Demo: sign up two tenants; prove tenant A cannot see tenant B. |
-| **M2** | **Catalog** | Products (both tracking types), locations, suppliers, customers. Demo: build a catalog. |
+| **M2** | **Catalog** | Products (both tracking types, **per-product currency** with USD/UZS defaults), locations, suppliers, customers. Demo: build a catalog. |
 | **M3** | **The ledgers** | `StockMovement` **and** `FinancialTransaction`, projections, valuation rules, `verify-projections` + financial reconciliation. Demo: a confirm writes both a stock movement and its money entry, and both reconcile. |
 | **M4** | **Inbound** | PO → Goods Receipt, IMEI scan-in, Luhn + duplicate rejection, `PURCHASE` financial entries. Demo: **scan 10 phones into stock with a real scanner.** |
 | **M5** | **Outbound** | Sales Invoice, scan-to-sell, confirm, cancel-with-compensation, `SALE_REVENUE` + `COGS` entries. Demo: scan a phone, sell it, cancel, watch both goods and money reverse. |
-| **M5b** | **Credit, installments & receivables** | `payment_type` on sales, down payment, installment schedules, `Payment` ledger, per-customer balance, `verify-balances`, AR aging report. Demo: **sell a phone on a 3-month plan, record two payments, show the balance and the one installment now overdue.** |
+| **M5b** | **Credit sales & customer debt** | `payment_type` on sales, `CreditCompany` reference list, som-denominated store-credit debt, `Payment` ledger, customer accounts, debtor list, `verify-balances`. Demo: **sell a $600 phone on store credit for 7.8M som with an 800k down payment, record two payments, show the remaining balance — then sell another via a credit company and show it settled with zero debt.** |
 | **M6** | **Counts, write-offs, supplier returns** | Full discrepancy → adjustment flow with `WRITE_OFF_LOSS` / `COUNT_ADJUSTMENT` / `SUPPLIER_RETURN_CREDIT` entries. Demo: hide a phone, run a count, watch the system find it missing and book the loss. |
 | **M7** | **Documents** | PDF generation for PO, Invoice, Supplier Return. Demo: print a real invoice with an IMEI on it. |
 | **M8** | **Reporting** | Stock on hand, IMEI trace, sales summary, ageing, financial ledger. Demo: trace one IMEI's entire life. |
-| **M9** | **Month-End Report** | Period close in tenant timezone, per-location inventory value, opening→closing reconciliation, margin, **receivables movement + cash collected**, PDF export. Demo: **run last month's report for the warehouse and the store, reconcile closing value against on-hand, and closing receivables against customer balances.** |
+| **M9** | **Month-End Report** | Period close in tenant timezone, per-location inventory value, opening→closing reconciliation, margin, **customer-debt movement + cash collected**, PDF export. Demo: **run last month's report for the warehouse and the store, reconcile closing value against on-hand, and closing debt against customer balances.** |
 
 **M4 is the milestone that proves the product** operationally; **M9 is the milestone that proves it financially.** Note that the financial ledger is *not* deferred to M9 — it is written from M3 onward as each document type lands, because retrofitting money entries onto already-confirmed documents would mean backfilling history. M9 only adds the *reporting* on top of a ledger that has been accruing all along.
 
@@ -762,11 +823,13 @@ Each milestone is independently demoable.
 | **Python 3.14 wheel availability** across the dependency set | Medium | asyncpg 0.31+ ships cp314 wheels. **Verify the full set at M0** — psycopg3 is the drop-in fallback driver, and SQLAlchemy's async layer needs greenlet, which must also have 3.14 wheels. |
 | **Currency exponent mismatch (USD=2, UZS=0)** | **High** | The classic 100× corruption bug. Mitigated structurally: exponent lives on the `Money` value object, never in call sites; a bare int is not money. Round-trip tests for both currencies land in M0, before any money is persisted. |
 | **UZS integer overflow** | Medium | `BIGINT` everywhere for `amount_minor` — a 32-bit int overflows at ~175 phones' worth of som. Enforced at the schema level. |
-| **Exchange-rate source** | Low | v1: entered manually per document, defaulting to a tenant-level current rate an Owner maintains. Automatic FX feed is v2. |
-| **Double-counting revenue as cash** | **High** | The signature bug of naive credit systems. Mitigated structurally: revenue is booked once at sale (`SALE_REVENUE`), payments are a *separate* category (`PAYMENT_RECEIVED`) that never touches revenue (FR-11.8). A test asserts total revenue for a sale equals its price no matter how many payments landed. |
-| **Cancelling a sale that already took payments** | Medium | Ambiguous by nature — money changed hands. v1 refuses to silently zero it: the cancel flags the collected payments for explicit refund handling (FR-11.13) rather than deleting them. Full refund/repossession workflow is v2. |
-| **Payment-in-a-currency-≠-sale-currency** | Medium | **Open question for M5b.** A USD sale paid in UZS (or vice-versa) needs an allocation rule and a rate at payment time. Simplest v1 stance: a payment must be in the invoice's currency; cross-currency settlement is v2. Confirm before M5b. |
-| **Installment rounding leak** | Low | Equal-split schedules must sum to the financed amount to the minor unit; the remainder lands on the final installment (FR-11.3), asserted by test. |
+| **Accidentally summing across currencies** | **High** | With two currencies and no conversion, a `SUM()` missing its `GROUP BY currency` silently adds cents to som. Mitigated by the `Money` value object (cross-currency arithmetic raises), and by FR-2.11's test that every report returns per-currency totals. |
+| **Mixed-currency documents** | Medium | Supported in v1 (§4.5): one invoice, one subtotal per currency. Simplified by the debt model: all customer debt is UZS regardless of line currencies, so only *revenue* is per-currency. Mitigated by `Money` (cross-currency arithmetic raises) and `verify-balances`. |
+| **Double-counting revenue as cash** | **High** | The signature bug of naive credit systems. Mitigated structurally: revenue is booked once at sale (`SALE_REVENUE`), payments are a *separate* category (`PAYMENT_RECEIVED`) that never touches revenue (FR-11.7). A test asserts total revenue for a sale equals its price no matter how many payments landed. |
+| **Cancelling a sale that already took payments** | Medium | Ambiguous by nature — money changed hands. v1 refuses to silently zero it: the cancel flags the collected payments for explicit refund handling (FR-11.11) rather than deleting them. Full refund workflow is v2. |
+| **Attributing a credit company's debt to the customer** | Medium | A financed customer owes the store *nothing* — the company already paid in full. Enforced by FR-11.4's test asserting a financed sale creates no debt anywhere. |
+| **Store-credit debt has no due date** | Low, by design | An open balance can sit forever without ever being "late." Accepted — it matches how these debts actually work. The debtor list orders by age of oldest open invoice (FR-11.10), so stale debts surface anyway. If owners ask for due dates, that's a v2 field, not a redesign. |
+| **Credit company fails to pay immediately** | Low | The model assumes payment at sale time, per the owner. If a company ever pays late or partially, v1 has no way to represent it — the sale would simply be settled. Accepted; revisit only if it happens in practice (sales are labelled by company, so history is recoverable). |
 
 ### Deferred to v2 (schema anticipates them)
-Inter-location transfers · customer returns/refunds · reservations · low-stock alerts · domain events · barcode label printing · automatic FX rates · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **automatic late fees / penalties · credit scoring · repossession & default workflow · cross-currency payment settlement · supplier accounts-payable (store's debts to suppliers)**.
+Inter-location transfers · customer returns/refunds · reservations · low-stock alerts · domain events · barcode label printing · **a single combined cross-currency bottom line (would require an FX rate — deliberately absent in v1)** · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **due dates / overdue tracking on store credit · customer credit limits · installment schedules · credit-company payout & commission tracking** · supplier accounts-payable (store's debts to suppliers).
