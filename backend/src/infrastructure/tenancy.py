@@ -10,7 +10,14 @@ import asyncio
 from collections import OrderedDict
 from dataclasses import dataclass
 
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+
+def tenant_db_url(master_db_url: str, db_name: str) -> str:
+    """A tenant database lives next to the master: same host, same
+    credentials, different database name (PRD §3.4)."""
+    return make_url(master_db_url).set(database=db_name).render_as_string(hide_password=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +56,10 @@ class TenantEngineRegistry:
         if evicted is not None:
             await evicted.dispose()
         return engine
+
+    @property
+    def live_count(self) -> int:
+        return len(self._engines)
 
     async def dispose_all(self) -> None:
         async with self._lock:
