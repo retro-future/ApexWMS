@@ -52,12 +52,17 @@ MVP is done when a store owner can, on real hardware: create a PO, receive the g
 
 | Role | Who they are | What they need |
 |---|---|---|
+| **SuperAdmin / Admin** | Us — the people who operate ApexWMS. Not customers, and not staff at any store. | Create tenants, suspend them, see the fleet. They hold an **`AppRole`** (`app.superadmin`, `app.admin`), which is a different namespace from the store roles below and cannot appear in a store token (§3.5). There is no separate SuperAdmin entity — it is a `User` with that role assigned. |
 | **Owner** | Runs the business, may own several stores. | Everything, plus reporting, plus user management and settings. |
 | **Manager** | Runs one or more locations day to day. | All stock operations, documents, reporting. Cannot manage billing or delete the tenant. |
 | **Storekeeper** | Physically handles goods. | Receiving, stock counts, write-offs. Should not see margins or set prices. |
 | **Seller** | Sells to customers on the floor. | Look up stock, sell, generate invoice. Should not see acquisition cost. |
 
 ### 2.1 Permission matrix
+
+*Roles **within** a store (`TenantRole`: `tenant.owner`, `tenant.manager`, `tenant.storekeeper`, `tenant.seller`). App-level roles are absent on purpose — they live in a separate namespace (see §3.5).*
+
+This table is not decoration: it is the source for the **permission catalog** in `domain/permissions.py`, where each row becomes a `Permission.<Module>.<Action>` string and each column becomes a subset of that one catalog. Authorization compares permissions, never role names — the matrix is not hierarchical, so there is no rank to compare.
 
 | Operation | Owner | Manager | Storekeeper | Seller |
 |---|:--:|:--:|:--:|:--:|
@@ -97,8 +102,16 @@ This is the single most consequential decision in this document, and the most ex
 
 ### 3.1 The model
 
-- **One master database (MasterDB).** Holds `tenants`, `tenant_databases`, global `users`, and `memberships` (which user belongs to which tenant, with which role). This is the *only* database reachable without a tenant context. Login happens here.
-- **One database per tenant.** Created at provisioning. Holds *all* business data: products, device units, movements, documents, locations, suppliers, customers. **There is no `tenant_id` column anywhere inside a tenant database** — isolation is physical, not a `WHERE` clause. A missing filter cannot leak another tenant's data because that data is not in the database you are connected to.
+- **One master database (MasterDB).** The tenant registry — `tenants` (id, name, **`slug`**, status), `tenant_databases` — **and platform identity**: `users`, `user_app_roles`, `user_tenant_access`, `invitations`, `refresh_tokens`. It holds no operational data of any kind.
+- **One database per tenant.** Created at provisioning. Holds *all* business data — products, device units, movements, documents, locations, suppliers, customers — **and `employees`**, the rows saying who works here and in what role. **There is no `tenant_id` column anywhere inside a tenant database** — isolation is physical, not a `WHERE` clause. A missing filter cannot leak another tenant's data because that data is not in the database you are connected to.
+
+**Identity is split across the two databases, on purpose.** "Who is this person" (`User`, MasterDB, one row ever, email unique platform-wide) is a different question from "what may they do at store X" (`Employee` + `TenantRole`, that store's database, one row per store they work at). A person managing two shops has **one login** and two `Employee` rows — possibly with different roles, which is exactly what the model is for.
+
+Three consequences worth stating outright:
+
+- **`Employee.id` *is* the master `User.id`.** Not a foreign key — the databases are different, so no constraint can express it — but a contract, asserted by an architecture test. It is what lets M3's `stock_movements.user_id` and `documents.created_by` be real, enforceable foreign keys into a tenant-local table while the login identity stays central. Break the equality and every ledger join breaks silently.
+- **`employees.email`/`full_name` are copied** from the master user. Deliberate denormalization: listing a store's staff, and later joining the ledger to a name, must never require a cross-database read. MasterDB is the source of truth if they disagree.
+- **`refresh_tokens` and `invitations` are master-side.** A refresh token proves *who* you are, which is not a per-store fact; an invitation must be acceptable by someone who has no tenant context yet, which is only possible if it is stored centrally.
 
 ### 3.2 What this costs us
 
@@ -113,26 +126,74 @@ This is the single most consequential decision in this document, and the most ex
 
 ### 3.3 Request lifecycle
 
+**Login names no tenant.** Email is unique platform-wide, so credentials alone identify the person; the store their token speaks for is stamped in server-side from `users.tenant_id`. The client never chooses it.
+
 ```
-Request → JWT validated → tenant_id claim extracted
+Login (email + password)  →  authenticate against MasterDB
+        → claims factory: tenant = X-Tenant (if any) else user.tenant_id
+        → no tenant either way?  → platform operator: token carries NO tenant claim
+        → otherwise: read that store's `employees` row for the role
+        → JWT issued with the tenant and role baked in
+
+Every tenant-scoped request:
+        → resolve the tenant:  X-Tenant header  >  JWT `tenant` claim
+        → look it up in MasterDB (status must be active)
         → EngineRegistry.get(tenant_id)   [LRU cache; opens engine on miss]
         → AsyncSession bound to that engine   [Dishka REQUEST scope]
         → Use case executes; it never knows a tenant exists
         → Session committed/rolled back and closed by the DI container
 ```
 
-The tenant is resolved **once**, at the edge. Nothing in the `domain` or `application` layer takes a tenant parameter. This is what makes the isolation structural rather than disciplinary.
+`X-Tenant` accepts a slug (`acme`) or a UUID.
+
+**The header wins over the claim**, and that asymmetry is the point: it lets someone with `user_tenant_access` at several stores switch between them **without re-authenticating**. The token proves *who* they are; the header decides *whose data* they are looking at.
+
+A header naming a store the caller has no grant for is a **403, checked before any session opens** — not trusted and left to return an empty result. (This is a deliberate hardening over the reference implementation this design is ported from, which trusts the header and relies on the tenant database coming back empty.)
+
+The tenant is resolved **once**, at the edge. Nothing in the `domain` or `application` layer takes a tenant parameter. This is what makes the isolation structural rather than disciplinary. The one exception is `TenantScope`, a narrow port for reaching a store the edge could not have resolved — login, which learns the tenant only after reading the master user row.
 
 ### 3.4 Provisioning flow
 
-1. Insert `tenants` row (`status = pending`).
+A tenant is created by a **SuperAdmin**, via `apexwms create-tenant --name --slug --owner-email --owner-name`. There is no public sign-up.
+
+1. Insert the `tenants` row (`status = pending`, with its unique slug) **and the Owner's master `users` row** — with a generated temporary password, `must_change_password = true`, and `tenant_id` pointing at the new store. Commit.
 2. `CREATE DATABASE apexwms_tenant_<uuid>` (autocommit, outside a transaction — Postgres requires this).
 3. Record connection info in `tenant_databases`.
 4. Run Alembic to head against the new DB.
-5. Seed: a default `Location` ("Main Store"), the tenant's timezone, and the Owner membership for the signing-up user.
+5. Seed: a default `Location` ("Main Store"), the tenant's timezone, and **the Owner's `employees` row — carrying the user id minted in step 1**, so the two match.
 6. Mark `status = active`.
 
-Steps 2–5 are idempotent and retryable.
+Steps 2–5 are idempotent and retryable; step 1 commits first so a crash during provisioning leaves a `pending`/`failed` tenant that can simply be provisioned again. The temporary password is returned once, to the operator running the command, and is never stored in plaintext; the Owner must replace it via `POST /auth/change-password`, which also revokes every session opened with it. Delivering it by welcome email is v2 (§3.5) — today the CLI prints it and the operator hands it over.
+
+Platform operators are seeded the same way, minus a store: `apexwms create-superadmin` writes a `users` row with `tenant_id = NULL` and an `app.superadmin` row in `user_app_roles`.
+
+Adding staff to an *existing* store goes through invitations instead (FR-1.5), where the invitee chooses their own password — the safer path, and the one to prefer wherever a temporary password is avoidable.
+
+`suspended` is a fifth tenant status, outside the provisioning state machine: an operator decision (unpaid, abuse) applied to an already-active tenant and reversible with `apexwms activate-tenant`. The database and its data are untouched; only access stops.
+
+### 3.5 The two role systems, and what is deliberately deferred
+
+**Two role namespaces, kept apart by their prefixes.** `AppRole` (`app.superadmin`, `app.admin`) lives in MasterDB on `user_app_roles`; `TenantRole` (`tenant.owner`, `tenant.manager`, `tenant.storekeeper`, `tenant.seller`) lives in each store's database on `employees.role`. The prefixes are the collision-avoidance mechanism: the two string spaces cannot overlap, so a role or permission check can never accidentally match across the systems. A guard fails at import time if a member is ever added without its prefix.
+
+Both draw from **one flat permission catalog** (`domain/permissions.py`). `Permission.<Module>.<Action>` constants are grouped into nested "module" classes and the full list is derived by reflection, so the catalog cannot drift from a second hand-maintained list. Two independent maps assign subsets: `APP_ROLE_PERMISSIONS` (superadmin → everything; admin → everything except managing other admins) and `TENANT_ROLE_PERMISSIONS` (the four §2.1 columns). A tenant role can only ever reference the shared catalog, never an app-role name, and vice versa — which is what keeps future per-store custom roles from colliding with platform ones. `register_tenant_role()` is the hook for that, unused while §2.1 fixes the four.
+
+**This model was settled during M1, after one wrong turn.** An earlier M1 draft collapsed identity into the tenant databases — one `users` table per store carrying credentials *and* role, with no master identity at all. The stated reason was that M3's `stock_movements.user_id` needs a real foreign key, which a cross-database UUID cannot provide.
+
+That reasoning was wrong, and the fix is the `Employee.id == User.id` mirror described in §3.1: the tenant database holds a row keyed by the master user id, so the ledger's foreign keys are tenant-local *and* enforceable while the login identity stays central. Both properties, no trade. The collapsed model also cost multi-tenant users, gave SuperAdmin no data model at all, and forced every login to name a store before it could authenticate.
+
+**What this buys back.** FR-1.3 returns: one person, one login, several stores, switched with `X-Tenant` and authorized by `user_tenant_access`. Login gets simpler, not harder — no store handle in the login form.
+
+**Deliberately NOT built yet** — the groundwork is documented here so it isn't reinvented, but building it now would be premature:
+
+| Deferred to v2 | Why not now |
+|---|---|
+| **SuperAdmin admin portal** — a UI to create/edit tenants and change subscription plans. | The CLI covers every operation it would. A portal is a second frontend before the first one exists. |
+| **`/admin/*` HTTP API.** | Platform operators already exist as real accounts and can authenticate (their token simply carries no tenant claim), so no new auth realm is needed when the portal lands — only routes. Until then the CLI is the whole surface. |
+| **Billing / subscription metadata** — `Subscription`, `SubscriptionPlan`, `PlanFeature`, and the subscription check that would run right after tenant resolution. | Nothing reads it yet. It belongs in MasterDB when it arrives — an application-level concern, not a store's business data. |
+| **Per-store custom roles** — `TenantRole` as DB rows with free-form claims rather than a fixed enum. | §2.1 fixes the four roles, and the reference implementation this is ported from does not exercise dynamic roles either. `register_tenant_role()` is the seam; the schema change is additive when it is needed. |
+| **API keys, feature flags, impersonation** — the remaining master-side tables in the reference. | No ApexWMS feature reads any of them. |
+| **Welcome email** carrying the temporary password. | No transactional email infrastructure exists in the project. The flow (temp password + forced change) is built; only delivery is manual. |
+| **Server-side hard gate on `must_change_password`** — blocking every other endpoint until the password is changed. | The MVP surfaces the flag on login and `/auth/me` and provides the change endpoint. The exposure is a user who already knows their own temporary password. Worth tightening, not worth blocking M2 on. |
 
 ---
 
@@ -404,12 +465,14 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 
 ### 5.1 Authentication & Tenancy
 
-- **FR-1.1** An anonymous visitor can sign up, creating a tenant and becoming its Owner. The tenant is unusable until provisioning reaches `active`.
-- **FR-1.2** A user authenticates with email + password and receives an access token (short-lived) and a refresh token (long-lived). Passwords are hashed with argon2id.
-- **FR-1.3** A user belonging to multiple tenants selects one at login; the resulting token carries exactly one `tenant_id`.
-- **FR-1.4** A request with a token for tenant A can never read or write data in tenant B. *(Test: issue a token for A, attempt every endpoint, assert no row from B is reachable.)*
-- **FR-1.5** An Owner can invite a user by email and assign a role; the invitee sets their password via a signed, single-use, expiring link.
-- **FR-1.6** A request whose role lacks permission for an operation receives `403`, and the operation has no side effect.
+- **FR-1.1** A SuperAdmin creates a tenant with a name, a unique slug, and an owner email (`apexwms create-tenant`); the tenant is unusable until provisioning reaches `active`. **There is no public sign-up** — an anonymous visitor cannot create a tenant. *(Test: `POST /auth/signup` is `404`.)*
+- **FR-1.1b** Provisioning seeds exactly one Owner — a master `users` row plus the matching `employees` row in the new store, sharing an id — with a generated temporary password. At first login the response reports `must_change_password`, and the Owner changes it via `POST /auth/change-password`, which revokes all sessions opened with the temporary one.
+- **FR-1.2** A user authenticates with email + password **naming no tenant**; the store their token speaks for is stamped in server-side from their own record. They receive an access token (short-lived) and a refresh token (long-lived). Passwords are hashed with argon2id.
+- **FR-1.3** One person has **one login identity**, and may work at several stores. The issued token carries at most one `tenant_id` and the role held *at that store*; `X-Tenant` switches between stores the user has access to, **without re-authenticating**. A platform operator's token carries no tenant claim at all. *(Test: one identity, two stores, two different roles.)*
+- **FR-1.3b** A request naming no tenant, by header or claim, receives `400`; one naming an unknown store receives `404`. Naming a store the caller has no `user_tenant_access` grant for receives `403`, checked before any tenant session opens.
+- **FR-1.4** A request with a token for tenant A can never read or write data in tenant B — **including its staff list**. *(Test: issue a token for A, attempt every endpoint, assert no row from B is reachable.)*
+- **FR-1.5** An Owner can invite someone by email and assign a role; the invitee sets their own password via a signed, single-use, expiring link. The invitation is stored centrally so it can be accepted by someone with no tenant context, and grants a role only at the store that issued it. Accepting as an existing user adds a store rather than creating a second account.
+- **FR-1.6** A request lacking the **permission** an operation requires receives `403`, and the operation has no side effect. Authorization compares permissions drawn from one catalog, never role names — §2.1 is not hierarchical.
 - **FR-1.7** Responses omit `acquisition_cost` and margin fields entirely for Storekeeper and Seller roles.
 
 ### 5.2 Catalog & Reference Data
@@ -667,17 +730,20 @@ The rule: no DDD concept enters this codebase before there's a concrete problem 
 
 ## 8. API Surface
 
-All routes are prefixed `/api/v1`. All except auth require a bearer token carrying a `tenant_id`.
+All routes are prefixed `/api/v1`. Tenant-scoped routes require a bearer token carrying a `tenant` claim. **No route requires a tenant header** — `X-Tenant` is optional everywhere, and only matters for someone who works at more than one store (§3.3).
+
+There is no tenant-management API: tenants are created and administered with the `apexwms` CLI (§3.4). An `/admin/*` surface arrives with the v2 portal (§3.5).
 
 ### Auth & Tenancy
-| Method | Path | Role |
+| Method | Path | Requires |
 |---|---|---|
-| `POST` | `/auth/signup` | anon (creates tenant + owner) |
-| `POST` | `/auth/login` | anon |
-| `POST` | `/auth/refresh` | anon (valid refresh token) |
+| `POST` | `/auth/login` | anon (`X-Tenant` optional, to pick a store) |
+| `POST` | `/auth/refresh` | anon (valid refresh token; `X-Tenant` optional) |
+| `POST` | `/auth/accept-invite` | anon (valid invite token) |
+| `POST` | `/auth/change-password` | any (own password) |
 | `GET` | `/auth/me` | any |
-| `GET` / `POST` | `/users`, `/users/invite` | Owner |
-| `PATCH` | `/users/{id}/role` | Owner |
+| `GET` / `POST` | `/users`, `/users/invite` | `Permission.Users.View` / `.Manage` (Owner) |
+| `PATCH` | `/users/{id}/role` | `Permission.Users.Manage` (Owner) |
 
 ### Catalog
 | Method | Path | Role |
@@ -793,7 +859,7 @@ Each milestone is independently demoable.
 | # | Milestone | Delivers |
 |---|---|---|
 | **M0** | **Bootstrap** | uv workspace, FastAPI + Dishka skeleton, the four-layer structure, docker-compose (Postgres), CI. Demo: `/health` responds. |
-| **M1** | **Tenancy & Auth** | MasterDB, tenant provisioning, engine registry, migration fan-out CLI, JWT, roles. Demo: sign up two tenants; prove tenant A cannot see tenant B. |
+| **M1** | **Tenancy & Auth** | MasterDB registry + identity, per-store `employees`, SuperAdmin provisioning CLI, engine registry, migration fan-out, JWT, two role namespaces, permission catalog. Demo: `apexwms create-tenant` twice; prove store A cannot see store B; then show one person holding one login and two different roles across both. |
 | **M2** | **Catalog** | Products (both tracking types, **per-product currency** with USD/UZS defaults), locations, suppliers, customers. Demo: build a catalog. |
 | **M3** | **The ledgers** | `StockMovement` **and** `FinancialTransaction`, projections, valuation rules, `verify-projections` + financial reconciliation. Demo: a confirm writes both a stock movement and its money entry, and both reconcile. |
 | **M4** | **Inbound** | PO → Goods Receipt, IMEI scan-in, Luhn + duplicate rejection, `PURCHASE` financial entries. Demo: **scan 10 phones into stock with a real scanner.** |
@@ -833,3 +899,5 @@ Each milestone is independently demoable.
 
 ### Deferred to v2 (schema anticipates them)
 Inter-location transfers · customer returns/refunds · reservations · low-stock alerts · domain events · barcode label printing · **a single combined cross-currency bottom line (would require an FX rate — deliberately absent in v1)** · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **due dates / overdue tracking on store credit · customer credit limits · installment schedules · credit-company payout & commission tracking** · supplier accounts-payable (store's debts to suppliers).
+
+**Tenancy & administration** (see §3.5 for the reasoning behind each): a **SuperAdmin-only admin portal** for tenant management — create, edit, change subscription plan · an **`/admin/*` API** · **billing / subscription metadata** on the tenant registry · **per-store custom roles** (DB-driven `TenantRole` rather than the fixed enum) · **API keys, feature flags, impersonation** · **welcome email** delivering the Owner's temporary password · a **server-side hard gate on `must_change_password`**. Note what is *not* deferred — it shipped in M1: public sign-up is **removed**, tenants are **SuperAdmin-provisioned**, identity is **split** between MasterDB (`users`) and each store (`employees`), and authorization runs on a **permission catalog**.

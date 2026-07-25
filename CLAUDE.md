@@ -69,17 +69,26 @@ presentation ──▶ application ──▶ domain
 
 This is the most consequential and expensive-to-reverse decision in the codebase — do not casually add a `tenant_id` column or a cross-tenant query as a shortcut.
 
-- **MasterDB** — one database: `tenants`, `tenant_databases`, global `users`, `memberships`. The only database reachable without a tenant context; login happens here.
-- **TenantDB** — one physical database per tenant, holding all business data. **No `tenant_id` column exists inside a tenant database** — isolation is physical, not a `WHERE` filter. A missing filter cannot leak another tenant's data because that data isn't in the connected database.
-- Request lifecycle: JWT validated → `tenant_id` claim extracted → `TenantEngineRegistry.get(tenant_id)` (LRU, opens engine on miss) → `AsyncSession` bound to that engine at Dishka `REQUEST` scope → use case executes, never knowing a tenant exists → session committed/rolled back and closed by the DI container.
-- The tenant is resolved **once, at the edge**. Nothing in `domain` or `application` takes a tenant parameter — that's what makes isolation structural rather than disciplinary.
+- **MasterDB** — the tenant registry (`tenants` with a unique `slug`, `tenant_databases`) **and platform identity**: `users`, `user_app_roles`, `user_tenant_access`, `invitations`, `refresh_tokens`. No operational data ever.
+- **TenantDB** — one physical database per store: all business data plus `employees` (who works here, in what role). **No `tenant_id` column exists inside a tenant database** — isolation is physical, not a `WHERE` filter. A missing filter cannot leak another store's data because that data isn't in the connected database.
+- **Identity is split, deliberately.** `User` (MasterDB, email unique platform-wide) is *who someone is*; `Employee` (TenantDB) is *what they may do at one store*. One person, one login, potentially several `Employee` rows with different roles.
+- **`Employee.id` IS the master `User.id`** — not a fresh uuid, and no FK can enforce it across databases. It's what lets M3's `stock_movements.user_id` be a real tenant-local foreign key while login stays central. `employees.email`/`full_name` are denormalized copies so tenant-side reads never cross databases; MasterDB wins on conflict. `tests/architecture/test_database_split.py` guards all of this.
+- **Two role namespaces** (`domain/roles.py`): `AppRole` (`app.superadmin`, `app.admin`, on `user_app_roles`) and `TenantRole` (`tenant.owner|manager|storekeeper|seller`, on `employees.role`). The prefixes are collision-avoidance — the string spaces cannot overlap. A SuperAdmin is just a `User` with `tenant_id = NULL` and an app role.
+- **Authorization is permissions, not roles** (`domain/permissions.py`): one flat `Permission.<Module>.<Action>` catalog built by reflection, with `APP_ROLE_PERMISSIONS` / `TENANT_ROLE_PERMISSIONS` assigning subsets. Routers call `require(current, Permission.Users.Manage)` / `require_any(...)` from `presentation/security.py`, which raise `AuthorizationError` (403) against `CurrentUser.permissions`. PRD §2.1 is not hierarchical, so never compare role rank.
+- **Tenants are created by SuperAdmin CLI only** (`apexwms create-tenant`, `create-superadmin`), never self-service — there is no sign-up endpoint. Provisioning writes the master `users` row, then seeds the matching `employees` row with a temporary password and `must_change_password`.
+- **Login names no tenant.** Credentials authenticate against MasterDB; the `tenant` claim is stamped server-side by `ClaimsFactory` (`application/use_cases/claims.py`) from `users.tenant_id`, or from `X-Tenant` when the user has access. A platform operator's token carries **no** tenant claim at all.
+- Request lifecycle: tenant resolved from **`X-Tenant` header > JWT `tenant` claim** → looked up in MasterDB, must be `active` → `TenantEngineRegistry.get(...)` (LRU, opens engine on miss) → `AsyncSession` at Dishka `REQUEST` scope → use case executes, never knowing a tenant exists → session committed/closed by the container.
+- **The header wins over the claim** — that's what lets a multi-store user switch without re-authenticating — but it is *authorized*, not trusted: no `user_tenant_access` grant means `403` before any session opens. All in `di/providers/tenant_db.py`; no middleware, and nothing parses the request body.
+- The tenant is resolved **once, at the edge**. Nothing in `domain` or `application` takes a tenant parameter. Two narrow exceptions: `ResolvedTenantId` is injected where a collaborator must stamp it (`InviteUser`), and `TenantScope` (`infrastructure/tenant_scope.py`) opens a store's database when the edge couldn't have known it — login, which learns the tenant only after reading the master user row.
 - `infrastructure/tenancy.py` implements `TenantEngineRegistry`: a bounded LRU cache of `AsyncEngine`s (`APEXWMS_MAX_LIVE_TENANT_ENGINES`, default 50; `APEXWMS_TENANT_POOL_SIZE`, default 5 connections each). Evicted engines are disposed. This ceiling is intentional — beyond it, the answer is PgBouncer or a shared-schema rethink, not a bigger cache.
-- `TenantContext` (tenant_id + db_url) is currently supplied as Dishka request context directly; from M1 on it will instead be derived from the validated JWT plus a MasterDB lookup. When wiring that up, replace the `from_context` in `TenantDbProvider`, don't add a second path.
+- `TenantContext` (tenant_id + db_url) is built in `TenantDbProvider.tenant` from the request plus a MasterDB lookup. If a third way to name a tenant is ever needed, extend that one resolver — don't add a second path.
 
 ### Dishka DI scopes (PRD §7.5)
 
-- **`APP`** scope: `Settings`, `MasterEngine`, `TenantEngineRegistry`. Later: JWT service, PDF renderer.
-- **`REQUEST`** scope: `MasterSession`, `TenantEngine`/`TenantSession` (resolved per-request from `TenantContext`). Later: authenticated user, `UnitOfWork`, repositories, use cases.
+- **`APP`** scope: `Settings`, `MasterEngine`, `TenantEngineRegistry`, `JwtTokenService`, `PasswordHasher`, `TenantProvisioner`. Later: PDF renderer.
+- **`REQUEST`** scope: `MasterSession`, `TenantContext`/`TenantEngine`/`TenantSession`, `ResolvedTenantId`, `RequestedTenant`, `CurrentUser`, `TenantScope`, repositories, units of work, use cases.
+
+Identity repositories take `MasterSession`; only `EmployeeRepository` and `TenantSettingsRepository` take `TenantSession`. Getting that wrong is the single easiest way to reintroduce the bug this architecture exists to prevent.
 
 `MasterEngine`, `MasterSession`, `TenantEngine`, `TenantSession` are `NewType`-wrapped `AsyncEngine`/`AsyncSession` (`infrastructure/types.py`) purely so the container can't hand a repository the wrong database — keep using these aliases (not bare `AsyncEngine`/`AsyncSession`) whenever wiring new providers that touch either database.
 
@@ -96,7 +105,7 @@ Both are frozen dataclasses that cannot exist in an invalid state — follow thi
 
 ### Delivery milestones (PRD §10)
 
-The codebase is at **M0** (bootstrap: skeleton, health endpoint, Money/IMEI). Milestones are strictly ordered and each is independently demoable — M1 is tenancy/auth/provisioning, M2 catalog, M3 the stock+financial ledgers, M4 inbound (receiving), M5/M5b outbound + credit/installments, M6 counts/write-offs, M7 documents, M8 reporting, M9 month-end close. Check `docs/prd.md` §10 before assuming a feature belongs in the current milestone — earlier milestones' plumbing (engine registry, DI scopes) is deliberately built ahead of the features that will use it, but business logic for later milestones (repositories, use cases, JWT, PDF) does not exist yet.
+The codebase is at **M1** (tenancy, auth, provisioning — on top of M0's skeleton, health endpoint, Money/IMEI). Milestones are strictly ordered and each is independently demoable — **M2 (catalog) is next**, then M3 the stock+financial ledgers, M4 inbound (receiving), M5/M5b outbound + credit/installments, M6 counts/write-offs, M7 documents, M8 reporting, M9 month-end close. Check `docs/prd.md` §10 before assuming a feature belongs in the current milestone — earlier milestones' plumbing (engine registry, DI scopes) is deliberately built ahead of the features that will use it, but business logic for later milestones (catalog and ledger repositories, PDF) does not exist yet.
 
 
 ## Code conventions
@@ -104,7 +113,7 @@ The codebase is at **M0** (bootstrap: skeleton, health endpoint, Money/IMEI). Mi
 - Single Responsibility Principle: each class/function should be responsible for one thing only.
   If a method handles validation, DB writes, and logging all at once — split it into separate
   functions/classes. Example: `TenantRepository` shouldn't decide which tenant is active —
-  that's the responsibility of `TenantContext`/middleware.
+  that's the responsibility of the tenant resolver in `di/providers/tenant_db.py`.
 - Comments: only write comments where the code isn't self-explanatory (complex business logic,
   the reason behind a non-obvious decision, a workaround). Don't comment on obvious things
   (`# increment counter` above `i += 1`). A comment should explain "why", not "what".
