@@ -1,35 +1,41 @@
-"""User-management schemas (Owner endpoints)."""
+"""Staff-management schemas.
+
+These describe ``Employee`` rows — a person's presence at *this* store —
+not the master login identity behind them.
+"""
 
 from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr
 
-from application.dtos import InviteResult, UserWithRole
-from domain.roles import Role
+from application.dtos import InviteResult
+from domain.entities import Employee
+from domain.roles import TenantRole
 
 
 class UserResponse(BaseModel):
+    # The master user id: Employee.id is that same value by contract.
     id: UUID
     email: str
     full_name: str
-    role: Role
+    role: TenantRole
     is_active: bool
 
     @classmethod
-    def from_entry(cls, entry: UserWithRole) -> UserResponse:
+    def from_employee(cls, employee: Employee) -> UserResponse:
         return cls(
-            id=entry.user.id,
-            email=entry.user.email,
-            full_name=entry.user.full_name,
-            role=entry.role,
-            is_active=entry.user.is_active,
+            id=employee.id,
+            email=employee.email,
+            full_name=employee.full_name,
+            role=employee.role,
+            is_active=employee.is_active,
         )
 
 
 class InviteRequest(BaseModel):
     email: EmailStr
-    role: Role
+    role: TenantRole
 
 
 class InviteResponse(BaseModel):
@@ -49,4 +55,4 @@ class InviteResponse(BaseModel):
 
 
 class RoleUpdateRequest(BaseModel):
-    role: Role
+    role: TenantRole

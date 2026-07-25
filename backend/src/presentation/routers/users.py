@@ -1,13 +1,13 @@
-"""User management — Owner only (PRD §2.1: manage users & roles)."""
+"""Staff management at one store (PRD §2.1: manage users & roles)."""
 
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 
-from application.dtos import CurrentUser
+from application.dtos import CurrentUser, InviteEmployeeCommand
 from application.use_cases import ChangeUserRole, InviteUser, ListUsers
-from domain.roles import Role
+from domain.permissions import Permission
 from presentation.schemas.users import (
     InviteRequest,
     InviteResponse,
@@ -24,9 +24,8 @@ async def list_users(
     current: FromDishka[CurrentUser],
     use_case: FromDishka[ListUsers],
 ) -> list[UserResponse]:
-    require(current, Role.OWNER)
-    entries = await use_case.execute(current.tenant_id)
-    return [UserResponse.from_entry(e) for e in entries]
+    require(current, Permission.Users.View)
+    return [UserResponse.from_employee(e) for e in await use_case.execute()]
 
 
 @router.post("/invite", response_model=InviteResponse, status_code=201)
@@ -35,9 +34,13 @@ async def invite(
     current: FromDishka[CurrentUser],
     use_case: FromDishka[InviteUser],
 ) -> InviteResponse:
-    require(current, Role.OWNER)
+    require(current, Permission.Users.Manage)
+    # No tenant check here: InviteUser is built from the resolved tenant, so
+    # a request that named no store never reaches this route.
     result = await use_case.execute(
-        current.tenant_id, body.email, body.role, created_by=current.user_id
+        InviteEmployeeCommand(
+            email=body.email, role=body.role, invited_by=current.user_id
+        )
     )
     return InviteResponse.from_result(result)
 
@@ -49,5 +52,5 @@ async def change_role(
     current: FromDishka[CurrentUser],
     use_case: FromDishka[ChangeUserRole],
 ) -> None:
-    require(current, Role.OWNER)
-    await use_case.execute(current.tenant_id, user_id, body.role)
+    require(current, Permission.Users.Manage)
+    await use_case.execute(user_id, body.role)

@@ -4,18 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
-from application.dtos import LoginResult, MeView, SignUpResult
-from domain.roles import Role
-
-DEFAULT_TIMEZONE = "Asia/Tashkent"
-
-
-class SignUpRequest(BaseModel):
-    tenant_name: str = Field(min_length=1, max_length=200)
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=200)
-    full_name: str = Field(min_length=1, max_length=200)
-    timezone: str = DEFAULT_TIMEZONE
+from application.dtos import LoginResult, MeView
+from domain.roles import AppRole, TenantRole
 
 
 class TokenPairResponse(BaseModel):
@@ -24,59 +14,42 @@ class TokenPairResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class SignUpResponse(TokenPairResponse):
-    tenant_id: UUID
-
-    @classmethod
-    def from_result(cls, result: SignUpResult) -> SignUpResponse:
-        return cls(
-            tenant_id=result.tenant_id,
-            access_token=result.tokens.access_token,
-            refresh_token=result.tokens.refresh_token,
-        )
-
-
 class LoginRequest(BaseModel):
+    """No tenant field: email is unique platform-wide, and which store the
+    token speaks for is decided server-side (PRD §3.3). An ``X-Tenant``
+    header may still name one, for a person who works at several."""
+
     email: EmailStr
     password: str
-    # Required only when the user belongs to several tenants (FR-1.3).
+
+
+class LoginResponse(TokenPairResponse):
+    # None for a platform operator, whose token carries no tenant claim.
     tenant_id: UUID | None = None
-
-
-class TenantChoiceResponse(BaseModel):
-    tenant_id: UUID
-    name: str
-
-
-class LoginResponse(BaseModel):
-    access_token: str | None = None
-    refresh_token: str | None = None
-    token_type: str | None = None
-    tenant_id: UUID | None = None
-    role: Role | None = None
-    # Present instead of tokens when a tenant must be chosen first.
-    tenants: list[TenantChoiceResponse] | None = None
+    role: TenantRole | None = None
+    app_roles: list[AppRole] = Field(default_factory=list)
+    # True for someone still on a provisioned temporary password.
+    must_change_password: bool
 
     @classmethod
     def from_result(cls, result: LoginResult) -> LoginResponse:
-        if result.tokens is None:
-            return cls(
-                tenants=[
-                    TenantChoiceResponse(tenant_id=c.tenant_id, name=c.name)
-                    for c in result.tenant_choices or []
-                ]
-            )
         return cls(
             access_token=result.tokens.access_token,
             refresh_token=result.tokens.refresh_token,
-            token_type="bearer",
             tenant_id=result.tenant_id,
-            role=result.role,
+            role=result.tenant_role,
+            app_roles=list(result.app_roles),
+            must_change_password=result.must_change_password,
         )
 
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=200)
 
 
 class AcceptInviteRequest(BaseModel):
@@ -86,15 +59,19 @@ class AcceptInviteRequest(BaseModel):
 
 
 class AcceptInviteResponse(BaseModel):
-    tenant_id: UUID
+    user_id: UUID
+    tenant_id: UUID | None = None
 
 
 class MeResponse(BaseModel):
     user_id: UUID
     email: str
     full_name: str
-    tenant_id: UUID
-    role: Role
+    must_change_password: bool
+    tenant_id: UUID | None = None
+    role: TenantRole | None = None
+    app_roles: list[AppRole] = Field(default_factory=list)
+    permissions: list[str] = Field(default_factory=list)
 
     @classmethod
     def from_view(cls, view: MeView) -> MeResponse:
@@ -102,6 +79,9 @@ class MeResponse(BaseModel):
             user_id=view.user_id,
             email=view.email,
             full_name=view.full_name,
+            must_change_password=view.must_change_password,
             tenant_id=view.tenant_id,
-            role=view.role,
+            role=view.tenant_role,
+            app_roles=list(view.app_roles),
+            permissions=sorted(view.permissions),
         )

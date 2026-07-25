@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from application.dtos import CurrentUser
 from application.use_cases import GetTenantSettings, UpdateTenantSettings
-from domain.roles import Role
+from domain.permissions import Permission
 from presentation.schemas.settings import (
     TenantSettingsResponse,
     TenantSettingsUpdateRequest,
@@ -21,6 +21,7 @@ async def get_settings(
     current: FromDishka[CurrentUser],
     use_case: FromDishka[GetTenantSettings],
 ) -> TenantSettingsResponse:
+    require(current, Permission.TenantSettings.View)
     return TenantSettingsResponse(timezone=await use_case.execute())
 
 
@@ -30,5 +31,5 @@ async def update_settings(
     current: FromDishka[CurrentUser],
     use_case: FromDishka[UpdateTenantSettings],
 ) -> TenantSettingsResponse:
-    require(current, Role.OWNER)
+    require(current, Permission.TenantSettings.Manage)
     return TenantSettingsResponse(timezone=await use_case.execute(body.timezone))
