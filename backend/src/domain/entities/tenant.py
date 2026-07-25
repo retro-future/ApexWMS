@@ -10,5 +10,7 @@ from domain.tenancy import TenantStatus
 @dataclass(eq=False, kw_only=True)
 class Tenant(UuidEntity, MasterEntity):
     name: str
+    # The handle an anonymous login names this tenant by (PRD §3.3).
+    slug: str
     status: TenantStatus
     created_at: datetime

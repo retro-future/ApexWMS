@@ -12,12 +12,12 @@ for anything and the marker would carry no information at all.
 
 
 class MasterEntity:
-    """Lives in the MasterDB: tenants, users, memberships, auth records."""
+    """Lives in the MasterDB: the tenant registry and its database catalogue."""
 
     __slots__ = ()
 
 
 class TenantEntity:
-    """Lives in one tenant's own database, alongside all its business data."""
+    """Lives in one tenant's own database: its users and all its business data."""
 
     __slots__ = ()

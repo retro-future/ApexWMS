@@ -1,8 +1,12 @@
 """A stored refresh token (FR-1.2): rotated on use, revocable.
 
+Lives in MasterDB alongside the ``User`` it authenticates. Login is a
+master-database operation, so the session it opens belongs there too — a
+refresh token proves *who* you are, which is not a per-store fact.
+
 Only the sha256 hash of the secret is stored. ``replaced_by`` links the
 rotation chain; presenting an already-revoked token is treated as theft
-and revokes every live token for that user+tenant.
+and revokes every live token for that user.
 """
 
 from dataclasses import dataclass
@@ -16,7 +20,6 @@ from domain.core import MasterEntity, UuidEntity
 class RefreshTokenRecord(UuidEntity, MasterEntity):
     # Inherited `id` is the jti — the public half of the token.
     user_id: UUID
-    tenant_id: UUID
     token_hash: str
     expires_at: datetime
     revoked_at: datetime | None = None
