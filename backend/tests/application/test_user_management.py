@@ -1,101 +1,92 @@
-"""Owner-only user management, and the last-Owner guard."""
+"""Staff management at one store, and the last-Owner guard.
+
+Cross-store cases are absent by construction: these use cases see one
+store's ``employees`` table, so there is no other store to reach into.
+That guarantee is tested where it lives — tests/api/test_tenant_isolation.py.
+"""
 
 from uuid import uuid4
 
 import pytest
 
 from application.errors import LastOwnerError, NotFoundError
-from domain.entities import MembershipKey
-from domain.roles import Role
+from domain.roles import TenantRole
 from tests.application.builders import make_world
 
 
-async def test_list_users_returns_members_with_their_roles():
+async def test_list_users_returns_this_stores_staff_with_their_roles():
     world = make_world()
-    tenant = world.add_tenant()
-    owner = world.add_user(email="owner@example.com")
-    seller = world.add_user(email="seller@example.com")
-    world.add_member(owner, tenant, Role.OWNER)
-    world.add_member(seller, tenant, Role.SELLER)
+    world.add_user(email="owner@example.com", role=TenantRole.OWNER)
+    world.add_user(email="seller@example.com", role=TenantRole.SELLER)
 
-    entries = await world.list_users().execute(tenant.id)
+    staff = await world.list_users().execute()
 
-    assert {(e.user.email, e.role) for e in entries} == {
-        ("owner@example.com", Role.OWNER),
-        ("seller@example.com", Role.SELLER),
+    assert {(e.email, e.role) for e in staff} == {
+        ("owner@example.com", TenantRole.OWNER),
+        ("seller@example.com", TenantRole.SELLER),
     }
 
 
-async def test_list_users_does_not_leak_another_tenants_members():
+async def test_another_stores_staff_do_not_appear():
     world = make_world()
-    mine = world.add_tenant("Acme Phones")
-    theirs = world.add_tenant("Beta Mobile")
-    my_owner = world.add_user(email="owner@example.com")
-    their_owner = world.add_user(email="other@example.com")
-    world.add_member(my_owner, mine, Role.OWNER)
-    world.add_member(their_owner, theirs, Role.OWNER)
+    other = world.add_tenant()
+    world.add_user(email="owner@example.com", role=TenantRole.OWNER)
+    theirs = world.add_user(email="elsewhere@example.com", role=None)
+    world.add_employee(theirs, other, TenantRole.OWNER)
 
-    entries = await world.list_users().execute(mine.id)
+    staff = await world.list_users().execute()
 
-    assert [e.user.email for e in entries] == ["owner@example.com"]
+    assert [e.email for e in staff] == ["owner@example.com"]
 
 
-async def test_change_role_updates_the_membership():
+async def test_change_role_updates_the_employee_not_the_identity():
     world = make_world()
-    tenant = world.add_tenant()
-    owner = world.add_user(email="owner@example.com")
-    seller = world.add_user(email="seller@example.com")
-    world.add_member(owner, tenant, Role.OWNER)
-    world.add_member(seller, tenant, Role.SELLER)
+    world.add_user(email="owner@example.com", role=TenantRole.OWNER)
+    seller = world.add_user(email="seller@example.com", role=TenantRole.SELLER)
 
-    await world.change_user_role().execute(tenant.id, seller.id, Role.MANAGER)
+    await world.change_user_role().execute(seller.id, TenantRole.MANAGER)
 
-    assert (await world.memberships.get(MembershipKey(seller.id, tenant.id))).role is Role.MANAGER
+    assert (await world.employees.get(seller.id)).role is TenantRole.MANAGER
+    # The master identity is untouched — a role is a per-store fact.
+    assert (await world.users.get(seller.id)).tenant_id == world.tenant.id
     assert world.uow.commits == 1
 
 
 async def test_demoting_the_only_owner_is_refused():
     world = make_world()
-    tenant = world.add_tenant()
-    owner = world.add_user(email="owner@example.com")
-    world.add_member(owner, tenant, Role.OWNER)
+    owner = world.add_user(email="owner@example.com", role=TenantRole.OWNER)
 
     with pytest.raises(LastOwnerError):
-        await world.change_user_role().execute(tenant.id, owner.id, Role.MANAGER)
+        await world.change_user_role().execute(owner.id, TenantRole.MANAGER)
 
-    assert (await world.memberships.get(MembershipKey(owner.id, tenant.id))).role is Role.OWNER
+    assert (await world.employees.get(owner.id)).role is TenantRole.OWNER
     assert world.uow.commits == 0
 
 
 async def test_demoting_an_owner_is_allowed_when_another_remains():
     world = make_world()
-    tenant = world.add_tenant()
-    first = world.add_user(email="owner@example.com")
-    second = world.add_user(email="second@example.com")
-    world.add_member(first, tenant, Role.OWNER)
-    world.add_member(second, tenant, Role.OWNER)
+    world.add_user(email="owner@example.com", role=TenantRole.OWNER)
+    second = world.add_user(email="second@example.com", role=TenantRole.OWNER)
 
-    await world.change_user_role().execute(tenant.id, second.id, Role.MANAGER)
+    await world.change_user_role().execute(second.id, TenantRole.MANAGER)
 
-    assert (await world.memberships.get(MembershipKey(second.id, tenant.id))).role is Role.MANAGER
+    assert (await world.employees.get(second.id)).role is TenantRole.MANAGER
 
 
-async def test_changing_the_role_of_a_non_member_is_not_found():
+async def test_the_last_owner_guard_counts_only_this_store():
+    """An Owner elsewhere is no help — each store needs its own."""
     world = make_world()
-    tenant = world.add_tenant()
+    other = world.add_tenant()
+    owner = world.add_user(email="owner@example.com", role=TenantRole.OWNER)
+    elsewhere = world.add_user(email="other@example.com", role=None)
+    world.add_employee(elsewhere, other, TenantRole.OWNER)
+
+    with pytest.raises(LastOwnerError):
+        await world.change_user_role().execute(owner.id, TenantRole.MANAGER)
+
+
+async def test_changing_the_role_of_someone_who_does_not_work_here_is_not_found():
+    world = make_world()
 
     with pytest.raises(NotFoundError):
-        await world.change_user_role().execute(tenant.id, uuid4(), Role.MANAGER)
-
-
-async def test_a_role_change_cannot_reach_into_another_tenant():
-    world = make_world()
-    mine = world.add_tenant("Acme Phones")
-    theirs = world.add_tenant("Beta Mobile")
-    outsider = world.add_user(email="outsider@example.com")
-    world.add_member(outsider, theirs, Role.SELLER)
-
-    with pytest.raises(NotFoundError):
-        await world.change_user_role().execute(mine.id, outsider.id, Role.OWNER)
-
-    assert (await world.memberships.get(MembershipKey(outsider.id, theirs.id))).role is Role.SELLER
+        await world.change_user_role().execute(uuid4(), TenantRole.MANAGER)

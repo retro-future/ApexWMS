@@ -32,8 +32,8 @@ async def test_health_reports_ok_against_a_real_master_db(client):
     assert body["live_tenant_engines"] == 0
 
 
-async def test_health_counts_live_tenant_engines(client, sign_up):
-    tenant = await sign_up()
+async def test_health_counts_live_tenant_engines(client, create_tenant):
+    tenant = await create_tenant()
     # Touching a tenant-scoped endpoint opens that tenant's engine.
     await client.get("/api/v1/settings/tenant", headers=tenant.auth)
 

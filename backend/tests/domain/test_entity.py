@@ -3,9 +3,9 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from domain.core import MasterEntity, TenantEntity, UuidEntity
-from domain.entities import Membership, Tenant, User
-from domain.roles import Role
+from domain.core import MasterEntity, TenantEntity
+from domain.entities import Employee, Tenant, User
+from domain.roles import TenantRole
 from domain.tenancy import TenantStatus
 
 NOW = datetime(2026, 7, 20, tzinfo=UTC)
@@ -16,7 +16,7 @@ def make_user(**overrides) -> User:
         "email": "a@example.com",
         "full_name": "A",
         "password_hash": None,
-        "is_active": True,
+                "is_active": True,
         "created_at": NOW,
     }
     return User(**(defaults | overrides))
@@ -39,7 +39,7 @@ class TestIdentityEquality:
     def test_different_types_sharing_an_id_are_not_equal(self):
         shared = uuid4()
         user = make_user(id=shared)
-        tenant = Tenant(id=shared, name="A", status=TenantStatus.ACTIVE, created_at=NOW)
+        tenant = Tenant(id=shared, name="A", slug="a", status=TenantStatus.ACTIVE, created_at=NOW)
         assert user != tenant
 
     def test_entity_is_not_equal_to_an_unrelated_object(self):
@@ -60,7 +60,7 @@ class TestHashing:
     def test_same_id_across_types_hashes_differently(self):
         shared = uuid4()
         user = make_user(id=shared)
-        tenant = Tenant(id=shared, name="A", status=TenantStatus.ACTIVE, created_at=NOW)
+        tenant = Tenant(id=shared, name="A", slug="a", status=TenantStatus.ACTIVE, created_at=NOW)
         assert len({user, tenant}) == 2
 
 
@@ -74,20 +74,25 @@ class TestIdentityGeneration:
 
 
 class TestDatabaseMarkers:
-    def test_master_entities_are_marked_master_and_not_tenant(self):
+    def test_the_login_identity_is_master_side(self):
         user = make_user()
         assert isinstance(user, MasterEntity)
         assert not isinstance(user, TenantEntity)
 
-    def test_membership_is_marked_without_being_a_uuid_entity(self):
-        # Composite key (user_id, tenant_id) — no identity of its own, so it
-        # keeps field-wise equality.
-        membership = Membership(user_id=uuid4(), tenant_id=uuid4(), role=Role.OWNER)
-        assert isinstance(membership, MasterEntity)
-        assert not isinstance(membership, UuidEntity)
-
-    def test_membership_compares_by_value(self):
-        user_id, tenant_id = uuid4(), uuid4()
-        assert Membership(user_id=user_id, tenant_id=tenant_id, role=Role.OWNER) == Membership(
-            user_id=user_id, tenant_id=tenant_id, role=Role.OWNER
+    def test_a_presence_at_one_store_is_tenant_side(self):
+        employee = Employee(
+            email="a@example.com",
+            full_name="A",
+            role=TenantRole.OWNER,
+            is_active=True,
+            created_at=NOW,
         )
+        assert isinstance(employee, TenantEntity)
+        assert not isinstance(employee, MasterEntity)
+
+    def test_tenants_are_marked_master_and_not_tenant(self):
+        tenant = Tenant(
+            id=uuid4(), name="A", slug="a", status=TenantStatus.ACTIVE, created_at=NOW
+        )
+        assert isinstance(tenant, MasterEntity)
+        assert not isinstance(tenant, TenantEntity)

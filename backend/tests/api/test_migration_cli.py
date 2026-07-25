@@ -12,9 +12,9 @@ from infrastructure.persistence.master.models import TenantDatabaseModel
 from infrastructure.tenancy import tenant_db_url
 
 
-async def test_fan_out_reports_every_tenant_at_head(sign_up, settings, capsys):
-    await sign_up(name="Acme Phones", email="a@example.com")
-    await sign_up(name="Beta Mobile", email="b@example.com")
+async def test_fan_out_reports_every_tenant_at_head(create_tenant, settings, capsys):
+    await create_tenant(name="Acme Phones", slug="acme", email="a@example.com")
+    await create_tenant(name="Beta Mobile", slug="beta", email="b@example.com")
 
     exit_code = await _migrate_tenants(settings, tenant_id=None)
 
@@ -24,8 +24,8 @@ async def test_fan_out_reports_every_tenant_at_head(sign_up, settings, capsys):
     assert "0001_tenant: 2" in out
 
 
-async def test_fan_out_is_idempotent(sign_up, settings):
-    await sign_up()
+async def test_fan_out_is_idempotent(create_tenant, settings):
+    await create_tenant()
 
     assert await _migrate_tenants(settings, tenant_id=None) == 0
     assert await _migrate_tenants(settings, tenant_id=None) == 0
@@ -38,9 +38,9 @@ async def test_fan_out_with_no_tenants_is_not_an_error(settings, capsys):
     assert "no tenant databases found" in capsys.readouterr().out
 
 
-async def test_a_single_tenant_can_be_targeted(sign_up, settings, capsys):
-    first = await sign_up(name="Acme Phones", email="a@example.com")
-    await sign_up(name="Beta Mobile", email="b@example.com")
+async def test_a_single_tenant_can_be_targeted(create_tenant, settings, capsys):
+    first = await create_tenant(name="Acme Phones", slug="acme", email="a@example.com")
+    await create_tenant(name="Beta Mobile", slug="beta", email="b@example.com")
 
     await _migrate_tenants(settings, tenant_id=UUID(first.tenant_id))
 
@@ -50,11 +50,11 @@ async def test_a_single_tenant_can_be_targeted(sign_up, settings, capsys):
 
 
 async def test_an_unreachable_tenant_is_reported_without_stopping_the_run(
-    sign_up, settings, capsys
+    create_tenant, settings, capsys
 ):
     """A partially-migrated fleet is an expected state, not an emergency."""
-    healthy = await sign_up(name="Acme Phones", email="a@example.com")
-    broken = await sign_up(name="Beta Mobile", email="b@example.com")
+    healthy = await create_tenant(name="Acme Phones", slug="acme", email="a@example.com")
+    broken = await create_tenant(name="Beta Mobile", slug="beta", email="b@example.com")
 
     # Point one tenant at a database that does not exist.
     engine = create_async_engine(settings.master_db_url)

@@ -1,28 +1,31 @@
-"""FR-1.2: refresh tokens rotate on use, and reuse is treated as theft."""
+"""FR-1.2: refresh tokens rotate on use, and reuse is treated as theft.
+
+Claims are rebuilt on every rotation, so a role change or a revoked store
+access takes effect within one access-token lifetime.
+"""
 
 from datetime import timedelta
 from uuid import UUID
 
 import pytest
 
-from application.errors import InvalidTokenError, TenantNotActiveError
-from domain.entities import MembershipKey
-from domain.roles import Role
-from domain.tenancy import TenantStatus
+from application.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    InvalidTokenError,
+)
+from domain.roles import TenantRole
 from tests.application.builders import REFRESH_TTL, make_world
 
 
-async def _logged_in(world, role: Role = Role.OWNER):
-    tenant = world.add_tenant()
-    user = world.add_user(password="hunter2000")
-    world.add_member(user, tenant, role)
-    token = await world.issue_refresh_for(user.id, tenant.id, role)
-    return user, tenant, token
+async def _logged_in(world, role: TenantRole = TenantRole.OWNER):
+    user = world.add_user(password="hunter2000", role=role)
+    return user, await world.issue_refresh_for(user)
 
 
 async def test_refresh_rotates_into_a_new_pair():
     world = make_world()
-    _, _, token = await _logged_in(world)
+    _, token = await _logged_in(world)
 
     pair = await world.refresh().execute(token)
 
@@ -32,7 +35,7 @@ async def test_refresh_rotates_into_a_new_pair():
 
 async def test_rotation_revokes_the_old_record_and_links_the_chain():
     world = make_world()
-    _, _, token = await _logged_in(world)
+    _, token = await _logged_in(world)
     old_jti = token.split(".")[0]
 
     pair = await world.refresh().execute(token)
@@ -45,7 +48,7 @@ async def test_rotation_revokes_the_old_record_and_links_the_chain():
 async def test_reusing_a_rotated_token_revokes_the_whole_chain():
     """The signature response to a leaked refresh token."""
     world = make_world()
-    user, tenant, token = await _logged_in(world)
+    _, token = await _logged_in(world)
     pair = await world.refresh().execute(token)
 
     with pytest.raises(InvalidTokenError):
@@ -59,7 +62,7 @@ async def test_reusing_a_rotated_token_revokes_the_whole_chain():
 
 async def test_expired_refresh_token_is_rejected():
     world = make_world()
-    _, _, token = await _logged_in(world)
+    _, token = await _logged_in(world)
 
     world.clock.advance(REFRESH_TTL + timedelta(seconds=1))
 
@@ -81,7 +84,7 @@ async def test_malformed_or_unknown_tokens_are_rejected(token: str):
 
 async def test_a_wrong_secret_for_a_real_jti_is_rejected():
     world = make_world()
-    _, _, token = await _logged_in(world)
+    _, token = await _logged_in(world)
     jti = token.split(".")[0]
 
     with pytest.raises(InvalidTokenError):
@@ -90,30 +93,56 @@ async def test_a_wrong_secret_for_a_real_jti_is_rejected():
 
 async def test_rotation_picks_up_a_role_change():
     world = make_world()
-    user, tenant, token = await _logged_in(world, Role.SELLER)
-    membership = await world.memberships.get(MembershipKey(user.id, tenant.id))
-    membership.role = Role.MANAGER
-    await world.memberships.update(membership)
+    user, token = await _logged_in(world, TenantRole.SELLER)
+    employee = await world.employees.get(user.id)
+    employee.role = TenantRole.MANAGER
+    await world.employees.update(employee)
 
     pair = await world.refresh().execute(token)
 
-    # FakeTokenService encodes the role into the access token.
-    assert pair.access_token.endswith(Role.MANAGER.value)
+    # FakeTokenService encodes the claims into the access token.
+    assert TenantRole.MANAGER.value in pair.access_token
 
 
-async def test_refresh_refuses_a_deactivated_user():
+async def test_rotation_can_switch_stores_when_access_exists():
     world = make_world()
-    user, _, token = await _logged_in(world)
+    other = world.add_tenant()
+    user, token = await _logged_in(world, TenantRole.OWNER)
+    world.add_employee(user, other, TenantRole.SELLER)
+    world.grant_access(user, other)
+
+    pair = await world.refresh().execute(token, other.id)
+
+    assert str(other.id) in pair.access_token
+    assert TenantRole.SELLER.value in pair.access_token
+
+
+async def test_rotation_cannot_switch_to_a_store_without_access():
+    world = make_world()
+    theirs = world.add_tenant()
+    _, token = await _logged_in(world)
+
+    with pytest.raises(AuthorizationError):
+        await world.refresh().execute(token, theirs.id)
+
+
+async def test_refresh_refuses_a_deactivated_identity():
+    world = make_world()
+    user, token = await _logged_in(world)
     user.is_active = False
 
     with pytest.raises(InvalidTokenError):
         await world.refresh().execute(token)
 
 
-async def test_refresh_refuses_a_tenant_that_left_active():
+async def test_refresh_refuses_someone_no_longer_employed_here():
     world = make_world()
-    _, tenant, token = await _logged_in(world)
-    tenant.status = TenantStatus.FAILED
+    user, token = await _logged_in(world)
+    employee = await world.employees.get(user.id)
+    employee.is_active = False
 
-    with pytest.raises(TenantNotActiveError):
+    # AuthenticationError, not the narrower InvalidTokenError: the token is
+    # fine, it is the presence behind it that is gone. Either way a 401, and
+    # the response must not distinguish the two.
+    with pytest.raises(AuthenticationError):
         await world.refresh().execute(token)
