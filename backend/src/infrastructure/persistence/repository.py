@@ -18,7 +18,7 @@ class CrudRepository[EntityT, KeyT, ModelT](ABC):
 
     @abstractmethod
     def _key(self, entity: EntityT) -> KeyT:
-        """The identity the aggregate declares in domain (``id`` / ``MembershipKey``)."""
+        """The identity the aggregate declares in domain (``Entity[TKey].id``)."""
 
     @abstractmethod
     def _to_entity(self, row: ModelT) -> EntityT: ...
@@ -36,10 +36,10 @@ class CrudRepository[EntityT, KeyT, ModelT](ABC):
 
     async def add(self, entity: EntityT) -> None:
         self._session.add(self._to_model(entity))
-        # The models declare no relationship(), so the session has no
-        # mapper dependency to order INSERTs by and would emit a
-        # membership INSERT before the user it references. Flushing here
-        # pins insertion order; committing stays with the UnitOfWork.
+        # The models declare no relationship(), so the session has no mapper
+        # dependency to order INSERTs by and would emit a row before the one
+        # its foreign key references. Flushing here pins insertion order;
+        # committing stays with the UnitOfWork.
         await self._session.flush()
 
     async def update(self, entity: EntityT) -> None:

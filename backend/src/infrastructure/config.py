@@ -17,8 +17,9 @@ class Settings(BaseSettings):
     app_name: str = "ApexWMS"
     debug: bool = False
 
-    # Master database (tenants, users, memberships). Tenant databases
-    # are created next to it at provisioning time (M1).
+    # Master database (the tenant registry). Tenant databases — which hold
+    # each tenant's users and business data — are created next to it at
+    # provisioning time (M1).
     master_db_url: str = "postgresql+asyncpg://apexwms:apexwms@localhost:5432/apexwms_master"
 
     # JWT

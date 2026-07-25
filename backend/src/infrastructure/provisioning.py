@@ -9,6 +9,7 @@ crash mid-way leaves an honest status behind.
 
 import contextlib
 import uuid
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import text
@@ -20,12 +21,18 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from application.dtos import OwnerSeed
 from application.errors import ProvisioningFailedError
+from domain.roles import TenantRole
 from domain.tenancy import TenantStatus
 from infrastructure import migrations
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
-from infrastructure.persistence.tenant.models import LocationModel, TenantSettingsModel
+from infrastructure.persistence.tenant.models import (
+    EmployeeModel,
+    LocationModel,
+    TenantSettingsModel,
+)
 from infrastructure.persistence.tenant.repositories import SETTINGS_ROW_ID
 from infrastructure.tenancy import tenant_db_url
 
@@ -41,7 +48,11 @@ class DefaultTenantProvisioner:
         self._sessions = async_sessionmaker(master_engine, expire_on_commit=False)
         self._settings = settings
 
-    async def provision(self, tenant_id: UUID, timezone: str) -> None:
+    async def provision(
+        self, tenant_id: UUID, timezone: str, owner: OwnerSeed | None = None
+    ) -> None:
+        """*owner* is None only when re-provisioning a tenant that already has
+        one — the seed step is idempotent either way."""
         try:
             await self._set_status(tenant_id, TenantStatus.PROVISIONING)
             db_name = f"{self._settings.tenant_db_name_prefix}{tenant_id.hex}"
@@ -49,7 +60,7 @@ class DefaultTenantProvisioner:
             await self._record_database(tenant_id, db_name)
             url = tenant_db_url(self._settings.master_db_url, db_name)
             await migrations.upgrade("tenant", url)
-            await self._seed(url, timezone)
+            await self._seed(url, timezone, owner)
             await self._set_status(tenant_id, TenantStatus.ACTIVE)
         except Exception as exc:
             # Best-effort status update; the original failure is the one to raise.
@@ -89,7 +100,7 @@ class DefaultTenantProvisioner:
                 )
                 await session.commit()
 
-    async def _seed(self, url: str, timezone: str) -> None:
+    async def _seed(self, url: str, timezone: str, owner: OwnerSeed | None) -> None:
         engine = create_async_engine(url)
         try:
             async with AsyncSession(engine, expire_on_commit=False) as session:
@@ -102,6 +113,32 @@ class DefaultTenantProvisioner:
                     session.add(
                         LocationModel(id=uuid.uuid4(), name=DEFAULT_LOCATION_NAME, is_active=True)
                     )
+                await self._seed_owner(session, owner)
                 await session.commit()
         finally:
             await engine.dispose()
+
+    async def _seed_owner(self, session: AsyncSession, owner: OwnerSeed | None) -> None:
+        """The Owner's presence at this store — the only way in, sign-up is gone.
+
+        The matching login identity is a master ``users`` row written by
+        ``CreateTenant``; the id is carried across so the two match, which is
+        what the ledger's foreign keys will depend on from M3.
+        """
+        if owner is None:
+            return
+        has_employee = (
+            await session.execute(text("SELECT 1 FROM employees LIMIT 1"))
+        ).first()
+        if has_employee is not None:
+            return
+        session.add(
+            EmployeeModel(
+                id=owner.user_id,
+                email=owner.email,
+                full_name=owner.full_name,
+                role=TenantRole.OWNER.value,
+                is_active=True,
+                created_at=datetime.now(UTC),
+            )
+        )

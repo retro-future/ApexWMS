@@ -8,17 +8,6 @@ from infrastructure.persistence.master.models import UserModel
 from .base import MasterCrudRepository
 
 
-def user_entity(row: UserModel) -> User:
-    return User(
-        id=row.id,
-        email=row.email,
-        full_name=row.full_name,
-        password_hash=row.password_hash,
-        is_active=row.is_active,
-        created_at=row.created_at,
-    )
-
-
 class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
     model = UserModel
 
@@ -26,7 +15,16 @@ class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
         return user.id
 
     def _to_entity(self, row: UserModel) -> User:
-        return user_entity(row)
+        return User(
+            id=row.id,
+            email=row.email,
+            full_name=row.full_name,
+            password_hash=row.password_hash,
+            tenant_id=row.tenant_id,
+            is_active=row.is_active,
+            must_change_password=row.must_change_password,
+            created_at=row.created_at,
+        )
 
     def _to_model(self, user: User) -> UserModel:
         return UserModel(
@@ -34,7 +32,9 @@ class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
             email=user.email,
             full_name=user.full_name,
             password_hash=user.password_hash,
+            tenant_id=user.tenant_id,
             is_active=user.is_active,
+            must_change_password=user.must_change_password,
             created_at=user.created_at,
         )
 
@@ -42,8 +42,10 @@ class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
         row.email = user.email
         row.full_name = user.full_name
         row.password_hash = user.password_hash
+        row.tenant_id = user.tenant_id
         row.is_active = user.is_active
+        row.must_change_password = user.must_change_password
 
     async def get_by_email(self, email: str) -> User | None:
         row = await self._session.scalar(select(UserModel).where(UserModel.email == email))
-        return user_entity(row) if row else None
+        return self._to_entity(row) if row else None

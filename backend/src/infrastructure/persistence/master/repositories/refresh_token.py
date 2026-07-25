@@ -21,7 +21,6 @@ class SqlRefreshTokenRepository(
         return RefreshTokenRecord(
             id=row.id,
             user_id=row.user_id,
-            tenant_id=row.tenant_id,
             token_hash=row.token_hash,
             expires_at=row.expires_at,
             revoked_at=row.revoked_at,
@@ -32,7 +31,6 @@ class SqlRefreshTokenRepository(
         return RefreshTokenModel(
             id=record.id,
             user_id=record.user_id,
-            tenant_id=record.tenant_id,
             token_hash=record.token_hash,
             expires_at=record.expires_at,
             revoked_at=record.revoked_at,
@@ -43,12 +41,11 @@ class SqlRefreshTokenRepository(
         row.revoked_at = record.revoked_at
         row.replaced_by = record.replaced_by
 
-    async def revoke_all_for_user(self, user_id: UUID, tenant_id: UUID, now: datetime) -> None:
+    async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> None:
         await self._session.execute(
             update(RefreshTokenModel)
             .where(
                 RefreshTokenModel.user_id == user_id,
-                RefreshTokenModel.tenant_id == tenant_id,
                 RefreshTokenModel.revoked_at.is_(None),
             )
             .values(revoked_at=now)

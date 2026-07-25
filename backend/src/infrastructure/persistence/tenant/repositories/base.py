@@ -1,8 +1,8 @@
 """The TenantDB repository base.
 
 The constructor demands ``TenantSession`` — see ``master/repositories/base.py``
-for the rationale. No CRUD aggregate lives tenant-side at M1; the first
-subclasses arrive with the M2 catalog.
+for the rationale. At M1 the subclasses are the tenant's own identity
+records; the business aggregates arrive with the M2 catalog.
 """
 
 from infrastructure.persistence.repository import CrudRepository
