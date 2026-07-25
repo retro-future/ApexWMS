@@ -1,21 +1,25 @@
-"""TenantDB providers: engines cached in the bounded registry, sessions per request.
+"""TenantDB providers: engines cached in the bounded registry, sessions per
+request.
 
-``TenantContext`` is derived from the validated JWT plus the MasterDB
-``tenant_databases`` row (PRD §3.3) — the tenant is resolved once, here,
-at the edge; nothing below this file takes a tenant parameter.
+All tenant-resolution logic lives in ``CurrentTenantAccessor``
+(infrastructure/current_tenant_accessor.py) — this provider only constructs
+collaborators and delegates (.claude/rules/backend/providers.md,
+.claude/rules/backend/tenant-resolution.md).
 """
 
 from collections.abc import AsyncIterable
+from uuid import UUID
 
 from dishka import Provider, Scope, provide
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from application.dtos import CurrentUser
-from application.errors import TenantNotActiveError
-from domain.tenancy import TenantStatus
+from application.dtos import RequestedTenant
+from application.types import ResolvedTenantId
 from infrastructure.config import Settings
-from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
-from infrastructure.tenancy import TenantContext, TenantEngineRegistry, tenant_db_url
+from infrastructure.current_tenant_accessor import CurrentTenantAccessor
+from infrastructure.security.request_claims import RequestBearerClaims
+from infrastructure.tenancy import TenantContext, TenantEngineRegistry
 from infrastructure.types import MasterSession, TenantEngine, TenantSession
 
 
@@ -30,17 +34,26 @@ class TenantDbProvider(Provider):
         await registry.dispose_all()
 
     @provide(scope=Scope.REQUEST)
-    async def tenant(
-        self, user: CurrentUser, session: MasterSession, settings: Settings
-    ) -> TenantContext:
-        tenant = await session.get(TenantModel, user.tenant_id)
-        database = await session.get(TenantDatabaseModel, user.tenant_id)
-        if tenant is None or database is None or tenant.status != TenantStatus.ACTIVE.value:
-            raise TenantNotActiveError()
-        return TenantContext(
-            tenant_id=str(user.tenant_id),
-            db_url=tenant_db_url(settings.master_db_url, database.db_name),
-        )
+    def accessor(
+        self,
+        request: Request,
+        session: MasterSession,
+        settings: Settings,
+        claims: RequestBearerClaims,
+    ) -> CurrentTenantAccessor:
+        return CurrentTenantAccessor(request, session, settings, claims)
+
+    @provide(scope=Scope.REQUEST)
+    async def tenant(self, accessor: CurrentTenantAccessor) -> TenantContext:
+        return await accessor.get_current_tenant()
+
+    @provide(scope=Scope.REQUEST)
+    async def tenant_id(self, tenant: TenantContext) -> ResolvedTenantId:
+        return ResolvedTenantId(UUID(tenant.tenant_id))
+
+    @provide(scope=Scope.REQUEST)
+    async def requested(self, accessor: CurrentTenantAccessor) -> RequestedTenant:
+        return await accessor.get_requested_tenant()
 
     @provide(scope=Scope.REQUEST)
     async def engine(

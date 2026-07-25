@@ -13,17 +13,19 @@ and registers them in ``di.container.create_container``.
 from di.providers.auth import AuthProvider
 from di.providers.config import ConfigProvider
 from di.providers.master_db import MasterDbProvider
-from di.providers.repositories import RepositoriesProvider
+from di.providers.master_repositories import MasterRepositoriesProvider
 from di.providers.security import SecurityProvider
 from di.providers.tenant_db import TenantDbProvider
+from di.providers.tenant_repositories import TenantRepositoriesProvider
 from di.providers.use_cases import UseCasesProvider
 
 __all__ = [
     "AuthProvider",
     "ConfigProvider",
     "MasterDbProvider",
-    "RepositoriesProvider",
+    "MasterRepositoriesProvider",
     "SecurityProvider",
     "TenantDbProvider",
+    "TenantRepositoriesProvider",
     "UseCasesProvider",
 ]

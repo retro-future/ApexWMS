@@ -12,9 +12,10 @@ from di.providers import (
     AuthProvider,
     ConfigProvider,
     MasterDbProvider,
-    RepositoriesProvider,
+    MasterRepositoriesProvider,
     SecurityProvider,
     TenantDbProvider,
+    TenantRepositoriesProvider,
     UseCasesProvider,
 )
 from infrastructure.config import Settings
@@ -27,7 +28,8 @@ def create_container(settings: Settings | None = None) -> AsyncContainer:
         TenantDbProvider(),
         SecurityProvider(),
         AuthProvider(),
-        RepositoriesProvider(),
+        MasterRepositoriesProvider(),
+        TenantRepositoriesProvider(),
         UseCasesProvider(),
         FastapiProvider(),
         context={Settings: settings or Settings()},

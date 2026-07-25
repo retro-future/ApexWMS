@@ -9,6 +9,10 @@ Both are plain SQLAlchemy ``AsyncEngine`` / ``AsyncSession`` objects under
 the hood; the ``NewType`` aliases give each its own identity in the DI
 container, so a repository can ask for exactly the database it needs and
 can never be handed the wrong one.
+
+See ``application/types.py`` for the sibling NewTypes (``ResolvedTenantId``,
+TTLs) that use cases themselves are typed with — those live in
+``application/`` because a use case's constructor may not import from here.
 """
 
 from typing import NewType
