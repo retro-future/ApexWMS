@@ -1,14 +1,16 @@
-"""List a tenant's users with their roles (Owner-only endpoint)."""
+"""List the people who work at this store, with their roles.
 
-from uuid import UUID
+Reads the tenant's own ``employees`` table, never MasterDB — which is why
+one store's staff list cannot surface another's.
+"""
 
-from application.dtos import UserWithRole
-from application.ports import MembershipRepository
+from application.ports import EmployeeRepository
+from domain.entities import Employee
 
 
 class ListUsers:
-    def __init__(self, memberships: MembershipRepository) -> None:
-        self._memberships = memberships
+    def __init__(self, employees: EmployeeRepository) -> None:
+        self._employees = employees
 
-    async def execute(self, tenant_id: UUID) -> list[UserWithRole]:
-        return await self._memberships.list_for_tenant(tenant_id)
+    async def execute(self) -> list[Employee]:
+        return await self._employees.list_all()

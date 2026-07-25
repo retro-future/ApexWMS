@@ -30,8 +30,20 @@ class TenantNotActiveError(ApplicationError):
     """The tenant exists but is not in ACTIVE status (PRD §3.2)."""
 
 
-class EmailAlreadyRegisteredError(ApplicationError):
-    """Signup with an email that already has an account."""
+class MissingTenantError(ApplicationError):
+    """The request named no tenant — no bearer token and no X-Tenant-Slug (400)."""
+
+
+class TenantNotFoundError(ApplicationError):
+    """No tenant matches the supplied slug or id (404)."""
+
+
+class SlugAlreadyTakenError(ApplicationError):
+    """Another tenant already owns that slug."""
+
+
+class InvalidSlugError(ApplicationError):
+    """Not a usable tenant slug."""
 
 
 class AlreadyMemberError(ApplicationError):

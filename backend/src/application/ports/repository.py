@@ -1,8 +1,7 @@
 """The generic repository port: one aggregate, one key type.
 
-``KeyT`` is the identity the aggregate declares in domain —
-``Entity[TKey].id`` for id-keyed aggregates, ``MembershipKey`` for the
-composite one — so lookups and updates are typed end to end.
+``KeyT`` is the identity the aggregate declares in domain
+(``Entity[TKey].id``), so lookups and updates are typed end to end.
 
 Per-aggregate ports in ``master/`` and ``tenant/`` extend this with the
 queries that have no generic shape. There is deliberately no ``delete``:

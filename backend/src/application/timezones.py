@@ -1,4 +1,4 @@
-"""IANA timezone validation, shared by signup and tenant settings.
+"""IANA timezone validation, shared by tenant creation and tenant settings.
 
 Month-end period math runs in the tenant's timezone (FR-10.8), so an
 invalid zone stored today is a silently wrong report later — reject it

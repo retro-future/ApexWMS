@@ -1,4 +1,9 @@
-"""The authenticated user's own identity view (GET /auth/me)."""
+"""The authenticated user's own identity view (GET /auth/me).
+
+Identity comes from MasterDB; the role and permissions come from the token
+the request already carried, which the claims factory built from the
+store's ``employees`` row.
+"""
 
 from application.dtos import CurrentUser, MeView
 from application.errors import InvalidTokenError
@@ -17,6 +22,9 @@ class GetMe:
             user_id=user.id,
             email=user.email,
             full_name=user.full_name,
+            must_change_password=user.must_change_password,
+            permissions=current.permissions,
             tenant_id=current.tenant_id,
-            role=current.role,
+            tenant_role=current.tenant_role,
+            app_roles=current.app_roles,
         )

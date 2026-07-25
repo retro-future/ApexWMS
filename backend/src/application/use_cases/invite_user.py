@@ -1,64 +1,68 @@
-"""FR-1.5: an Owner invites a user by email with a single-use, expiring link.
+"""FR-1.5: an Owner invites someone to their store with a single-use link.
+
+The invitation is written to MasterDB even though it grants a role in one
+store, so that accepting it needs no tenant context — the invitee has none
+until they have an account.
+
+An existing platform user may be invited: they already have a login
+identity, and accepting adds an ``Employee`` row at this store. What is
+refused is inviting someone who already works here.
 
 M1 decision: the invite token is returned in the response for the Owner
 to deliver; no email is sent.
 """
 
-from datetime import timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from application.dtos import InviteResult
+from application.dtos import InviteEmployeeCommand, InviteResult
 from application.errors import AlreadyMemberError
 from application.ports import (
     Clock,
+    EmployeeRepository,
     InvitationRepository,
     MasterUnitOfWork,
-    MembershipRepository,
     TokenService,
-    UserRepository,
 )
-from domain.entities import Invitation, MembershipKey
-from domain.roles import Role
+from application.types import InviteTtl, ResolvedTenantId
+from domain.entities import Invitation, InvitationKind
 
 
 class InviteUser:
     def __init__(
         self,
-        users: UserRepository,
-        memberships: MembershipRepository,
+        employees: EmployeeRepository,
         invitations: InvitationRepository,
         tokens: TokenService,
         clock: Clock,
         uow: MasterUnitOfWork,
-        invite_ttl: timedelta,
+        invite_ttl: InviteTtl,
+        tenant_id: ResolvedTenantId,
     ) -> None:
-        self._users = users
-        self._memberships = memberships
+        self._employees = employees
         self._invitations = invitations
         self._tokens = tokens
         self._clock = clock
         self._uow = uow
         self._invite_ttl = invite_ttl
+        # The store resolved at the edge — the same one `employees` is bound
+        # to, which is what keeps the duplicate check honest.
+        self._tenant_id = tenant_id
 
-    async def execute(
-        self, tenant_id: UUID, email: str, role: Role, created_by: UUID
-    ) -> InviteResult:
-        email = email.strip().lower()
-        existing = await self._users.get_by_email(email)
-        if existing is not None and await self._memberships.get(
-            MembershipKey(existing.id, tenant_id)
-        ):
+    async def execute(self, cmd: InviteEmployeeCommand) -> InviteResult:
+        email = cmd.email.strip().lower()
+        if await self._employees.get_by_email(email) is not None:
             raise AlreadyMemberError(email)
 
         secret = self._tokens.new_opaque_secret()
         invitation = Invitation(
             id=uuid4(),
-            tenant_id=tenant_id,
             email=email,
-            role=role,
+            kind=InvitationKind.EMPLOYEE,
+            tenant_id=self._tenant_id,
+            tenant_role=cmd.role,
             token_hash=self._tokens.hash_opaque(secret),
             expires_at=self._clock.now() + self._invite_ttl,
-            created_by=created_by,
+            created_by=cmd.invited_by,
         )
         await self._invitations.add(invitation)
         await self._uow.commit()
