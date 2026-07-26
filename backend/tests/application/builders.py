@@ -13,22 +13,20 @@ from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from application.use_cases import (
-    AcceptInvite,
-    ChangePassword,
-    ChangeUserRole,
-    ClaimsFactory,
-    CreateSuperAdmin,
-    CreateTenant,
-    GetMe,
-    GetTenantSettings,
-    InviteUser,
-    ListUsers,
-    Login,
-    RefreshTokens,
-    TokenIssuer,
-    UpdateTenantSettings,
-)
+from application.commands.accept_invite import AcceptInviteHandler
+from application.commands.change_password import ChangePasswordHandler
+from application.commands.change_user_role import ChangeUserRoleHandler
+from application.commands.create_superadmin import CreateSuperAdminHandler
+from application.commands.create_tenant import CreateTenantHandler
+from application.commands.invite_user import InviteUserHandler
+from application.commands.login import LoginHandler
+from application.commands.refresh_tokens import RefreshTokensHandler
+from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
+from application.dtos import CurrentUser, RequestedTenant
+from application.queries.get_me import GetMeHandler
+from application.queries.get_tenant_settings import GetTenantSettingsHandler
+from application.queries.list_users import ListUsersHandler
+from application.services import ClaimsFactory, TokenIssuer
 from domain.entities import Employee, Tenant, User, UserTenantAccess
 from domain.roles import TenantRole
 from domain.tenancy import TenantStatus
@@ -86,8 +84,8 @@ class World:
     def issuer(self) -> TokenIssuer:
         return TokenIssuer(self.tokens, self.refresh_tokens, self.clock, REFRESH_TTL)
 
-    def create_tenant(self) -> CreateTenant:
-        return CreateTenant(
+    def create_tenant(self) -> CreateTenantHandler:
+        return CreateTenantHandler(
             self.tenants,
             self.users,
             self.hasher,
@@ -97,16 +95,23 @@ class World:
             self.uow,
         )
 
-    def create_superadmin(self) -> CreateSuperAdmin:
-        return CreateSuperAdmin(
+    def create_superadmin(self) -> CreateSuperAdminHandler:
+        return CreateSuperAdminHandler(
             self.users, self.app_roles, self.hasher, self.tokens, self.clock, self.uow
         )
 
-    def login(self) -> Login:
-        return Login(self.users, self.hasher, self.claims, self.issuer, self.uow)
+    def login(self, requested_tenant_id: UUID | None = None) -> LoginHandler:
+        return LoginHandler(
+            self.users,
+            self.hasher,
+            self.claims,
+            self.issuer,
+            self.uow,
+            RequestedTenant(tenant_id=requested_tenant_id),
+        )
 
-    def refresh(self) -> RefreshTokens:
-        return RefreshTokens(
+    def refresh(self, requested_tenant_id: UUID | None = None) -> RefreshTokensHandler:
+        return RefreshTokensHandler(
             self.users,
             self.refresh_tokens,
             self.tokens,
@@ -114,17 +119,25 @@ class World:
             self.issuer,
             self.clock,
             self.uow,
+            RequestedTenant(tenant_id=requested_tenant_id),
         )
 
-    def change_password(self) -> ChangePassword:
-        return ChangePassword(
-            self.users, self.refresh_tokens, self.hasher, self.clock, self.uow
+    def change_password(self, user_id: UUID) -> ChangePasswordHandler:
+        return ChangePasswordHandler(
+            self.users,
+            self.refresh_tokens,
+            self.hasher,
+            self.clock,
+            self.uow,
+            CurrentUser(user_id=user_id, permissions=frozenset()),
         )
 
-    def invite_user(self, tenant: Tenant | None = None) -> InviteUser:
+    def invite_user(
+        self, tenant: Tenant | None = None, invited_by: UUID | None = None
+    ) -> InviteUserHandler:
         """Bound to one store, as the DI container binds it to the resolved one."""
         store = tenant or self.tenant
-        return InviteUser(
+        return InviteUserHandler(
             self.scope.employees_at(store.id),
             self.invitations,
             self.tokens,
@@ -132,10 +145,11 @@ class World:
             self.uow,
             INVITE_TTL,
             store.id,
+            CurrentUser(user_id=invited_by or uuid4(), permissions=frozenset()),
         )
 
-    def accept_invite(self) -> AcceptInvite:
-        return AcceptInvite(
+    def accept_invite(self) -> AcceptInviteHandler:
+        return AcceptInviteHandler(
             self.users,
             self.invitations,
             self.app_roles,
@@ -147,20 +161,20 @@ class World:
             self.uow,
         )
 
-    def get_me(self) -> GetMe:
-        return GetMe(self.users)
+    def get_me(self, current: CurrentUser) -> GetMeHandler:
+        return GetMeHandler(self.users, current)
 
-    def list_users(self) -> ListUsers:
-        return ListUsers(self.employees)
+    def list_users(self) -> ListUsersHandler:
+        return ListUsersHandler(self.employees)
 
-    def change_user_role(self) -> ChangeUserRole:
-        return ChangeUserRole(self.employees, self.uow)
+    def change_user_role(self) -> ChangeUserRoleHandler:
+        return ChangeUserRoleHandler(self.employees, self.uow)
 
-    def get_tenant_settings(self) -> GetTenantSettings:
-        return GetTenantSettings(self.tenant_settings)
+    def get_tenant_settings(self) -> GetTenantSettingsHandler:
+        return GetTenantSettingsHandler(self.tenant_settings)
 
-    def update_tenant_settings(self) -> UpdateTenantSettings:
-        return UpdateTenantSettings(self.tenant_settings, self.uow)
+    def update_tenant_settings(self) -> UpdateTenantSettingsHandler:
+        return UpdateTenantSettingsHandler(self.tenant_settings, self.uow)
 
     # --- fixture helpers -------------------------------------------------
 

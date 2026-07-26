@@ -2,23 +2,33 @@
 
 import pytest
 
+from application.commands.update_tenant_settings import UpdateTenantSettingsCommand
 from application.errors import InvalidTimezoneError
+from application.queries.get_tenant_settings import GetTenantSettingsQuery
 from tests.application.builders import make_world
 
 
 async def test_get_returns_the_seeded_timezone():
     world = make_world()
 
-    assert await world.get_tenant_settings().execute() == "Asia/Tashkent"
+    result = await world.get_tenant_settings().handle(GetTenantSettingsQuery())
+
+    assert result.data is not None
+    assert result.data.timezone == "Asia/Tashkent"
 
 
 async def test_update_stores_and_commits_a_valid_timezone():
     world = make_world()
 
-    result = await world.update_tenant_settings().execute("Europe/Berlin")
+    result = await world.update_tenant_settings().handle(
+        UpdateTenantSettingsCommand(timezone="Europe/Berlin")
+    )
 
-    assert result == "Europe/Berlin"
-    assert await world.get_tenant_settings().execute() == "Europe/Berlin"
+    assert result.data is not None
+    assert result.data.timezone == "Europe/Berlin"
+    read_back = await world.get_tenant_settings().handle(GetTenantSettingsQuery())
+    assert read_back.data is not None
+    assert read_back.data.timezone == "Europe/Berlin"
     assert world.uow.commits == 1
 
 
@@ -27,7 +37,9 @@ async def test_update_rejects_an_invalid_timezone_without_committing(timezone: s
     world = make_world()
 
     with pytest.raises(InvalidTimezoneError):
-        await world.update_tenant_settings().execute(timezone)
+        await world.update_tenant_settings().handle(UpdateTenantSettingsCommand(timezone=timezone))
 
-    assert await world.get_tenant_settings().execute() == "Asia/Tashkent"
+    result = await world.get_tenant_settings().handle(GetTenantSettingsQuery())
+    assert result.data is not None
+    assert result.data.timezone == "Asia/Tashkent"
     assert world.uow.commits == 0

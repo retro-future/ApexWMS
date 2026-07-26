@@ -16,28 +16,31 @@ async def test_login_refresh_and_me(client, create_tenant):
 
     me = await client.get("/api/v1/auth/me", headers=tenant.auth)
     assert me.status_code == 200
-    assert me.json()["email"] == tenant.email
-    assert me.json()["role"] == "tenant.owner"
-    assert me.json()["tenant_id"] == tenant.tenant_id
+    me_data = me.json()["data"]
+    assert me_data["email"] == tenant.email
+    assert me_data["role"] == "tenant.owner"
+    assert me_data["tenantId"] == tenant.tenant_id
     # Permissions are resolved from the role, not re-derived per request.
-    assert "Permission.Users.Manage" in me.json()["permissions"]
+    assert "Permission.Users.Manage" in me_data["permissions"]
 
     login = await client.post(
         "/api/v1/auth/login", json={"email": tenant.email, "password": PASSWORD}
     )
     assert login.status_code == 200
-    assert login.json()["role"] == "tenant.owner"
-    assert login.json()["tenant_id"] == tenant.tenant_id
+    login_data = login.json()["data"]
+    assert login_data["role"] == "tenant.owner"
+    assert login_data["tenantId"] == tenant.tenant_id
 
     refreshed = await client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": login.json()["refresh_token"]}
+        "/api/v1/auth/refresh", json={"refreshToken": login_data["refreshToken"]}
     )
     assert refreshed.status_code == 200
-    assert refreshed.json()["refresh_token"] != login.json()["refresh_token"]
+    refreshed_data = refreshed.json()["data"]
+    assert refreshed_data["refreshToken"] != login_data["refreshToken"]
 
     still_works = await client.get(
         "/api/v1/auth/me",
-        headers={"Authorization": f"Bearer {refreshed.json()['access_token']}"},
+        headers={"Authorization": f"Bearer {refreshed_data['accessToken']}"},
     )
     assert still_works.status_code == 200
 
@@ -51,7 +54,7 @@ async def test_login_needs_no_tenant_header(client, create_tenant):
     )
 
     assert resp.status_code == 200
-    assert resp.json()["tenant_id"] == tenant.tenant_id
+    assert resp.json()["data"]["tenantId"] == tenant.tenant_id
 
 
 async def test_there_is_no_signup_endpoint(client):
@@ -79,10 +82,10 @@ async def test_a_platform_operator_logs_in_with_no_tenant_claim(
     )
 
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["app_roles"] == ["app.superadmin"]
+    body = resp.json()["data"]
+    assert body["appRoles"] == ["app.superadmin"]
     # No store, so no tenant claim at all — not a null one.
-    assert "tenant_id" not in body
+    assert "tenantId" not in body
     assert "role" not in body
 
 
@@ -95,12 +98,12 @@ async def test_a_provisioned_owner_must_change_the_temporary_password(
         "/api/v1/auth/login", json={"email": tenant.email, "password": tenant.password}
     )
     assert login.status_code == 200
-    assert login.json()["must_change_password"] is True
+    assert login.json()["data"]["mustChangePassword"] is True
 
     changed = await client.post(
         "/api/v1/auth/change-password",
         json={"current_password": tenant.password, "new_password": PASSWORD},
-        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        headers={"Authorization": f"Bearer {login.json()['data']['accessToken']}"},
     )
     assert changed.status_code == 204
 
@@ -108,7 +111,7 @@ async def test_a_provisioned_owner_must_change_the_temporary_password(
         "/api/v1/auth/login", json={"email": tenant.email, "password": PASSWORD}
     )
     assert again.status_code == 200
-    assert again.json()["must_change_password"] is False
+    assert again.json()["data"]["mustChangePassword"] is False
 
     stale = await client.post(
         "/api/v1/auth/login", json={"email": tenant.email, "password": tenant.password}
@@ -146,7 +149,7 @@ async def test_a_rotated_refresh_token_cannot_be_reused(client, create_tenant):
 
     # Reuse revokes the chain, so the replacement dies with it.
     replacement = await client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": first.json()["refresh_token"]}
+        "/api/v1/auth/refresh", json={"refresh_token": first.json()["data"]["refreshToken"]}
     )
     assert replacement.status_code == 401
 
@@ -190,7 +193,7 @@ async def test_invite_accept_and_login_as_the_invitee(client, create_tenant):
         json={"email": "seller@example.com", "role": "tenant.seller"},
     )
     assert invite.status_code == 201, invite.text
-    token = invite.json()["token"]
+    token = invite.json()["data"]["token"]
 
     # Accepting needs no tenant header: the invitation is master-side.
     accepted = await client.post(
@@ -198,7 +201,7 @@ async def test_invite_accept_and_login_as_the_invitee(client, create_tenant):
         json={"token": token, "password": "sellerpass1", "full_name": "Nodira"},
     )
     assert accepted.status_code == 201, accepted.text
-    assert accepted.json()["tenant_id"] == tenant.tenant_id
+    assert accepted.json()["data"]["tenantId"] == tenant.tenant_id
 
     # Single-use.
     again = await client.post(
@@ -212,8 +215,8 @@ async def test_invite_accept_and_login_as_the_invitee(client, create_tenant):
         json={"email": "seller@example.com", "password": "sellerpass1"},
     )
     assert login.status_code == 200
-    assert login.json()["role"] == "tenant.seller"
-    assert login.json()["must_change_password"] is False
+    assert login.json()["data"]["role"] == "tenant.seller"
+    assert login.json()["data"]["mustChangePassword"] is False
 
 
 async def test_one_identity_can_work_at_two_stores(
@@ -235,18 +238,18 @@ async def test_one_identity_can_work_at_two_stores(
     )
     assert invite.status_code == 201, invite.text
     accepted = await client.post(
-        "/api/v1/auth/accept-invite", json={"token": invite.json()["token"]}
+        "/api/v1/auth/accept-invite", json={"token": invite.json()["data"]["token"]}
     )
     assert accepted.status_code == 201, accepted.text
     # Same identity, not a second account.
-    assert accepted.json()["user_id"] == a.user_id
+    assert accepted.json()["data"]["userId"] == a.user_id
 
     # Logging in still lands at their home store.
     home = await client.post(
         "/api/v1/auth/login", json={"email": a.email, "password": PASSWORD}
     )
-    assert home.json()["tenant_id"] == a.tenant_id
-    assert home.json()["role"] == "tenant.owner"
+    assert home.json()["data"]["tenantId"] == a.tenant_id
+    assert home.json()["data"]["role"] == "tenant.owner"
 
     # Naming the other store switches context, with the role held *there*.
     away = await client.post(
@@ -255,5 +258,5 @@ async def test_one_identity_can_work_at_two_stores(
         headers={"X-Tenant": "beta"},
     )
     assert away.status_code == 200
-    assert away.json()["tenant_id"] == b.tenant_id
-    assert away.json()["role"] == "tenant.seller"
+    assert away.json()["data"]["tenantId"] == b.tenant_id
+    assert away.json()["data"]["role"] == "tenant.seller"

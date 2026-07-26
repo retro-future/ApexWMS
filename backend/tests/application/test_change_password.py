@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from application.commands.change_password import ChangePasswordCommand
 from application.errors import InvalidCredentialsError, NotFoundError
 from domain.roles import TenantRole
 from tests.application.builders import make_world
@@ -16,7 +17,9 @@ async def test_change_password_replaces_the_hash():
     world = make_world()
     user = world.add_user(password=OLD)
 
-    await world.change_password().execute(user.id, OLD, NEW)
+    await world.change_password(user.id).handle(
+        ChangePasswordCommand(current_password=OLD, new_password=NEW)
+    )
 
     stored = await world.users.get(user.id)
     assert stored.password_hash == world.hasher.hash(NEW)
@@ -28,7 +31,9 @@ async def test_changing_the_password_clears_must_change_password():
     world = make_world()
     user = world.add_user(password=OLD, must_change_password=True, role=TenantRole.OWNER)
 
-    await world.change_password().execute(user.id, OLD, NEW)
+    await world.change_password(user.id).handle(
+        ChangePasswordCommand(current_password=OLD, new_password=NEW)
+    )
 
     assert not (await world.users.get(user.id)).must_change_password
 
@@ -38,7 +43,9 @@ async def test_changing_the_password_revokes_existing_sessions():
     user = world.add_user(password=OLD)
     await world.issue_refresh_for(user)
 
-    await world.change_password().execute(user.id, OLD, NEW)
+    await world.change_password(user.id).handle(
+        ChangePasswordCommand(current_password=OLD, new_password=NEW)
+    )
 
     assert all(r.is_revoked for r in world.refresh_tokens.by_id.values())
 
@@ -48,7 +55,9 @@ async def test_a_wrong_current_password_is_rejected():
     user = world.add_user(password=OLD, must_change_password=True)
 
     with pytest.raises(InvalidCredentialsError):
-        await world.change_password().execute(user.id, "not-my-password", NEW)
+        await world.change_password(user.id).handle(
+            ChangePasswordCommand(current_password="not-my-password", new_password=NEW)
+        )
 
     stored = await world.users.get(user.id)
     assert stored.password_hash == world.hasher.hash(OLD)
@@ -60,4 +69,6 @@ async def test_an_unknown_user_is_not_found():
     world = make_world()
 
     with pytest.raises(NotFoundError):
-        await world.change_password().execute(uuid4(), OLD, NEW)
+        await world.change_password(uuid4()).handle(
+            ChangePasswordCommand(current_password=OLD, new_password=NEW)
+        )

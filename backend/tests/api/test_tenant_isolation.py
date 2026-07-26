@@ -43,8 +43,8 @@ async def test_each_tenant_reads_its_own_settings(client, two_tenants):
     resp_a = await client.get("/api/v1/settings/tenant", headers=a.auth)
     resp_b = await client.get("/api/v1/settings/tenant", headers=b.auth)
 
-    assert resp_a.json()["timezone"] == "Asia/Tashkent"
-    assert resp_b.json()["timezone"] == "Europe/Berlin"
+    assert resp_a.json()["data"]["timezone"] == "Asia/Tashkent"
+    assert resp_b.json()["data"]["timezone"] == "Europe/Berlin"
 
 
 async def test_writing_one_tenants_settings_never_touches_the_other(client, two_tenants):
@@ -55,10 +55,10 @@ async def test_writing_one_tenants_settings_never_touches_the_other(client, two_
     )
     assert updated.status_code == 200
 
-    assert (await client.get("/api/v1/settings/tenant", headers=a.auth)).json()[
+    assert (await client.get("/api/v1/settings/tenant", headers=a.auth)).json()["data"][
         "timezone"
     ] == "America/New_York"
-    assert (await client.get("/api/v1/settings/tenant", headers=b.auth)).json()[
+    assert (await client.get("/api/v1/settings/tenant", headers=b.auth)).json()["data"][
         "timezone"
     ] == "Europe/Berlin"
 
@@ -69,8 +69,8 @@ async def test_the_staff_list_is_scoped_to_the_token_tenant(client, two_tenants)
     users_a = await client.get("/api/v1/users", headers=a.auth)
     users_b = await client.get("/api/v1/users", headers=b.auth)
 
-    assert [u["email"] for u in users_a.json()] == ["owner-a@example.com"]
-    assert [u["email"] for u in users_b.json()] == ["owner-b@example.com"]
+    assert [u["email"] for u in users_a.json()["data"]] == ["owner-a@example.com"]
+    assert [u["email"] for u in users_b.json()["data"]] == ["owner-b@example.com"]
 
 
 async def test_switching_to_a_store_without_a_grant_is_refused(client, two_tenants):
@@ -86,7 +86,7 @@ async def test_switching_to_a_store_without_a_grant_is_refused(client, two_tenan
 
     # And B is untouched by the attempt.
     users_b = await client.get("/api/v1/users", headers=b.auth)
-    assert [u["email"] for u in users_b.json()] == ["owner-b@example.com"]
+    assert [u["email"] for u in users_b.json()["data"]] == ["owner-b@example.com"]
 
 
 async def test_switching_with_a_grant_succeeds(client, two_tenants, grant_access):
@@ -99,7 +99,7 @@ async def test_switching_with_a_grant_succeeds(client, two_tenants, grant_access
     )
 
     assert resp.status_code == 200
-    assert resp.json()["timezone"] == "Europe/Berlin"
+    assert resp.json()["data"]["timezone"] == "Europe/Berlin"
 
 
 async def test_the_header_accepts_a_uuid_as_well_as_a_slug(
@@ -146,12 +146,12 @@ async def test_a_token_reissued_for_another_tenant_reaches_nothing(
 
     users = await client.get("/api/v1/users", headers=headers)
     if users.status_code == 200:
-        assert [u["email"] for u in users.json()] == ["owner-b@example.com"], (
+        assert [u["email"] for u in users.json()["data"]] == ["owner-b@example.com"], (
             "a cross-tenant token must not surface store A's staff"
         )
 
     settings_b = await client.get("/api/v1/settings/tenant", headers=b.auth)
-    assert settings_b.json()["timezone"] == "Europe/Berlin"
+    assert settings_b.json()["data"]["timezone"] == "Europe/Berlin"
 
 
 async def test_a_token_signed_with_the_wrong_secret_is_rejected(client, two_tenants):
@@ -209,15 +209,15 @@ async def test_an_invite_grants_a_role_only_at_the_issuing_store(client, two_ten
     )
     accepted = await client.post(
         "/api/v1/auth/accept-invite",
-        json={"token": invite.json()["token"], "password": "sellerpass1"},
+        json={"token": invite.json()["data"]["token"], "password": "sellerpass1"},
     )
-    assert accepted.json()["tenant_id"] == a.tenant_id
+    assert accepted.json()["data"]["tenantId"] == a.tenant_id
 
     login = await client.post(
         "/api/v1/auth/login",
         json={"email": "shared@example.com", "password": "sellerpass1"},
     )
-    assert login.json()["tenant_id"] == a.tenant_id
+    assert login.json()["data"]["tenantId"] == a.tenant_id
 
     users_b = await client.get("/api/v1/users", headers=b.auth)
-    assert [u["email"] for u in users_b.json()] == ["owner-b@example.com"]
+    assert [u["email"] for u in users_b.json()["data"]] == ["owner-b@example.com"]

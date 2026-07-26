@@ -20,15 +20,15 @@ async def tenant_with_roles(client, create_tenant):
         assert invite.status_code == 201, invite.text
         accepted = await client.post(
             "/api/v1/auth/accept-invite",
-            json={"token": invite.json()["token"], "password": "memberpass1"},
+            json={"token": invite.json()["data"]["token"], "password": "memberpass1"},
         )
         assert accepted.status_code == 201, accepted.text
         login = await client.post(
             "/api/v1/auth/login", json={"email": email, "password": "memberpass1"}
         )
         assert login.status_code == 200, login.text
-        tokens[role] = {"Authorization": f"Bearer {login.json()['access_token']}"}
-        user_ids[role] = accepted.json()["user_id"]
+        tokens[role] = {"Authorization": f"Bearer {login.json()['data']['accessToken']}"}
+        user_ids[role] = accepted.json()["data"]["userId"]
 
     return owner, tokens, user_ids
 
@@ -55,7 +55,7 @@ async def test_only_the_owner_can_invite_and_a_403_invites_nobody(
     assert denied.status_code == 403
 
     listed = await client.get("/api/v1/users", headers=owner.auth)
-    assert "sneaky@example.com" not in [u["email"] for u in listed.json()]
+    assert "sneaky@example.com" not in [u["email"] for u in listed.json()["data"]]
 
 
 @pytest.mark.parametrize("role", ROLES)
@@ -71,7 +71,7 @@ async def test_only_the_owner_can_change_roles_and_a_403_changes_nothing(
     assert denied.status_code == 403
 
     listed = await client.get("/api/v1/users", headers=owner.auth)
-    roles = {u["id"]: u["role"] for u in listed.json()}
+    roles = {u["id"]: u["role"] for u in listed.json()["data"]}
     assert roles[target] == "tenant.seller"
 
 
@@ -85,15 +85,15 @@ async def test_the_owner_can_change_a_role(client, tenant_with_roles):
     assert resp.status_code == 204
 
     listed = await client.get("/api/v1/users", headers=owner.auth)
-    assert {u["id"]: u["role"] for u in listed.json()}[target] == "tenant.manager"
+    assert {u["id"]: u["role"] for u in listed.json()["data"]}[target] == "tenant.manager"
 
 
 async def test_the_owner_cannot_demote_themselves_while_alone(client, tenant_with_roles):
     owner, _, _ = tenant_with_roles
-    me = (await client.get("/api/v1/auth/me", headers=owner.auth)).json()
+    me = (await client.get("/api/v1/auth/me", headers=owner.auth)).json()["data"]
 
     resp = await client.patch(
-        f"/api/v1/users/{me['user_id']}/role", headers=owner.auth, json={"role": "tenant.manager"}
+        f"/api/v1/users/{me['userId']}/role", headers=owner.auth, json={"role": "tenant.manager"}
     )
     assert resp.status_code == 409
 
@@ -104,7 +104,7 @@ async def test_any_member_can_read_tenant_settings(client, tenant_with_roles, ro
 
     resp = await client.get("/api/v1/settings/tenant", headers=tokens[role])
     assert resp.status_code == 200
-    assert resp.json()["timezone"] == "Asia/Tashkent"
+    assert resp.json()["data"]["timezone"] == "Asia/Tashkent"
 
 
 @pytest.mark.parametrize("role", ROLES)
@@ -117,7 +117,7 @@ async def test_only_the_owner_can_write_tenant_settings(client, tenant_with_role
     assert denied.status_code == 403
 
     unchanged = await client.get("/api/v1/settings/tenant", headers=tokens["tenant.owner"])
-    assert unchanged.json()["timezone"] == "Asia/Tashkent"
+    assert unchanged.json()["data"]["timezone"] == "Asia/Tashkent"
 
 
 async def test_the_owner_can_write_tenant_settings(client, tenant_with_roles):
@@ -129,4 +129,4 @@ async def test_the_owner_can_write_tenant_settings(client, tenant_with_roles):
         json={"timezone": "Europe/Berlin"},
     )
     assert resp.status_code == 200
-    assert resp.json()["timezone"] == "Europe/Berlin"
+    assert resp.json()["data"]["timezone"] == "Europe/Berlin"

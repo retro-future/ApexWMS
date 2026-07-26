@@ -7,6 +7,8 @@ it already has access to.
 
 import pytest
 
+from application.commands.create_superadmin import CreateSuperAdminCommand
+from application.commands.login import LoginCommand
 from application.errors import (
     AuthorizationError,
     InvalidCredentialsError,
@@ -23,11 +25,12 @@ async def test_login_stamps_the_tenant_from_the_users_own_record():
     world = make_world()
     user = world.add_user(password=PASSWORD, role=TenantRole.MANAGER)
 
-    result = await world.login().execute(user.email, PASSWORD)
+    result = await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
-    assert result.tenant_id == world.tenant.id
-    assert result.tenant_role is TenantRole.MANAGER
-    assert not result.must_change_password
+    assert result.data is not None
+    assert result.data.tenant_id == world.tenant.id
+    assert result.data.role is TenantRole.MANAGER
+    assert not result.data.must_change_password
 
 
 async def test_the_role_comes_from_the_store_not_the_login_identity():
@@ -39,32 +42,38 @@ async def test_the_role_comes_from_the_store_not_the_login_identity():
     world.add_employee(user, other, TenantRole.MANAGER)
     world.grant_access(user, other)
 
-    home = await world.login().execute(user.email, PASSWORD)
-    away = await world.login().execute(user.email, PASSWORD, other.id)
+    home = await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
+    away = await world.login(other.id).handle(LoginCommand(email=user.email, password=PASSWORD))
 
-    assert home.tenant_role is TenantRole.SELLER
-    assert away.tenant_role is TenantRole.MANAGER
+    assert home.data is not None and home.data.role is TenantRole.SELLER
+    assert away.data is not None and away.data.role is TenantRole.MANAGER
 
 
 async def test_login_records_a_refresh_token():
     world = make_world()
     user = world.add_user(password=PASSWORD)
 
-    await world.login().execute(user.email, PASSWORD)
+    await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
     assert len(world.refresh_tokens.by_id) == 1
 
 
 async def test_a_platform_operator_gets_no_tenant_claim():
     world = make_world()
-    user, _ = await world.create_superadmin().execute("ops@example.com", "Ops")
+    result = await world.create_superadmin().handle(
+        CreateSuperAdminCommand(email="ops@example.com", full_name="Ops")
+    )
+    assert result.data is not None
+    user = await world.users.get(result.data.user_id)
+    assert user is not None
     user.password_hash = world.hasher.hash(PASSWORD)
 
-    result = await world.login().execute(user.email, PASSWORD)
+    login_result = await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
-    assert result.tenant_id is None
-    assert result.tenant_role is None
-    assert result.app_roles == (AppRole.SUPERADMIN,)
+    assert login_result.data is not None
+    assert login_result.data.tenant_id is None
+    assert login_result.data.role is None
+    assert login_result.data.app_roles == [AppRole.SUPERADMIN]
 
 
 async def test_requesting_a_store_the_user_may_not_enter_is_refused():
@@ -73,7 +82,7 @@ async def test_requesting_a_store_the_user_may_not_enter_is_refused():
     user = world.add_user(password=PASSWORD)
 
     with pytest.raises(AuthorizationError):
-        await world.login().execute(user.email, PASSWORD, theirs.id)
+        await world.login(theirs.id).handle(LoginCommand(email=user.email, password=PASSWORD))
 
 
 async def test_a_granted_store_can_be_requested_at_login():
@@ -83,9 +92,10 @@ async def test_a_granted_store_can_be_requested_at_login():
     world.add_employee(user, other, TenantRole.SELLER)
     world.grant_access(user, other)
 
-    result = await world.login().execute(user.email, PASSWORD, other.id)
+    result = await world.login(other.id).handle(LoginCommand(email=user.email, password=PASSWORD))
 
-    assert result.tenant_id == other.id
+    assert result.data is not None
+    assert result.data.tenant_id == other.id
 
 
 async def test_an_identity_with_no_presence_at_the_store_cannot_log_in():
@@ -95,7 +105,7 @@ async def test_an_identity_with_no_presence_at_the_store_cannot_log_in():
     user = world.add_user(password=PASSWORD, role=None, tenant=world.tenant)
 
     with pytest.raises(InvalidCredentialsError):
-        await world.login().execute(user.email, PASSWORD)
+        await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
 
 async def test_a_deactivated_employee_cannot_log_in():
@@ -104,27 +114,31 @@ async def test_a_deactivated_employee_cannot_log_in():
     world.employees.by_id[user.id].is_active = False
 
     with pytest.raises(InvalidCredentialsError):
-        await world.login().execute(user.email, PASSWORD)
+        await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
 
 async def test_login_reports_a_temporary_password_that_must_be_changed():
     world = make_world()
     user = world.add_user(password=PASSWORD, must_change_password=True)
 
-    result = await world.login().execute(user.email, PASSWORD)
+    result = await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
-    assert result.must_change_password
+    assert result.data is not None
+    assert result.data.must_change_password
     # Tokens are still issued: the change-password endpoint needs them.
-    assert result.tokens.access_token
+    assert result.data.access_token
 
 
 async def test_login_normalizes_the_email():
     world = make_world()
     world.add_user(email="owner@example.com", password=PASSWORD)
 
-    result = await world.login().execute("  Owner@Example.COM ", PASSWORD)
+    result = await world.login().handle(
+        LoginCommand(email="  Owner@Example.COM ", password=PASSWORD)
+    )
 
-    assert result.tokens.access_token
+    assert result.data is not None
+    assert result.data.access_token
 
 
 @pytest.mark.parametrize(
@@ -136,7 +150,7 @@ async def test_login_rejects_bad_credentials(email: str, password: str):
     world.add_user(password=PASSWORD)
 
     with pytest.raises(InvalidCredentialsError):
-        await world.login().execute(email, password)
+        await world.login().handle(LoginCommand(email=email, password=password))
 
 
 async def test_login_rejects_a_deactivated_identity():
@@ -144,7 +158,7 @@ async def test_login_rejects_a_deactivated_identity():
     user = world.add_user(password=PASSWORD, is_active=False)
 
     with pytest.raises(InvalidCredentialsError):
-        await world.login().execute(user.email, PASSWORD)
+        await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
 
 async def test_login_rejects_a_user_who_has_not_set_a_password():
@@ -152,7 +166,7 @@ async def test_login_rejects_a_user_who_has_not_set_a_password():
     user = world.add_user(password="")
 
     with pytest.raises(InvalidCredentialsError):
-        await world.login().execute(user.email, PASSWORD)
+        await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))
 
 
 async def test_login_refuses_a_store_that_is_not_active():
@@ -162,4 +176,4 @@ async def test_login_refuses_a_store_that_is_not_active():
     world.tenant.status = TenantStatus.SUSPENDED
 
     with pytest.raises(TenantNotActiveError):
-        await world.login().execute(user.email, PASSWORD)
+        await world.login().handle(LoginCommand(email=user.email, password=PASSWORD))

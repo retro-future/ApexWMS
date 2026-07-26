@@ -12,8 +12,11 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from application.dtos import CreateTenantCommand
-from application.use_cases import CreateSuperAdmin, CreateTenant
+from application.commands.create_superadmin import (
+    CreateSuperAdminCommand,
+    CreateSuperAdminHandler,
+)
+from application.commands.create_tenant import CreateTenantCommand, CreateTenantHandler
 from infrastructure import migrations
 from infrastructure.clock import SystemClock
 from infrastructure.config import Settings
@@ -168,7 +171,7 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
         try:
             async with sessions() as session:
                 clock = SystemClock()
-                result = await CreateTenant(
+                handler = CreateTenantHandler(
                     tenants=SqlTenantRepository(session),
                     users=SqlUserRepository(session),
                     hasher=Argon2PasswordHasher(),
@@ -176,7 +179,8 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
                     provisioner=DefaultTenantProvisioner(engine, settings),
                     clock=clock,
                     uow=SqlMasterUnitOfWork(session),
-                ).execute(
+                )
+                result = await handler.handle(
                     CreateTenantCommand(
                         name=name,
                         slug=slug,
@@ -188,21 +192,23 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
         finally:
             await engine.dispose()
 
+        data = result.data
+        assert data is not None
         # Login needs no tenant header: the claim is stamped from users.tenant_id.
-        temp = result.temporary_password
+        temp = data.temporary_password
         resp = await client.post(
             "/api/v1/auth/login", json={"email": email, "password": temp}
         )
         assert resp.status_code == 200, resp.text
-        body = resp.json()
+        body = resp.json()["data"]
         tenant = Tenant(
-            tenant_id=str(result.tenant_id),
+            tenant_id=str(data.tenant_id),
             slug=slug,
             email=email,
             password=temp,
-            user_id=str(result.owner_user_id),
-            access_token=body["access_token"],
-            refresh_token=body["refresh_token"],
+            user_id=str(data.owner_user_id),
+            access_token=body["accessToken"],
+            refresh_token=body["refreshToken"],
         )
 
         # Most tests want a settled Owner, not one mid-onboarding. Tests that
@@ -218,10 +224,10 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
                 "/api/v1/auth/login", json={"email": email, "password": password}
             )
             assert resp.status_code == 200, resp.text
-            body = resp.json()
+            body = resp.json()["data"]
             tenant.password = password
-            tenant.access_token = body["access_token"]
-            tenant.refresh_token = body["refresh_token"]
+            tenant.access_token = body["accessToken"]
+            tenant.refresh_token = body["refreshToken"]
 
         return tenant
 
@@ -243,17 +249,20 @@ def create_superadmin(settings: Settings):
         try:
             async with sessions() as session:
                 clock = SystemClock()
-                user, password = await CreateSuperAdmin(
+                handler = CreateSuperAdminHandler(
                     users=SqlUserRepository(session),
                     app_roles=SqlUserAppRoleRepository(session),
                     hasher=Argon2PasswordHasher(),
                     tokens=_token_service(settings, clock),
                     clock=clock,
                     uow=SqlMasterUnitOfWork(session),
-                ).execute(email, name)
+                )
+                result = await handler.handle(CreateSuperAdminCommand(email=email, full_name=name))
         finally:
             await engine.dispose()
-        return email, password
+        data = result.data
+        assert data is not None
+        return email, data.temporary_password
 
     return _create
 
