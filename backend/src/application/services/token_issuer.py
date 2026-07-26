@@ -1,7 +1,7 @@
 """Issues an access+refresh pair and records the refresh token.
 
-Shared by Login and RefreshTokens. Does not commit — the calling use case
-owns the transaction boundary.
+Shared by ``LoginHandler`` and ``RefreshTokensHandler``. Does not commit —
+the calling handler owns the transaction boundary.
 
 Both the record and the identity it belongs to are master-side, so this
 touches one database regardless of which store the token ends up speaking

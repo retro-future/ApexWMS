@@ -12,9 +12,13 @@ M1 decision: the invite token is returned in the response for the Owner
 to deliver; no email is sent.
 """
 
-from uuid import uuid4
+from datetime import datetime
+from uuid import UUID, uuid4
 
-from application.dtos import InviteEmployeeCommand, InviteResult
+from pydantic import EmailStr
+
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.dtos import CurrentUser
 from application.errors import AlreadyMemberError
 from application.ports import (
     Clock,
@@ -25,9 +29,23 @@ from application.ports import (
 )
 from application.types import InviteTtl, ResolvedTenantId
 from domain.entities import Invitation, InvitationKind
+from domain.roles import TenantRole
 
 
-class InviteUser:
+class InviteResultData(CamelModel):
+    invitation_id: UUID
+    token: str
+    expires_at: datetime
+
+
+class InviteEmployeeCommand(Command[ResultWithData[InviteResultData]]):
+    email: EmailStr
+    role: TenantRole
+
+
+class InviteUserHandler(
+    IRequestHandler[ResultWithData[InviteResultData], InviteEmployeeCommand]
+):
     def __init__(
         self,
         employees: EmployeeRepository,
@@ -37,6 +55,7 @@ class InviteUser:
         uow: MasterUnitOfWork,
         invite_ttl: InviteTtl,
         tenant_id: ResolvedTenantId,
+        current_user: CurrentUser,
     ) -> None:
         self._employees = employees
         self._invitations = invitations
@@ -47,9 +66,12 @@ class InviteUser:
         # The store resolved at the edge — the same one `employees` is bound
         # to, which is what keeps the duplicate check honest.
         self._tenant_id = tenant_id
+        self._invited_by = current_user.user_id
 
-    async def execute(self, cmd: InviteEmployeeCommand) -> InviteResult:
-        email = cmd.email.strip().lower()
+    async def handle(
+        self, request: InviteEmployeeCommand
+    ) -> ResultWithData[InviteResultData]:
+        email = request.email.strip().lower()
         if await self._employees.get_by_email(email) is not None:
             raise AlreadyMemberError(email)
 
@@ -59,15 +81,17 @@ class InviteUser:
             email=email,
             kind=InvitationKind.EMPLOYEE,
             tenant_id=self._tenant_id,
-            tenant_role=cmd.role,
+            tenant_role=request.role,
             token_hash=self._tokens.hash_opaque(secret),
             expires_at=self._clock.now() + self._invite_ttl,
-            created_by=cmd.invited_by,
+            created_by=self._invited_by,
         )
         await self._invitations.add(invitation)
         await self._uow.commit()
-        return InviteResult(
-            invitation_id=invitation.id,
-            token=f"{invitation.id}.{secret}",
-            expires_at=invitation.expires_at,
+        return ResultWithData[InviteResultData].succeed_with_data(
+            InviteResultData(
+                invitation_id=invitation.id,
+                token=f"{invitation.id}.{secret}",
+                expires_at=invitation.expires_at,
+            )
         )

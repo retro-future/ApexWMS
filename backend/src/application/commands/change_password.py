@@ -7,8 +7,10 @@ Credentials are master-side, so this never opens a tenant database — the
 password is a property of the person, not of any store they work at.
 """
 
-from uuid import UUID
+from pydantic import Field
 
+from application.core import Command, IRequestHandler, Result
+from application.dtos import CurrentUser
 from application.errors import InvalidCredentialsError, NotFoundError
 from application.ports import (
     Clock,
@@ -19,7 +21,12 @@ from application.ports import (
 )
 
 
-class ChangePassword:
+class ChangePasswordCommand(Command[Result]):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=200)
+
+
+class ChangePasswordHandler(IRequestHandler[Result, ChangePasswordCommand]):
     def __init__(
         self,
         users: UserRepository,
@@ -27,26 +34,29 @@ class ChangePassword:
         hasher: PasswordHasher,
         clock: Clock,
         uow: MasterUnitOfWork,
+        current_user: CurrentUser,
     ) -> None:
         self._users = users
         self._refresh_tokens = refresh_tokens
         self._hasher = hasher
         self._clock = clock
         self._uow = uow
+        self._user_id = current_user.user_id
 
-    async def execute(self, user_id: UUID, current_password: str, new_password: str) -> None:
-        user = await self._users.get(user_id)
+    async def handle(self, request: ChangePasswordCommand) -> Result:
+        user = await self._users.get(self._user_id)
         if user is None:
             raise NotFoundError("no such user")
         if user.password_hash is None or not self._hasher.verify(
-            user.password_hash, current_password
+            user.password_hash, request.current_password
         ):
             raise InvalidCredentialsError()
 
-        user.password_hash = self._hasher.hash(new_password)
+        user.password_hash = self._hasher.hash(request.new_password)
         user.must_change_password = False
         await self._users.update(user)
         # A password change invalidates sessions opened with the old one —
         # including the temporary password an operator may have seen.
-        await self._refresh_tokens.revoke_all_for_user(user_id, self._clock.now())
+        await self._refresh_tokens.revoke_all_for_user(self._user_id, self._clock.now())
         await self._uow.commit()
+        return Result.succeed()

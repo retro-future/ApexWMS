@@ -6,12 +6,13 @@ password, and provisioning seeds the matching ``Employee`` into the new
 store's database — same id on both, which is the equality the ledger's
 foreign keys depend on from M3.
 
-In v2 a welcome email carries that password; today the CLI prints it.
+CLI-only: there is no HTTP surface that creates a tenant (PRD §3.4).
 """
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from application.dtos import CreateTenantCommand, CreateTenantResult, OwnerSeed
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.dtos import OwnerSeed
 from application.errors import AlreadyMemberError, SlugAlreadyTakenError
 from application.ports import (
     Clock,
@@ -28,7 +29,27 @@ from domain.entities import Tenant, User
 from domain.tenancy import TenantStatus
 
 
-class CreateTenant:
+class CreateTenantData(CamelModel):
+    """The temporary password exists only here — it is never stored in plaintext."""
+
+    tenant_id: UUID
+    slug: str
+    owner_email: str
+    owner_user_id: UUID
+    temporary_password: str
+
+
+class CreateTenantCommand(Command[ResultWithData[CreateTenantData]]):
+    name: str
+    slug: str
+    owner_email: str
+    owner_full_name: str
+    timezone: str
+
+
+class CreateTenantHandler(
+    IRequestHandler[ResultWithData[CreateTenantData], CreateTenantCommand]
+):
     def __init__(
         self,
         tenants: TenantRepository,
@@ -47,13 +68,15 @@ class CreateTenant:
         self._clock = clock
         self._uow = uow
 
-    async def execute(self, cmd: CreateTenantCommand) -> CreateTenantResult:
-        validate_timezone(cmd.timezone)
-        slug = normalize_slug(cmd.slug)
+    async def handle(
+        self, request: CreateTenantCommand
+    ) -> ResultWithData[CreateTenantData]:
+        validate_timezone(request.timezone)
+        slug = normalize_slug(request.slug)
         if await self._tenants.get_by_slug(slug) is not None:
             raise SlugAlreadyTakenError(slug)
 
-        owner_email = cmd.owner_email.strip().lower()
+        owner_email = request.owner_email.strip().lower()
         # Email is unique platform-wide now, so an existing person cannot be
         # made the Owner this way — invite them into the store instead.
         if await self._users.get_by_email(owner_email) is not None:
@@ -62,7 +85,7 @@ class CreateTenant:
         now = self._clock.now()
         tenant = Tenant(
             id=uuid4(),
-            name=cmd.name,
+            name=request.name,
             slug=slug,
             status=TenantStatus.PENDING,
             created_at=now,
@@ -73,7 +96,7 @@ class CreateTenant:
         owner = User(
             id=uuid4(),
             email=owner_email,
-            full_name=cmd.owner_full_name,
+            full_name=request.owner_full_name,
             password_hash=self._hasher.hash(temporary_password),
             tenant_id=tenant.id,
             is_active=True,
@@ -87,16 +110,16 @@ class CreateTenant:
 
         await self._provisioner.provision(
             tenant.id,
-            cmd.timezone,
-            OwnerSeed(
-                user_id=owner.id, email=owner.email, full_name=owner.full_name
-            ),
+            request.timezone,
+            OwnerSeed(user_id=owner.id, email=owner.email, full_name=owner.full_name),
         )
 
-        return CreateTenantResult(
-            tenant_id=tenant.id,
-            slug=slug,
-            owner_email=owner_email,
-            owner_user_id=owner.id,
-            temporary_password=temporary_password,
+        return ResultWithData[CreateTenantData].succeed_with_data(
+            CreateTenantData(
+                tenant_id=tenant.id,
+                slug=slug,
+                owner_email=owner_email,
+                owner_user_id=owner.id,
+                temporary_password=temporary_password,
+            )
         )

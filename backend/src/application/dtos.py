@@ -1,11 +1,15 @@
-"""Application DTOs — frozen dataclasses crossing the use-case boundary.
-
-They carry data and validate nothing (PRD §7.3): structural validation
-happens in presentation schemas, semantic validation in the domain.
+"""Application-internal DTOs — frozen dataclasses that never cross an HTTP
+boundary: DI-context values (``CurrentUser``, ``RequestedTenant``) and
+carriers passed between collaborator services (``ClaimsFactory``,
+``TokenIssuer``). CQRS messages — commands, queries, and their result
+payloads — are Pydantic models instead, defined alongside their handler in
+``application/commands/``/``application/queries/`` (see ``application/core/``
+for the shared base classes). The split is by role, not by layer: does this
+object cross a message boundary that needs structural validation and JSON
+shape, or does it just carry context through the DI graph?
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from uuid import UUID
 
 from domain.roles import AppRole, TenantRole
@@ -88,75 +92,3 @@ class OwnerSeed:
     full_name: str
 
 
-@dataclass(frozen=True, slots=True)
-class CreateTenantCommand:
-    name: str
-    slug: str
-    owner_email: str
-    owner_full_name: str
-    timezone: str
-
-
-@dataclass(frozen=True, slots=True)
-class CreateTenantResult:
-    """The temporary password exists only here — it is never stored in plaintext."""
-
-    tenant_id: UUID
-    slug: str
-    owner_email: str
-    owner_user_id: UUID
-    temporary_password: str
-
-
-@dataclass(frozen=True, slots=True)
-class LoginResult:
-    """``tenant_id`` is None for a platform operator, who has no home store."""
-
-    tokens: AuthTokens
-    must_change_password: bool
-    tenant_id: UUID | None = None
-    tenant_role: TenantRole | None = None
-    app_roles: tuple[AppRole, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class InviteEmployeeCommand:
-    """No ``tenant_id``: the store is the one the request resolved to, and
-    ``InviteUser`` holds it — so the store checked for a duplicate and the
-    store written onto the invitation cannot drift apart."""
-
-    email: str
-    role: TenantRole
-    invited_by: UUID
-
-
-@dataclass(frozen=True, slots=True)
-class InviteResult:
-    invitation_id: UUID
-    token: str
-    expires_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class AcceptInviteCommand:
-    token: str
-    password: str | None
-    full_name: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class AcceptInviteResult:
-    user_id: UUID
-    tenant_id: UUID | None
-
-
-@dataclass(frozen=True, slots=True)
-class MeView:
-    user_id: UUID
-    email: str
-    full_name: str
-    must_change_password: bool
-    permissions: frozenset[str] = field(default_factory=frozenset)
-    tenant_id: UUID | None = None
-    tenant_role: TenantRole | None = None
-    app_roles: tuple[AppRole, ...] = ()

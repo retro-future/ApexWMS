@@ -9,8 +9,9 @@ Invoked by the CLI only: there is no HTTP surface that creates one, and
 having the MasterDB URL is the credential that authorizes it.
 """
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import AlreadyMemberError
 from application.ports import (
     Clock,
@@ -24,7 +25,23 @@ from domain.entities import User, UserAppRole
 from domain.roles import AppRole
 
 
-class CreateSuperAdmin:
+class CreateSuperAdminData(CamelModel):
+    """The temporary password exists only here."""
+
+    user_id: UUID
+    email: str
+    temporary_password: str
+
+
+class CreateSuperAdminCommand(Command[ResultWithData[CreateSuperAdminData]]):
+    email: str
+    full_name: str
+    role: AppRole = AppRole.SUPERADMIN
+
+
+class CreateSuperAdminHandler(
+    IRequestHandler[ResultWithData[CreateSuperAdminData], CreateSuperAdminCommand]
+):
     def __init__(
         self,
         users: UserRepository,
@@ -41,11 +58,10 @@ class CreateSuperAdmin:
         self._clock = clock
         self._uow = uow
 
-    async def execute(
-        self, email: str, full_name: str, role: AppRole = AppRole.SUPERADMIN
-    ) -> tuple[User, str]:
-        """Returns the user and the temporary password, which exists only here."""
-        email = email.strip().lower()
+    async def handle(
+        self, request: CreateSuperAdminCommand
+    ) -> ResultWithData[CreateSuperAdminData]:
+        email = request.email.strip().lower()
         if await self._users.get_by_email(email) is not None:
             raise AlreadyMemberError(email)
 
@@ -53,7 +69,7 @@ class CreateSuperAdmin:
         user = User(
             id=uuid4(),
             email=email,
-            full_name=full_name,
+            full_name=request.full_name,
             password_hash=self._hasher.hash(temporary_password),
             # No home store: a platform operator's token carries no tenant claim.
             tenant_id=None,
@@ -62,6 +78,12 @@ class CreateSuperAdmin:
             created_at=self._clock.now(),
         )
         await self._users.add(user)
-        await self._app_roles.add(UserAppRole(id=uuid4(), user_id=user.id, role=role))
+        await self._app_roles.add(
+            UserAppRole(id=uuid4(), user_id=user.id, role=request.role)
+        )
         await self._uow.commit()
-        return user, temporary_password
+        return ResultWithData[CreateSuperAdminData].succeed_with_data(
+            CreateSuperAdminData(
+                user_id=user.id, email=email, temporary_password=temporary_password
+            )
+        )

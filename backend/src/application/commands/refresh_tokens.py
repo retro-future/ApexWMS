@@ -13,7 +13,8 @@ access-token lifetime after it is made.
 import hmac
 from uuid import UUID
 
-from application.dtos import AuthTokens
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.dtos import RequestedTenant
 from application.errors import InvalidTokenError
 from application.ports import (
     Clock,
@@ -22,11 +23,23 @@ from application.ports import (
     TokenService,
     UserRepository,
 )
-from application.use_cases.claims import ClaimsFactory
-from application.use_cases.token_issuer import TokenIssuer
+from application.services.claims import ClaimsFactory
+from application.services.token_issuer import TokenIssuer
 
 
-class RefreshTokens:
+class AuthTokensData(CamelModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshTokensCommand(Command[ResultWithData[AuthTokensData]]):
+    refresh_token: str
+
+
+class RefreshTokensHandler(
+    IRequestHandler[ResultWithData[AuthTokensData], RefreshTokensCommand]
+):
     def __init__(
         self,
         users: UserRepository,
@@ -36,6 +49,7 @@ class RefreshTokens:
         issuer: TokenIssuer,
         clock: Clock,
         uow: MasterUnitOfWork,
+        requested: RequestedTenant,
     ) -> None:
         self._users = users
         self._refresh_tokens = refresh_tokens
@@ -44,11 +58,12 @@ class RefreshTokens:
         self._issuer = issuer
         self._clock = clock
         self._uow = uow
+        self._requested_tenant_id = requested.tenant_id
 
-    async def execute(
-        self, refresh_token: str, requested_tenant_id: UUID | None = None
-    ) -> AuthTokens:
-        jti, secret = _parse(refresh_token)
+    async def handle(
+        self, request: RefreshTokensCommand
+    ) -> ResultWithData[AuthTokensData]:
+        jti, secret = _parse(request.refresh_token)
         record = await self._refresh_tokens.get(jti)
         if record is None or not hmac.compare_digest(
             record.token_hash, self._tokens.hash_opaque(secret)
@@ -67,13 +82,15 @@ class RefreshTokens:
         if user is None or not user.is_active:
             raise InvalidTokenError()
 
-        claims = await self._claims.build(user, requested_tenant_id)
+        claims = await self._claims.build(user, self._requested_tenant_id)
         pair, new_jti = await self._issuer.issue(user.id, claims)
         record.revoked_at = now
         record.replaced_by = new_jti
         await self._refresh_tokens.update(record)
         await self._uow.commit()
-        return pair
+        return ResultWithData[AuthTokensData].succeed_with_data(
+            AuthTokensData(access_token=pair.access_token, refresh_token=pair.refresh_token)
+        )
 
 
 def _parse(refresh_token: str) -> tuple[UUID, str]:

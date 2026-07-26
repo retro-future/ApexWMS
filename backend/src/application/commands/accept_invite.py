@@ -22,7 +22,9 @@ import hmac
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from application.dtos import AcceptInviteCommand, AcceptInviteResult
+from pydantic import Field
+
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import AlreadyMemberError, InvitationError
 from application.ports import (
     Clock,
@@ -45,7 +47,20 @@ from domain.entities import (
 )
 
 
-class AcceptInvite:
+class AcceptInviteData(CamelModel):
+    user_id: UUID
+    tenant_id: UUID | None
+
+
+class AcceptInviteCommand(Command[ResultWithData[AcceptInviteData]]):
+    token: str
+    password: str | None = Field(default=None, min_length=8, max_length=200)
+    full_name: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class AcceptInviteHandler(
+    IRequestHandler[ResultWithData[AcceptInviteData], AcceptInviteCommand]
+):
     def __init__(
         self,
         users: UserRepository,
@@ -68,20 +83,22 @@ class AcceptInvite:
         self._clock = clock
         self._uow = uow
 
-    async def execute(self, cmd: AcceptInviteCommand) -> AcceptInviteResult:
-        invitation = await self._validate(cmd.token)
+    async def handle(
+        self, request: AcceptInviteCommand
+    ) -> ResultWithData[AcceptInviteData]:
+        invitation = await self._validate(request.token)
         now = self._clock.now()
 
         user = await self._users.get_by_email(invitation.email)
         is_new = user is None
         if user is None:
-            if not cmd.password:
+            if not request.password:
                 raise InvitationError("a password is required to create the account")
             user = User(
                 id=uuid4(),
                 email=invitation.email,
-                full_name=cmd.full_name or invitation.email,
-                password_hash=self._hasher.hash(cmd.password),
+                full_name=request.full_name or invitation.email,
+                password_hash=self._hasher.hash(request.password),
                 tenant_id=invitation.tenant_id,
                 is_active=True,
                 created_at=now,
@@ -96,7 +113,9 @@ class AcceptInvite:
         invitation.accepted_at = now
         await self._invitations.update(invitation)
         await self._uow.commit()
-        return AcceptInviteResult(user_id=user.id, tenant_id=invitation.tenant_id)
+        return ResultWithData[AcceptInviteData].succeed_with_data(
+            AcceptInviteData(user_id=user.id, tenant_id=invitation.tenant_id)
+        )
 
     async def _grant_app_role(self, invitation: Invitation, user: User) -> None:
         if invitation.app_role is None:
