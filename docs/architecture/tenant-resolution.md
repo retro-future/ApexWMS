@@ -1,11 +1,12 @@
 # Tenant resolution lives in one accessor service, never in a provider
 
 Naming and authorizing "which tenant is this request for" is exactly the
-kind of business logic `providers.md` forbids inside a `Provider`. It has
-its own dedicated service, modeled on the reference `ICurrentTenantAccessor`
-pattern (ASP.NET Core `IHttpContextAccessor`-backed resolver): one class,
-constructed with its collaborators via DI, exposing resolution methods that
-raise on failure — the provider only constructs it and calls a method.
+kind of business logic `.claude/rules/backend/providers.md` forbids inside a
+`Provider`. It has its own dedicated service, modeled on the reference
+`ICurrentTenantAccessor` pattern (ASP.NET Core `IHttpContextAccessor`-backed
+resolver): one class, constructed with its collaborators via DI, exposing
+resolution methods that raise on failure — the provider only constructs it
+and calls a method.
 
 ## `CurrentTenantAccessor` (`infrastructure/current_tenant_accessor.py`)
 

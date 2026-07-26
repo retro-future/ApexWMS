@@ -616,7 +616,7 @@ This puts the entire burden on the API being fast and unambiguous:
 | Language | Python 3.14 |
 | Package/env manager | **uv** |
 | Web framework | FastAPI |
-| Validation & serialization | **Pydantic v2** — request/response schemas in `presentation`, `pydantic-settings` for `Settings` in `infrastructure`. **Never imported by `domain` or `application`** (§7.3). |
+| Validation & serialization | **Pydantic v2** — CQRS commands/queries/results in `application` (§7.3), `pydantic-settings` for `Settings` in `infrastructure`. **Never imported by `domain`** (§7.3). |
 | DI | **Dishka** |
 | ORM | SQLAlchemy 2.x (async) |
 | Driver | **asyncpg** (0.31+ ships cp314 wheels; **psycopg3** is the fallback) |
@@ -634,7 +634,7 @@ apexwms/
 │   ├── backend/
 │   │   ├── src/
 │   │   │   ├── domain/          # entities, value objects, domain errors
-│   │   │   ├── application/     # use cases, ports (protocols), DTOs
+│   │   │   ├── application/     # CQRS commands/queries/handlers, ports (protocols), DTOs
 │   │   │   ├── infrastructure/  # SQLAlchemy, tenancy, JWT, PDF, Alembic
 │   │   │   ├── presentation/    # FastAPI routers, schemas
 │   │   │   ├── di/              # composition root: Dishka providers & container
@@ -661,57 +661,56 @@ presentation ──▶ application ──▶ domain
 ```
 
 - **`domain/`** — pure Python. Entities (`DeviceUnit`, `StockMovement`), value objects (`IMEI`, `Money`), domain errors. **Zero imports from anything outside `domain/`.** No SQLAlchemy, no FastAPI, no Pydantic. If `IMEI` can't validate its own Luhn digit without a database, the design is wrong.
-- **`application/`** — use cases (one class, one `execute()` method, one business operation: `ReceiveGoods`, `SellDevices`, `ConfirmStockCount`). It defines **ports** — `Protocol` classes describing what it needs (`DeviceUnitRepository`, `UnitOfWork`, `PdfRenderer`, `Clock`). It depends on `domain` only.
+- **`application/`** — CQRS: a `Command`/`Query` (one Pydantic message, one business operation: `ReceiveGoodsCommand`, `SellDevicesCommand`, `ConfirmStockCountCommand`) paired with an `IRequestHandler` that executes it (`ReceiveGoodsHandler`, ...). `application/core/` holds the shared primitives (`IRequest`, `IRequestHandler`, `Command`, `Query`, `Result`/`ResultWithData`/`PagedResult`). It also defines **ports** — `Protocol` classes describing what a handler needs (`DeviceUnitRepository`, `UnitOfWork`, `PdfRenderer`, `Clock`). It depends on `domain` for business rules, and on `pydantic` for its message layer only — `domain` stays framework-free.
 - **`infrastructure/`** — the implementations. SQLAlchemy models and repositories, the tenant engine registry, the JWT service, the PDF renderer. It *implements* the ports that `application` declared. The arrow points inward: `application` never imports from `infrastructure`.
-- **`presentation/`** — FastAPI routers, request/response schemas, exception handlers, Dishka wiring. Thin: parse, authorize, call a use case, serialize.
+- **`presentation/`** — FastAPI routers and exception handlers, Dishka wiring. Thin: a route parses no JSON of its own — the request body **is** a `Command`/`Query` from `application`, so the router authorizes, calls the paired handler, and returns what it returns.
 
 **Why the ports live in `application`, not `infrastructure`:** this is the inversion in "dependency inversion," and it's the bit people get backwards. The use case *declares its needs*; infrastructure *satisfies them*. Consequence: `application` can be tested with in-memory fakes and no database at all.
 
 #### Data shapes across the layers — where Pydantic v2 lives, and what a DTO is
 
-Three kinds of data-carrying classes exist, one per layer. They look similar and are **not interchangeable** — each exists to keep its layer's dependencies clean:
+Data-carrying classes split by **role, not by layer** — the message layer (CQRS commands/queries/results) and the DI-context layer are both in `application`, and are **not interchangeable**:
 
-| Layer | Class kind | Example | Job |
+| Kind | Class kind | Example | Job |
 |---|---|---|---|
-| `presentation` | **Pydantic v2 `BaseModel` schemas** | `ConfirmInvoiceRequest`, `InvoiceResponse` | Parse and validate raw HTTP input; serialize responses. This is also where **role-based field omission** happens (FR-1.7): a Staff-facing response model simply has no cost fields. |
-| `application` | **DTOs: frozen `@dataclass`es** | `ReceiveGoodsCommand`, `ScanResult` | Carry structured data across the use-case boundary. No behavior, no validation logic, no framework imports. |
-| `domain` | **Entities & value objects** | `Money`, `IMEI`, `GoodsReceipt` | Not DTOs at all — they hold *behavior and invariants*. An `IMEI` validates itself; a DTO never does. |
-| `infrastructure` | **SQLAlchemy models** | `DeviceUnitModel` (mapped to `device_units`) | The *persistence* shape of an entity. **Never escapes the repository**: each repository maps row ↔ domain entity internally, so `application` never sees the ORM. |
+| CQRS message | **Pydantic v2 `Command`/`Query`, and their `Result`/`ResultWithData[TData]` payloads** (`application`) | `ConfirmInvoiceCommand`, `InvoiceData` | Parse and validate the request (structural: types, required fields, ranges) — the request body **is** the command, there is no separate presentation schema; carry the handler's output back out. This is also where **role-based field omission** happens (FR-1.7): a Staff-facing query simply returns a leaner `TData` with no cost fields. |
+| DI-context DTO | **frozen `@dataclass`es** (`application`) | `CurrentUser`, `IssuedClaims` | Carry data across DI boundaries — never on an HTTP wire. No behavior, no validation logic, no framework imports. |
+| Domain object | **Entities & value objects** (`domain`) | `Money`, `IMEI`, `GoodsReceipt` | Not DTOs at all — they hold *behavior and invariants*. An `IMEI` validates itself; a DTO never does. |
+| Persistence model | **SQLAlchemy models** (`infrastructure`) | `DeviceUnitModel` (mapped to `device_units`) | The *persistence* shape of an entity. **Never escapes the repository**: each repository maps row ↔ domain entity internally, so `application` never sees the ORM. |
 
-**Who maps what:** row ↔ entity mapping lives **inside repositories** (`infrastructure`) — the repository's public signatures speak domain types only. Schema → DTO/args and entity → response-model mapping lives in **`presentation`** (a `from_entity()` classmethod on the response schema is the idiomatic form). No mapping code exists in `domain` or `application` — those layers are mapped *to*, never mapping themselves.
+**Who maps what:** row ↔ entity mapping lives **inside repositories** (`infrastructure`) — the repository's public signatures speak domain types only. Entity → `TData` mapping (a `from_entity()`-style classmethod on the payload class, e.g. `EmployeeListItem.from_employee()`) lives in **`application`**, next to the handler that produces it. No mapping code exists in `domain` — that layer is mapped *to*, never mapping itself.
 
-**Why application DTOs are dataclasses and not Pydantic models:** `application` depends on `domain` only — that rule is what makes use cases testable with in-memory fakes. Pulling Pydantic into `application` would work mechanically, but it drags a validation framework into the one layer whose tests are supposed to run with zero framework, and it creates a second place where validation *could* live. The split is deliberate: **structural validation** (types, required fields, ranges) happens once, at the edge, in the Pydantic schema; **semantic validation** (a well-formed IMEI, a non-negative Money, a confirmable receipt) happens in the domain. A DTO in between carries data and validates nothing, so there is never a question about which layer owns a rule.
+**Why CQRS messages are Pydantic and DI-context DTOs stay dataclasses:** `application` depends on `domain` only for *business logic* — that rule is unchanged, and `domain` remains 100% framework-free. But a command or query is inescapably a validated, serializable message: carrying structural validation (types, required fields, ranges) at the one place a request enters a handler is exactly what Pydantic is for, and duplicating that validation with a second presentation-side schema was pure ceremony. Semantic validation (a well-formed IMEI, a non-negative Money, a confirmable receipt) still happens in the domain, unchanged. DI-context values that never reach a wire (`CurrentUser`, `RequestedTenant`, internal token/claims carriers) stay frozen dataclasses — nothing about them benefits from a validation framework.
 
 The flow for one request:
 
 ```
-HTTP JSON ──▶ Pydantic schema (presentation: shape, types)
-          ──▶ DTO / plain args (application boundary)
+HTTP JSON ──▶ Command/Query (application: shape, types — Pydantic)
           ──▶ entities & value objects (domain: invariants)
-          ──▶ result DTO ──▶ Pydantic response model ──▶ JSON
+          ──▶ Result / ResultWithData[TData] (application) ──▶ JSON
 ```
 
-**When to actually write a DTO — and when not to.** A use case taking two scalars needs no ceremony: `ReceiveGoods.execute(receipt_id, user_id)` (§7.4) takes plain arguments, and that is the correct form. A DTO earns its place when the input is *compound* — `CreateInvoiceCommand` with customer, location, payment type, and a list of lines — or when a use case returns a structured result the router must serialize. The rule mirrors §7.6: no mapping class exists before there's a concrete shape that needs carrying. Mapping code (schema → DTO, entity → response model) lives in `presentation`, because it is presentation that knows both sides.
+**When a command/query needs a field, and when it needs none.** Every handler's `__call__` takes exactly one `Command`/`Query` — even `GetMeQuery`, which carries no client-supplied fields at all, because identity comes from `CurrentUser` injected into the handler's constructor instead. A message earns real fields once the input is *compound* — `CreateInvoiceCommand` with customer, location, payment type, and a list of lines — or needs its own structural constraint (`Field(min_length=..., ge=...)`). Fields sourced from context (the authenticated user, the resolved tenant) are constructor-injected into the handler, never smuggled onto the command as a client-supplied field; a URL path segment is the one exception, added with a default and merged in by the router before dispatch (see `application/commands/change_user_role.py`). The rule mirrors §7.6: no field exists before there's a concrete value that needs carrying.
 
-### 7.4 A use case end to end: `ReceiveGoods`
+### 7.4 A command end to end: `ReceiveGoods`
 
 Tracing one operation through every layer, because this is the pattern every other operation copies:
 
-1. **`presentation/routers/receipts.py`** — `POST /receipts/{id}/confirm`. Validates the request schema, checks the role, and asks Dishka for a `ReceiveGoods` instance.
-2. **`application/use_cases/receive_goods.py`** — `ReceiveGoods.execute(receipt_id, user_id)`. Depends only on ports: `GoodsReceiptRepository`, `DeviceUnitRepository`, `StockMovementRepository`, `UnitOfWork`, `Clock`. It loads the receipt, asks the domain to validate it, creates the `DeviceUnit`s, writes the movements, and commits.
+1. **`presentation/routers/receipts.py`** — `POST /receipts/{id}/confirm`. The request body **is** `ConfirmReceiptCommand` (parsed and structurally validated by Pydantic before the route body runs); the router checks the role, asks Dishka for a `ConfirmReceiptHandler`, and returns what it returns — no separate request/response schema.
+2. **`application/commands/confirm_receipt.py`** — `ConfirmReceiptHandler.__call__(request: ConfirmReceiptCommand) -> ResultWithData[ReceiptData]`. Depends only on ports: `GoodsReceiptRepository`, `DeviceUnitRepository`, `StockMovementRepository`, `UnitOfWork`, `Clock`, plus `CurrentUser` for the acting user. It loads the receipt, asks the domain to validate it, creates the `DeviceUnit`s, writes the movements, commits, and returns `ResultWithData[ReceiptData].succeed_with_data(...)`.
 3. **`domain/entities/goods_receipt.py`** — `GoodsReceipt.confirm()` enforces the invariants: not already confirmed; every serial line has exactly as many scanned IMEIs as its declared quantity; no IMEI appears twice. **These rules live in the domain and are testable with no I/O whatsoever.**
 4. **`infrastructure/persistence/`** — the SQLAlchemy repositories that actually satisfy those ports, and the `UnitOfWork` that wraps it all in one transaction against *this tenant's* database.
 
-The use case does not know a tenant exists. It does not know Postgres exists. That is the entire point.
+The handler does not know a tenant exists. It does not know Postgres exists. That is the entire point.
 
 ### 7.5 Dishka scopes
 
 | Scope | Provides |
 |---|---|
 | `APP` | Settings, the MasterDB engine, the tenant `EngineRegistry`, the JWT service, the PDF renderer. |
-| `REQUEST` | The authenticated user, the resolved tenant, that tenant's `AsyncSession`, the `UnitOfWork`, repositories, and every use case. |
+| `REQUEST` | The authenticated user, the resolved tenant, that tenant's `AsyncSession`, the `UnitOfWork`, repositories, and every command/query handler. |
 
-The tenant-scoped `AsyncSession` is the linchpin: it's provided at `REQUEST` scope by pulling the tenant from the validated JWT and asking the registry for that tenant's engine. Everything downstream — every repository, every use case — is automatically bound to the right database without a single line of code below `presentation` mentioning tenancy.
+The tenant-scoped `AsyncSession` is the linchpin: it's provided at `REQUEST` scope by pulling the tenant from the validated JWT and asking the registry for that tenant's engine. Everything downstream — every repository, every handler — is automatically bound to the right database without a single line of code below `presentation` mentioning tenancy.
 
 ### 7.6 On DDD (a note on how this will be taught)
 

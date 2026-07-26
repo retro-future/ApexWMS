@@ -1,3 +1,8 @@
+---
+paths:
+  - "backend/src/**/*.py"
+---
+
 # Exceptions are raised by the code that owns the rule, never by a provider
 
 `application/errors.py`'s `ApplicationError` subclasses (`AuthenticationError`,
@@ -26,18 +31,18 @@ tested directly with fakes.
 - **Tenant resolution**: `CurrentTenantAccessor`
   (`infrastructure/current_tenant_accessor.py`) raises
   `MissingTenantError`/`TenantNotFoundError`/`AuthorizationError`/
-  `TenantNotActiveError` — see `tenant-resolution.md`.
+  `TenantNotActiveError` — see `docs/architecture/tenant-resolution.md`.
 - **Reaching a tenant DB mid-request**: `SqlTenantScope._resolve`
   (`infrastructure/tenant_scope.py`) raises `TenantNotActiveError` for a
   suspended/missing store, independently of the edge-resolution path above.
-- **Use-case-level rules** (e.g. `LastOwnerError`, `AlreadyMemberError`,
-  `InvitationError`, `SlugAlreadyTakenError`): raised from the use case in
-  `application/use_cases/` that owns the rule, exactly as today — this
-  guidance does not change how use cases already behave, only how the
-  DI edge (providers) is required to behave.
+- **Handler-level rules** (e.g. `LastOwnerError`, `AlreadyMemberError`,
+  `InvitationError`, `SlugAlreadyTakenError`): raised from the `IRequestHandler`
+  in `application/commands/`/`application/queries/` that owns the rule,
+  inside its `__call__` — this guidance does not change how handlers already
+  behave, only how the DI edge (providers) is required to behave.
 
 The provider that ultimately depends on one of these services (directly or
 transitively) does not catch, wrap, or re-raise anything — the exception
 propagates up through the container resolution and is mapped to an HTTP
-status by the presentation layer, same as any exception raised inside a use
-case's `execute()`.
+status by the presentation layer, same as any exception raised inside a
+handler's `__call__`.

@@ -1,3 +1,8 @@
+---
+paths:
+  - "backend/src/di/providers/**/*.py"
+---
+
 # Dishka providers must stay dumb
 
 A `Provider` subclass in `di/providers/` exists to *construct and wire*
@@ -55,11 +60,11 @@ class TenantDbProvider(Provider):
 
 All the resolution logic and every raise lives in
 `infrastructure/current_tenant_accessor.py`'s `CurrentTenantAccessor` — see
-`tenant-resolution.md`. `di/providers/auth.py`'s `AuthProvider` follows the
+`docs/architecture/tenant-resolution.md`. `di/providers/auth.py`'s `AuthProvider` follows the
 identical shape via `CurrentUserAccessor`
 (`infrastructure/security/current_user_accessor.py`).
 
-## Use cases: prefer `provide_all` over hand-written factories
+## CQRS handlers: prefer `provide_all` over hand-written factories
 
 When a `@provide` factory method exists *only* to forward constructor
 arguments (no derived values, no conditionals), it's pure boilerplate —
@@ -67,12 +72,13 @@ replace it with dishka's `provide_all`, which resolves the class's `__init__`
 by reflecting on its type hints:
 
 ```python
-class UseCasesProvider(Provider):
+class HandlersProvider(Provider):
     scope = Scope.REQUEST
-    use_cases = provide_all(
-        ClaimsFactory, TokenIssuer, Login, RefreshTokens, ChangePassword,
-        InviteUser, AcceptInvite, GetMe, ListUsers, ChangeUserRole,
-        GetTenantSettings, UpdateTenantSettings,
+    handlers = provide_all(
+        ClaimsFactory, TokenIssuer, LoginHandler, RefreshTokensHandler,
+        ChangePasswordHandler, InviteUserHandler, AcceptInviteHandler,
+        GetMeHandler, ListUsersHandler, ChangeUserRoleHandler,
+        GetTenantSettingsHandler, UpdateTenantSettingsHandler,
     )
 ```
 
@@ -82,4 +88,4 @@ human factory used to fill in from `Settings` must become a distinct
 `NewType` (see `application/types.py`) so the container can tell it apart
 from any other `timedelta`/`UUID` in the graph. Add the derived value's
 provider (a trivial one-line conversion, rule 2) to `di/providers/config.py`
-rather than hand-writing a factory for the use case that consumes it.
+rather than hand-writing a factory for the handler that consumes it.
