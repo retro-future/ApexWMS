@@ -1,7 +1,7 @@
 """Resolves the authenticated identity from the request's bearer token.
 
 Backs ``AuthProvider`` (di/providers/auth.py), which only constructs this
-and calls it — see .claude/rules/backend/tenant-resolution.md for why this
+and calls it — see docs/architecture/tenant-resolution.md for why this
 shape mirrors ``CurrentTenantAccessor``.
 """
 

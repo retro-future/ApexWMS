@@ -1,7 +1,7 @@
 """Resolves the tenant a request is acting on (PRD §3.3).
 
 The one resolver for naming/authorizing a tenant — see
-.claude/rules/backend/tenant-resolution.md. Modeled on the reference
+docs/architecture/tenant-resolution.md. Modeled on the reference
 ``ICurrentTenantAccessor``: a single class with private helper methods per
 resolution step, backing ``TenantDbProvider`` (di/providers/tenant_db.py),
 which only constructs this and delegates.

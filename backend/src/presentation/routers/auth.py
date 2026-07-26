@@ -12,72 +12,55 @@ here and only matters for someone who works at more than one store.
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 
-from application.dtos import AcceptInviteCommand, CurrentUser, RequestedTenant
-from application.use_cases import (
-    AcceptInvite,
-    ChangePassword,
-    GetMe,
-    Login,
-    RefreshTokens,
+from application.commands.accept_invite import (
+    AcceptInviteCommand,
+    AcceptInviteData,
+    AcceptInviteHandler,
 )
-from presentation.schemas.auth import (
-    AcceptInviteRequest,
-    AcceptInviteResponse,
-    ChangePasswordRequest,
-    LoginRequest,
-    LoginResponse,
-    MeResponse,
-    RefreshRequest,
-    TokenPairResponse,
+from application.commands.change_password import (
+    ChangePasswordCommand,
+    ChangePasswordHandler,
 )
+from application.commands.login import LoginCommand, LoginData, LoginHandler
+from application.commands.refresh_tokens import (
+    AuthTokensData,
+    RefreshTokensCommand,
+    RefreshTokensHandler,
+)
+from application.core import ResultWithData
+from application.queries.get_me import GetMeHandler, GetMeQuery, MeData
 
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=DishkaRoute)
 
 
-@router.post("/login", response_model=LoginResponse, response_model_exclude_none=True)
+@router.post("/login", response_model_exclude_none=True)
 async def login(
-    body: LoginRequest,
-    use_case: FromDishka[Login],
-    tenant: FromDishka[RequestedTenant],
-) -> LoginResponse:
-    result = await use_case.execute(body.email, body.password, tenant.tenant_id)
-    return LoginResponse.from_result(result)
+    body: LoginCommand, handler: FromDishka[LoginHandler]
+) -> ResultWithData[LoginData]:
+    return await handler.handle(body)
 
 
-@router.post("/refresh", response_model=TokenPairResponse)
+@router.post("/refresh")
 async def refresh(
-    body: RefreshRequest,
-    use_case: FromDishka[RefreshTokens],
-    tenant: FromDishka[RequestedTenant],
-) -> TokenPairResponse:
-    tokens = await use_case.execute(body.refresh_token, tenant.tenant_id)
-    return TokenPairResponse(
-        access_token=tokens.access_token, refresh_token=tokens.refresh_token
-    )
+    body: RefreshTokensCommand, handler: FromDishka[RefreshTokensHandler]
+) -> ResultWithData[AuthTokensData]:
+    return await handler.handle(body)
 
 
-@router.post("/accept-invite", response_model=AcceptInviteResponse, status_code=201)
+@router.post("/accept-invite", status_code=201)
 async def accept_invite(
-    body: AcceptInviteRequest, use_case: FromDishka[AcceptInvite]
-) -> AcceptInviteResponse:
-    result = await use_case.execute(
-        AcceptInviteCommand(token=body.token, password=body.password, full_name=body.full_name)
-    )
-    return AcceptInviteResponse(user_id=result.user_id, tenant_id=result.tenant_id)
+    body: AcceptInviteCommand, handler: FromDishka[AcceptInviteHandler]
+) -> ResultWithData[AcceptInviteData]:
+    return await handler.handle(body)
 
 
 @router.post("/change-password", status_code=204)
 async def change_password(
-    body: ChangePasswordRequest,
-    current: FromDishka[CurrentUser],
-    use_case: FromDishka[ChangePassword],
+    body: ChangePasswordCommand, handler: FromDishka[ChangePasswordHandler]
 ) -> None:
-    await use_case.execute(current.user_id, body.current_password, body.new_password)
+    await handler.handle(body)
 
 
-@router.get("/me", response_model=MeResponse, response_model_exclude_none=True)
-async def me(
-    current: FromDishka[CurrentUser],
-    use_case: FromDishka[GetMe],
-) -> MeResponse:
-    return MeResponse.from_view(await use_case.execute(current))
+@router.get("/me", response_model_exclude_none=True)
+async def me(handler: FromDishka[GetMeHandler]) -> ResultWithData[MeData]:
+    return await handler.handle(GetMeQuery())

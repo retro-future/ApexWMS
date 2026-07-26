@@ -4,7 +4,7 @@ request.
 All tenant-resolution logic lives in ``CurrentTenantAccessor``
 (infrastructure/current_tenant_accessor.py) — this provider only constructs
 collaborators and delegates (.claude/rules/backend/providers.md,
-.claude/rules/backend/tenant-resolution.md).
+docs/architecture/tenant-resolution.md).
 """
 
 from collections.abc import AsyncIterable

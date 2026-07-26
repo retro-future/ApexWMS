@@ -28,9 +28,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from application.dtos import CreateTenantCommand
+from application.commands.create_superadmin import (
+    CreateSuperAdminCommand,
+    CreateSuperAdminHandler,
+)
+from application.commands.create_tenant import CreateTenantCommand, CreateTenantHandler
 from application.errors import ApplicationError
-from application.use_cases import CreateSuperAdmin, CreateTenant
 from domain.roles import AppRole
 from domain.tenancy import TenantStatus
 from infrastructure import migrations
@@ -122,7 +125,7 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
             clock = SystemClock()
-            use_case = CreateTenant(
+            handler = CreateTenantHandler(
                 tenants=SqlTenantRepository(session),
                 users=SqlUserRepository(session),
                 hasher=Argon2PasswordHasher(),
@@ -135,7 +138,7 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
                 clock=clock,
                 uow=SqlMasterUnitOfWork(session),
             )
-            result = await use_case.execute(
+            result = await handler.handle(
                 CreateTenantCommand(
                     name=args.name,
                     slug=args.slug,
@@ -150,10 +153,12 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
     finally:
         await engine.dispose()
 
-    print(f"tenant {result.tenant_id} is active")
-    print(f"  slug:               {result.slug}")
-    print(f"  owner:              {result.owner_email}")
-    print(f"  temporary password: {result.temporary_password}")
+    data = result.data
+    assert data is not None
+    print(f"tenant {data.tenant_id} is active")
+    print(f"  slug:               {data.slug}")
+    print(f"  owner:              {data.owner_email}")
+    print(f"  temporary password: {data.temporary_password}")
     print("\nThe Owner logs in with email and password alone — the store is")
     print("stamped into their token server-side. They must change this password")
     print("immediately; it is not stored anywhere and cannot be shown again.")
@@ -174,7 +179,7 @@ async def _create_superadmin(settings: Settings, args: argparse.Namespace) -> in
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
             clock = SystemClock()
-            user, temporary_password = await CreateSuperAdmin(
+            handler = CreateSuperAdminHandler(
                 users=SqlUserRepository(session),
                 app_roles=SqlUserAppRoleRepository(session),
                 hasher=Argon2PasswordHasher(),
@@ -185,16 +190,23 @@ async def _create_superadmin(settings: Settings, args: argparse.Namespace) -> in
                 ),
                 clock=clock,
                 uow=SqlMasterUnitOfWork(session),
-            ).execute(args.email, args.name, AppRole(args.role))
+            )
+            result = await handler.handle(
+                CreateSuperAdminCommand(
+                    email=args.email, full_name=args.name, role=AppRole(args.role)
+                )
+            )
     except ApplicationError as exc:
         print(f"could not create operator: {exc}", file=sys.stderr)
         return 1
     finally:
         await engine.dispose()
 
-    print(f"{args.role} {user.id} created")
-    print(f"  email:              {user.email}")
-    print(f"  temporary password: {temporary_password}")
+    data = result.data
+    assert data is not None
+    print(f"{args.role} {data.user_id} created")
+    print(f"  email:              {data.email}")
+    print(f"  temporary password: {data.temporary_password}")
     print("\nThey log in with no tenant header and must change this password")
     print("immediately. It is not stored anywhere and cannot be shown again.")
     return 0
