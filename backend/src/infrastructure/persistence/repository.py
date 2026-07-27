@@ -13,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from domain.core import Entity
 
 
-class CrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](ABC):
+# The bound is the unsubscripted ``Entity``, not ``Entity[KeyT]``: a bound
+# may not reference another type parameter ("TypeVar constraint type cannot
+# be generic"). Binding to the base class is enough to give ``_key`` an
+# ``id`` to return; ``KeyT`` still pins what that id is at each subclass.
+class CrudRepository[EntityT: Entity, KeyT, ModelT](ABC):
     model: type[ModelT]
 
     def __init__(self, session: AsyncSession) -> None:

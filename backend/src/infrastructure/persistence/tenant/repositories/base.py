@@ -5,16 +5,32 @@ for the rationale. The subclasses are the tenant's own identity records
 plus the M2 catalog aggregates.
 """
 
+from abc import ABC
+from datetime import datetime
+from typing import Protocol
+
 from sqlalchemy import Select, or_, select
-from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.orm import InstrumentedAttribute, Mapped
 
 from domain.core import Entity
 from infrastructure.persistence.repository import CrudRepository
 from infrastructure.types import TenantSession
 
 
-class TenantCrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](
-    CrudRepository[EntityT, KeyT, ModelT]
+class BrowsableRow(Protocol):
+    """The two columns ``_browse_page`` needs to exist on the mapped row.
+
+    Stating it as a bound rather than trusting the call site means a model
+    without them is rejected where the repository is declared, not with an
+    ``AttributeError`` on the first search request.
+    """
+
+    is_active: Mapped[bool]
+    created_at: Mapped[datetime]
+
+
+class TenantCrudRepository[EntityT: Entity, KeyT, ModelT: BrowsableRow](
+    CrudRepository[EntityT, KeyT, ModelT], ABC
 ):
     def __init__(self, session: TenantSession) -> None:
         super().__init__(session)
@@ -31,8 +47,8 @@ class TenantCrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](
         """The browse shape every catalog list endpoint shares (FR-2.x).
 
         A case-insensitive substring match over *search_columns*, an
-        optional active/inactive filter, oldest first. ``model`` must
-        therefore carry ``is_active`` and ``created_at``.
+        optional active/inactive filter, oldest first — the two columns
+        that shape comes from are the ``BrowsableRow`` bound above.
 
         Aggregate-specific filters go on *stmt* before the call — that
         keeps "which columns does search cover" declarative here while
