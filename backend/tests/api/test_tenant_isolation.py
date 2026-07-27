@@ -73,6 +73,54 @@ async def test_the_staff_list_is_scoped_to_the_token_tenant(client, two_tenants)
     assert [u["email"] for u in users_b.json()["data"]] == ["owner-b@example.com"]
 
 
+async def test_one_stores_catalog_is_invisible_from_the_other(client, two_tenants):
+    """FR-1.4 over M2's tables. Isolation is physical, so B's product is
+    not in the database A's request is connected to at all — there is no
+    filter that could have been forgotten."""
+    a, b = two_tenants
+    await client.post(
+        "/api/v1/products",
+        headers=a.auth,
+        json={"sku": "IP15P-256", "name": "iPhone 15 Pro", "trackingType": "serial"},
+    )
+    await client.post(
+        "/api/v1/suppliers", headers=b.auth, json={"name": "Beta's supplier"}
+    )
+    await client.post(
+        "/api/v1/customers", headers=b.auth, json={"fullName": "Beta's customer"}
+    )
+
+    assert (await client.get("/api/v1/products", headers=b.auth)).json()["data"] == []
+    assert (await client.get("/api/v1/suppliers", headers=a.auth)).json()["data"] == []
+    assert (await client.get("/api/v1/customers", headers=a.auth)).json()["data"] == []
+
+
+async def test_the_same_sku_may_exist_in_both_stores(client, two_tenants):
+    """The unique index is per database, so uniqueness "within the tenant"
+    costs nothing across them — two shops both sell an iPhone 15 Pro."""
+    a, b = two_tenants
+    body = {"sku": "IP15P-256", "name": "iPhone 15 Pro", "trackingType": "serial"}
+
+    first = await client.post("/api/v1/products", headers=a.auth, json=body)
+    second = await client.post("/api/v1/products", headers=b.auth, json=body)
+
+    assert (first.status_code, second.status_code) == (201, 201)
+
+
+async def test_a_product_id_from_one_store_is_not_found_in_the_other(client, two_tenants):
+    a, b = two_tenants
+    created = await client.post(
+        "/api/v1/products",
+        headers=a.auth,
+        json={"sku": "IP15P-256", "name": "iPhone 15 Pro", "trackingType": "serial"},
+    )
+    product_id = created.json()["data"]["id"]
+
+    resp = await client.get(f"/api/v1/products/{product_id}", headers=b.auth)
+
+    assert resp.status_code == 404
+
+
 async def test_switching_to_a_store_without_a_grant_is_refused(client, two_tenants):
     """The header is authorized, not trusted — 403, not an empty result.
 

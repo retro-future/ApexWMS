@@ -8,7 +8,15 @@ from fastapi import FastAPI
 from di import create_container
 from infrastructure.config import Settings
 from presentation.errors import register_error_handlers
-from presentation.routers import auth, health, users
+from presentation.routers import (
+    auth,
+    customers,
+    health,
+    locations,
+    products,
+    suppliers,
+    users,
+)
 from presentation.routers import settings as settings_router
 
 API_PREFIX = "/api/v1"
@@ -36,4 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(users.router, prefix=API_PREFIX)
     app.include_router(settings_router.router, prefix=API_PREFIX)
+    app.include_router(products.router, prefix=API_PREFIX)
+    app.include_router(locations.router, prefix=API_PREFIX)
+    app.include_router(suppliers.router, prefix=API_PREFIX)
+    app.include_router(customers.router, prefix=API_PREFIX)
     return app
