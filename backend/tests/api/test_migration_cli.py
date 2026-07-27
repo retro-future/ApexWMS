@@ -21,7 +21,9 @@ async def test_fan_out_reports_every_tenant_at_head(create_tenant, settings, cap
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "2 tenant database(s)" in out
-    assert "0001_tenant: 2" in out
+    # Read from the scripts, not written down: the assertion is "both are at
+    # head", which must keep holding when the next revision lands.
+    assert f"{migrations.head_revision('tenant')}: 2" in out
 
 
 async def test_fan_out_is_idempotent(create_tenant, settings):
@@ -90,4 +92,4 @@ async def test_current_revision_is_none_before_migration(settings):
     assert await migrations.current_revision(url) is None
 
     await migrations.upgrade("tenant", url)
-    assert await migrations.current_revision(url) == "0001_tenant"
+    assert await migrations.current_revision(url) == migrations.head_revision("tenant")

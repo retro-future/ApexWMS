@@ -14,8 +14,8 @@ class SqlEmployeeRepository(TenantCrudRepository[Employee, UUID, EmployeeModel])
 
     model = EmployeeModel
 
-    def _key(self, employee: Employee) -> UUID:
-        return employee.id
+    def _key(self, entity: Employee) -> UUID:
+        return entity.id
 
     def _to_entity(self, row: EmployeeModel) -> Employee:
         return Employee(
@@ -27,21 +27,21 @@ class SqlEmployeeRepository(TenantCrudRepository[Employee, UUID, EmployeeModel])
             created_at=row.created_at,
         )
 
-    def _to_model(self, employee: Employee) -> EmployeeModel:
+    def _to_model(self, entity: Employee) -> EmployeeModel:
         return EmployeeModel(
-            id=employee.id,
-            email=employee.email,
-            full_name=employee.full_name,
-            role=employee.role.value,
-            is_active=employee.is_active,
-            created_at=employee.created_at,
+            id=entity.id,
+            email=entity.email,
+            full_name=entity.full_name,
+            role=entity.role.value,
+            is_active=entity.is_active,
+            created_at=entity.created_at,
         )
 
-    def _apply(self, row: EmployeeModel, employee: Employee) -> None:
-        row.email = employee.email
-        row.full_name = employee.full_name
-        row.role = employee.role.value
-        row.is_active = employee.is_active
+    def _apply(self, row: EmployeeModel, entity: Employee) -> None:
+        row.email = entity.email
+        row.full_name = entity.full_name
+        row.role = entity.role.value
+        row.is_active = entity.is_active
 
     async def get_by_email(self, email: str) -> Employee | None:
         row = await self._session.scalar(

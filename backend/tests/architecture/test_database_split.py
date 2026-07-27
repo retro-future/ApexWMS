@@ -29,8 +29,12 @@ MASTER_TABLES = {
 
 TENANT_TABLES = {
     "employees": entities.Employee,
-    "locations": None,  # M2 entity not modelled yet
     "tenant_settings": None,  # singleton settings row
+    # --- M2 catalog ---
+    "products": entities.Product,
+    "locations": entities.Location,
+    "suppliers": entities.Supplier,
+    "customers": entities.Customer,
 }
 
 
@@ -71,6 +75,26 @@ class TestPhysicalIsolation:
             assert "tenant_id" not in table.columns, (
                 f"{name}.tenant_id — isolation is the database, not a WHERE clause"
             )
+
+    def test_money_columns_are_bigint(self):
+        """A 32-bit integer overflows at about 175 phones' worth of som
+        (PRD §11). The ceiling belongs in the schema, not in a code review."""
+        for name, table in TenantBase.metadata.tables.items():
+            for column in table.columns:
+                if not column.name.endswith("_minor"):
+                    continue
+                assert column.type.__class__.__name__ == "BigInteger", (
+                    f"{name}.{column.name} must be BIGINT"
+                )
+
+    def test_no_tenant_table_stores_money_as_a_float(self):
+        """Lost fractions in an inventory system are indistinguishable from
+        theft (PRD §4.5)."""
+        for name, table in TenantBase.metadata.tables.items():
+            for column in table.columns:
+                assert "float" not in column.type.__class__.__name__.lower(), (
+                    f"{name}.{column.name} is floating point"
+                )
 
     def test_employees_and_users_agree_on_key_type(self):
         """``Employee.id`` *is* ``User.id`` — the ledger's FKs depend on it.

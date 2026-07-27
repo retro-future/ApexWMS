@@ -12,8 +12,8 @@ from .base import MasterCrudRepository
 class SqlTenantRepository(MasterCrudRepository[Tenant, UUID, TenantModel]):
     model = TenantModel
 
-    def _key(self, tenant: Tenant) -> UUID:
-        return tenant.id
+    def _key(self, entity: Tenant) -> UUID:
+        return entity.id
 
     def _to_entity(self, row: TenantModel) -> Tenant:
         return Tenant(
@@ -24,19 +24,19 @@ class SqlTenantRepository(MasterCrudRepository[Tenant, UUID, TenantModel]):
             created_at=row.created_at,
         )
 
-    def _to_model(self, tenant: Tenant) -> TenantModel:
+    def _to_model(self, entity: Tenant) -> TenantModel:
         return TenantModel(
-            id=tenant.id,
-            name=tenant.name,
-            slug=tenant.slug,
-            status=tenant.status.value,
-            created_at=tenant.created_at,
+            id=entity.id,
+            name=entity.name,
+            slug=entity.slug,
+            status=entity.status.value,
+            created_at=entity.created_at,
         )
 
-    def _apply(self, row: TenantModel, tenant: Tenant) -> None:
-        row.name = tenant.name
-        row.slug = tenant.slug
-        row.status = tenant.status.value
+    def _apply(self, row: TenantModel, entity: Tenant) -> None:
+        row.name = entity.name
+        row.slug = entity.slug
+        row.status = entity.status.value
 
     async def get_by_slug(self, slug: str) -> Tenant | None:
         row = await self._session.scalar(select(TenantModel).where(TenantModel.slug == slug))

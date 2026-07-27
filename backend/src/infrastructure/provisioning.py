@@ -111,7 +111,12 @@ class DefaultTenantProvisioner:
                 ).first()
                 if has_location is None:
                     session.add(
-                        LocationModel(id=uuid.uuid4(), name=DEFAULT_LOCATION_NAME, is_active=True)
+                        LocationModel(
+                            id=uuid.uuid4(),
+                            name=DEFAULT_LOCATION_NAME,
+                            is_active=True,
+                            created_at=datetime.now(UTC),
+                        )
                     )
                 await self._seed_owner(session, owner)
                 await session.commit()

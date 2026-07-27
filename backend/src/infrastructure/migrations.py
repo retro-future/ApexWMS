@@ -14,6 +14,7 @@ from typing import Literal
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy.ext.asyncio import create_async_engine
 
 SchemaKind = Literal["master", "tenant"]
@@ -27,6 +28,19 @@ def _config(kind: SchemaKind, db_url: str) -> Config:
     # Config values are ini-interpolated; escape literal % (e.g. in passwords).
     cfg.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
     return cfg
+
+
+def head_revision(kind: SchemaKind) -> str:
+    """The revision ``upgrade(kind, ...)`` brings a database to.
+
+    Read from the migration scripts rather than written down anywhere, so
+    "is this database current?" keeps meaning the same thing after the next
+    revision lands.
+    """
+    head = ScriptDirectory.from_config(_config(kind, "")).get_current_head()
+    if head is None:
+        raise RuntimeError(f"no {kind} migrations found")
+    return head
 
 
 def upgrade_sync(kind: SchemaKind, db_url: str) -> None:

@@ -13,19 +13,19 @@ class SqlUserTenantAccessRepository(
 ):
     model = UserTenantAccessModel
 
-    def _key(self, grant: UserTenantAccess) -> UUID:
-        return grant.id
+    def _key(self, entity: UserTenantAccess) -> UUID:
+        return entity.id
 
     def _to_entity(self, row: UserTenantAccessModel) -> UserTenantAccess:
         return UserTenantAccess(id=row.id, user_id=row.user_id, tenant_id=row.tenant_id)
 
-    def _to_model(self, grant: UserTenantAccess) -> UserTenantAccessModel:
+    def _to_model(self, entity: UserTenantAccess) -> UserTenantAccessModel:
         return UserTenantAccessModel(
-            id=grant.id, user_id=grant.user_id, tenant_id=grant.tenant_id
+            id=entity.id, user_id=entity.user_id, tenant_id=entity.tenant_id
         )
 
-    def _apply(self, row: UserTenantAccessModel, grant: UserTenantAccess) -> None:
-        row.tenant_id = grant.tenant_id
+    def _apply(self, row: UserTenantAccessModel, entity: UserTenantAccess) -> None:
+        row.tenant_id = entity.tenant_id
 
     async def list_for_user(self, user_id: UUID) -> list[UserTenantAccess]:
         rows = await self._session.scalars(

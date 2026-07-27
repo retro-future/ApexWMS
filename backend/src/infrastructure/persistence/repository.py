@@ -7,6 +7,7 @@ pin which database the session speaks to at the type level.
 
 from abc import ABC, abstractmethod
 
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -48,3 +49,19 @@ class CrudRepository[EntityT, KeyT, ModelT](ABC):
         if row is None:
             raise LookupError(f"{self.model.__name__} {key} not persisted")
         self._apply(row, entity)
+
+    async def _page(
+        self, stmt: Select[tuple[ModelT]], page: int, page_size: int
+    ) -> tuple[list[EntityT], int]:
+        """One page of *stmt* plus the count it would have returned unpaged.
+
+        The count runs over ``stmt`` as a subquery rather than a rebuilt
+        query, so a filter can never be applied to the rows and forgotten
+        on the total. *stmt* must already carry its ``ORDER BY`` — without
+        one, "page 2" is not a stable concept.
+        """
+        total = await self._session.scalar(select(func.count()).select_from(stmt.subquery()))
+        rows = await self._session.scalars(
+            stmt.offset((page - 1) * page_size).limit(page_size)
+        )
+        return [self._to_entity(row) for row in rows], total or 0

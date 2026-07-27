@@ -10,8 +10,8 @@ from .base import MasterCrudRepository
 class SqlInvitationRepository(MasterCrudRepository[Invitation, UUID, InvitationModel]):
     model = InvitationModel
 
-    def _key(self, invitation: Invitation) -> UUID:
-        return invitation.id
+    def _key(self, entity: Invitation) -> UUID:
+        return entity.id
 
     def _to_entity(self, row: InvitationModel) -> Invitation:
         return Invitation(
@@ -27,19 +27,19 @@ class SqlInvitationRepository(MasterCrudRepository[Invitation, UUID, InvitationM
             accepted_at=row.accepted_at,
         )
 
-    def _to_model(self, invitation: Invitation) -> InvitationModel:
+    def _to_model(self, entity: Invitation) -> InvitationModel:
         return InvitationModel(
-            id=invitation.id,
-            email=invitation.email,
-            kind=invitation.kind.value,
-            tenant_id=invitation.tenant_id,
-            tenant_role=invitation.tenant_role.value if invitation.tenant_role else None,
-            app_role=invitation.app_role.value if invitation.app_role else None,
-            token_hash=invitation.token_hash,
-            expires_at=invitation.expires_at,
-            accepted_at=invitation.accepted_at,
-            created_by=invitation.created_by,
+            id=entity.id,
+            email=entity.email,
+            kind=entity.kind.value,
+            tenant_id=entity.tenant_id,
+            tenant_role=entity.tenant_role.value if entity.tenant_role else None,
+            app_role=entity.app_role.value if entity.app_role else None,
+            token_hash=entity.token_hash,
+            expires_at=entity.expires_at,
+            accepted_at=entity.accepted_at,
+            created_by=entity.created_by,
         )
 
-    def _apply(self, row: InvitationModel, invitation: Invitation) -> None:
-        row.accepted_at = invitation.accepted_at
+    def _apply(self, row: InvitationModel, entity: Invitation) -> None:
+        row.accepted_at = entity.accepted_at

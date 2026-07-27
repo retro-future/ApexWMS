@@ -46,7 +46,7 @@ async def test_the_tenant_database_is_migrated_and_seeded(create_tenant, setting
     tenant = await create_tenant(timezone="Europe/Berlin")
     url = await _tenant_url(settings, tenant.tenant_id)
 
-    assert await migrations.current_revision(url) == "0001_tenant"
+    assert await migrations.current_revision(url) == migrations.head_revision("tenant")
 
     engine = create_async_engine(url)
     try:
