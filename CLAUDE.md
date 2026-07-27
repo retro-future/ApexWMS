@@ -24,6 +24,8 @@ uv run pytest -k "imei"                    # by keyword
 uv run ruff check src tests                # lint (also CI's lint step)
 uv run ruff check --fix src tests          # lint with autofix
 
+uv run ty check                            # type check src/ — see below, this is a real gate
+
 uv run uvicorn main:app --reload           # dev server → http://localhost:8000/api/v1/health
 ```
 
@@ -91,6 +93,8 @@ This is the most consequential and expensive-to-reverse decision in the codebase
 Identity repositories take `MasterSession`; only `EmployeeRepository` and `TenantSettingsRepository` take `TenantSession`. Getting that wrong is the single easiest way to reintroduce the bug this architecture exists to prevent.
 
 `MasterEngine`, `MasterSession`, `TenantEngine`, `TenantSession` are `NewType`-wrapped `AsyncEngine`/`AsyncSession` (`infrastructure/types.py`) purely so the container can't hand a repository the wrong database — keep using these aliases (not bare `AsyncEngine`/`AsyncSession`) whenever wiring new providers that touch either database.
+
+**A `NewType` is an identity function at runtime, so `uv run ty check` is the only thing that enforces any of this** — ruff does not type-check, and no test can catch a master session handed to a tenant repository. Treat a red `ty check` as a broken build. Code that hand-wires repositories outside the container (`infrastructure/cli.py`) must wrap its session explicitly: `MasterSession(session)`, never a bare `AsyncSession`. `tests/` is currently outside the checked set — the domain suites assert that invalid calls are rejected, and those lines carry mypy-style `# type: ignore[...]` codes ty doesn't recognise.
 
 Settings enter the container via `from_context` + `context={Settings: ...}` in `create_container()`, not a provider that closes over a constructor argument — follow that pattern for other request-scoped context values.
 

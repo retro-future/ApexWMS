@@ -22,25 +22,25 @@ class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
             created_at=row.created_at,
         )
 
-    def _to_model(self, user: User) -> UserModel:
+    def _to_model(self, entity: User) -> UserModel:
         return UserModel(
-            id=user.id,
-            email=user.email,
-            full_name=user.full_name,
-            password_hash=user.password_hash,
-            tenant_id=user.tenant_id,
-            is_active=user.is_active,
-            must_change_password=user.must_change_password,
-            created_at=user.created_at,
+            id=entity.id,
+            email=entity.email,
+            full_name=entity.full_name,
+            password_hash=entity.password_hash,
+            tenant_id=entity.tenant_id,
+            is_active=entity.is_active,
+            must_change_password=entity.must_change_password,
+            created_at=entity.created_at,
         )
 
-    def _apply(self, row: UserModel, user: User) -> None:
-        row.email = user.email
-        row.full_name = user.full_name
-        row.password_hash = user.password_hash
-        row.tenant_id = user.tenant_id
-        row.is_active = user.is_active
-        row.must_change_password = user.must_change_password
+    def _apply(self, row: UserModel, entity: User) -> None:
+        row.email = entity.email
+        row.full_name = entity.full_name
+        row.password_hash = entity.password_hash
+        row.tenant_id = entity.tenant_id
+        row.is_active = entity.is_active
+        row.must_change_password = entity.must_change_password
 
     async def get_by_email(self, email: str) -> User | None:
         return await self._find_one(UserModel.email == email)

@@ -17,16 +17,19 @@ class RequestBearerClaims:
     header is an error, not an anonymous request.
     """
 
-    _UNSET = object()
-
     def __init__(self, request: Request, tokens: JwtTokenService) -> None:
         self._request = request
         self._tokens = tokens
-        self._claims: AccessClaims | None | object = self._UNSET
+        self._claims: AccessClaims | None = None
+        # A separate flag rather than a sentinel object: None is itself a
+        # valid decoded result (an anonymous request), and widening the
+        # field to hold a sentinel would lose the type it actually carries.
+        self._decoded = False
 
     def get(self) -> AccessClaims | None:
-        if self._claims is self._UNSET:
+        if not self._decoded:
             self._claims = self._decode()
+            self._decoded = True
         return self._claims
 
     def _decode(self) -> AccessClaims | None:
