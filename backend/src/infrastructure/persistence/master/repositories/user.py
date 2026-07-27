@@ -1,7 +1,5 @@
 from uuid import UUID
 
-from sqlalchemy import select
-
 from domain.entities import User
 from infrastructure.persistence.master.models import UserModel
 
@@ -45,5 +43,4 @@ class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
         row.must_change_password = user.must_change_password
 
     async def get_by_email(self, email: str) -> User | None:
-        row = await self._session.scalar(select(UserModel).where(UserModel.email == email))
-        return self._to_entity(row) if row else None
+        return await self._find_one(UserModel.email == email)

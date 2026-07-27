@@ -30,10 +30,7 @@ class SqlLocationRepository(TenantCrudRepository[Location, UUID, LocationModel])
         row.is_active = entity.is_active
 
     async def get_by_name(self, name: str) -> Location | None:
-        row = await self._session.scalar(
-            select(LocationModel).where(LocationModel.name == name)
-        )
-        return self._to_entity(row) if row else None
+        return await self._find_one(LocationModel.name == name)
 
     async def list_page(
         self,

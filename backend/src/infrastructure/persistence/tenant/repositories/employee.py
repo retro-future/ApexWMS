@@ -42,16 +42,10 @@ class SqlEmployeeRepository(TenantCrudRepository[Employee, UUID, EmployeeModel])
         row.is_active = entity.is_active
 
     async def get_by_email(self, email: str) -> Employee | None:
-        row = await self._session.scalar(
-            select(EmployeeModel).where(EmployeeModel.email == email)
-        )
-        return self._to_entity(row) if row else None
+        return await self._find_one(EmployeeModel.email == email)
 
     async def list_all(self) -> list[Employee]:
-        rows = await self._session.scalars(
-            select(EmployeeModel).order_by(EmployeeModel.created_at)
-        )
-        return [self._to_entity(r) for r in rows]
+        return await self._find_many(select(EmployeeModel).order_by(EmployeeModel.created_at))
 
     async def count_owners(self) -> int:
         count = await self._session.scalar(

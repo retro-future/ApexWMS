@@ -27,7 +27,6 @@ class SqlUserAppRoleRepository(MasterCrudRepository[UserAppRole, UUID, UserAppRo
         row.role = entity.role.value
 
     async def list_for_user(self, user_id: UUID) -> list[UserAppRole]:
-        rows = await self._session.scalars(
+        return await self._find_many(
             select(UserAppRoleModel).where(UserAppRoleModel.user_id == user_id)
         )
-        return [self._to_entity(r) for r in rows]

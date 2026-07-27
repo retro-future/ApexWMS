@@ -66,14 +66,10 @@ class SqlProductRepository(TenantCrudRepository[Product, UUID, ProductModel]):
         row.is_active = entity.is_active
 
     async def get_by_sku(self, sku: str) -> Product | None:
-        row = await self._session.scalar(select(ProductModel).where(ProductModel.sku == sku))
-        return self._to_entity(row) if row else None
+        return await self._find_one(ProductModel.sku == sku)
 
     async def get_by_barcode(self, barcode: str) -> Product | None:
-        row = await self._session.scalar(
-            select(ProductModel).where(ProductModel.barcode == barcode)
-        )
-        return self._to_entity(row) if row else None
+        return await self._find_one(ProductModel.barcode == barcode)
 
     async def list_page(
         self,

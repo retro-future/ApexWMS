@@ -7,7 +7,7 @@ pin which database the session speaks to at the type level.
 
 from abc import ABC, abstractmethod
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnExpressionArgument, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.core import Entity
@@ -52,6 +52,20 @@ class CrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](ABC):
             raise LookupError(f"{self.model.__name__} {key} not persisted")
         self._apply(row, entity)
 
+    async def _find_one(self, *criteria: ColumnExpressionArgument[bool]) -> EntityT | None:
+        """The single row matching *criteria*, as an entity.
+
+        The lookups that are not by primary key (by SKU, by email, by slug)
+        all reduce to this; routing them through one place is what stops a
+        new finder from forgetting ``_to_entity`` and leaking a row.
+        """
+        row = await self._session.scalar(select(self.model).where(*criteria))
+        return self._to_entity(row) if row is not None else None
+
+    async def _find_many(self, stmt: Select[tuple[ModelT]]) -> list[EntityT]:
+        rows = await self._session.scalars(stmt)
+        return [self._to_entity(row) for row in rows]
+
     async def _page(
         self, stmt: Select[tuple[ModelT]], page: int, page_size: int
     ) -> tuple[list[EntityT], int]:
@@ -63,7 +77,5 @@ class CrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](ABC):
         one, "page 2" is not a stable concept.
         """
         total = await self._session.scalar(select(func.count()).select_from(stmt.subquery()))
-        rows = await self._session.scalars(
-            stmt.offset((page - 1) * page_size).limit(page_size)
-        )
-        return [self._to_entity(row) for row in rows], total or 0
+        items = await self._find_many(stmt.offset((page - 1) * page_size).limit(page_size))
+        return items, total or 0
