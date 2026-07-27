@@ -20,3 +20,15 @@ class CurrencyMismatchError(DomainError):
 
 class InvalidIMEIError(DomainError):
     """A string that is not a structurally valid IMEI (length, digits, Luhn)."""
+
+
+class InvalidSkuError(DomainError):
+    """A string that cannot be a SKU (empty, too long, illegal characters)."""
+
+
+class InvalidBarcodeError(DomainError):
+    """Not a structurally valid EAN/UPC (length, digits, GS1 check digit)."""
+
+
+class BarcodeNotAllowedError(DomainError):
+    """A barcode on a SERIAL product — barcodes are for quantity items (FR-2.3)."""
