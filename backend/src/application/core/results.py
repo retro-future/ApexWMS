@@ -49,7 +49,7 @@ class ResultWithData[TData](Result):
     data: TData | None = None
 
     @classmethod
-    def succeed_with_data(cls, payload: TData) -> Self:
+    def succeed_with_data(cls, payload: TData) -> ResultWithData[TData]:
         return cls(success=True, data=payload)
 
     @classmethod
@@ -71,7 +71,7 @@ class PagedResult[TData](Result):
         page_index: int,
         page_size: int,
         items_count: int,
-    ) -> Self:
+    ) -> PagedResult[TData]:
         return cls(
             success=True,
             data=data,
