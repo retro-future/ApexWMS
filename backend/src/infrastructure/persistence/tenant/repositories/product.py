@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from domain.catalog import TrackingType
 from domain.entities import Product
@@ -80,18 +80,16 @@ class SqlProductRepository(TenantCrudRepository[Product, UUID, ProductModel]):
         tracking_type: TrackingType | None = None,
     ) -> tuple[list[Product], int]:
         stmt = select(ProductModel)
-        if search:
-            term = f"%{search.strip()}%"
-            stmt = stmt.where(
-                or_(
-                    ProductModel.sku.ilike(term),
-                    ProductModel.name.ilike(term),
-                    ProductModel.brand.ilike(term),
-                    ProductModel.barcode.ilike(term),
-                )
-            )
-        if is_active is not None:
-            stmt = stmt.where(ProductModel.is_active.is_(is_active))
         if tracking_type is not None:
             stmt = stmt.where(ProductModel.tracking_type == tracking_type.value)
-        return await self._page(stmt.order_by(ProductModel.created_at), page, page_size)
+        return await self._browse_page(
+            page,
+            page_size,
+            search,
+            is_active,
+            ProductModel.sku,
+            ProductModel.name,
+            ProductModel.brand,
+            ProductModel.barcode,
+            stmt=stmt,
+        )

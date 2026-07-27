@@ -1,7 +1,5 @@
 from uuid import UUID
 
-from sqlalchemy import select
-
 from domain.entities import Location
 from infrastructure.persistence.tenant.models import LocationModel
 
@@ -39,9 +37,6 @@ class SqlLocationRepository(TenantCrudRepository[Location, UUID, LocationModel])
         search: str | None = None,
         is_active: bool | None = None,
     ) -> tuple[list[Location], int]:
-        stmt = select(LocationModel)
-        if search:
-            stmt = stmt.where(LocationModel.name.ilike(f"%{search.strip()}%"))
-        if is_active is not None:
-            stmt = stmt.where(LocationModel.is_active.is_(is_active))
-        return await self._page(stmt.order_by(LocationModel.created_at), page, page_size)
+        return await self._browse_page(
+            page, page_size, search, is_active, LocationModel.name
+        )
