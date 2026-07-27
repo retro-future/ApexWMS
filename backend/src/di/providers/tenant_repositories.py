@@ -15,14 +15,22 @@ mid-request rather than resolved at the edge (PRD §3.3).
 from dishka import Provider, Scope, provide
 
 from application.ports import (
+    CustomerRepository,
     EmployeeRepository,
+    LocationRepository,
+    ProductRepository,
+    SupplierRepository,
     TenantScope,
     TenantSettingsRepository,
     TenantUnitOfWork,
 )
 from infrastructure.config import Settings
 from infrastructure.persistence.tenant.repositories import (
+    SqlCustomerRepository,
     SqlEmployeeRepository,
+    SqlLocationRepository,
+    SqlProductRepository,
+    SqlSupplierRepository,
     SqlTenantSettingsRepository,
 )
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
@@ -41,6 +49,22 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def tenant_settings(self, session: TenantSession) -> TenantSettingsRepository:
         return SqlTenantSettingsRepository(session)
+
+    @provide
+    def products(self, session: TenantSession) -> ProductRepository:
+        return SqlProductRepository(session)
+
+    @provide
+    def locations(self, session: TenantSession) -> LocationRepository:
+        return SqlLocationRepository(session)
+
+    @provide
+    def suppliers(self, session: TenantSession) -> SupplierRepository:
+        return SqlSupplierRepository(session)
+
+    @provide
+    def customers(self, session: TenantSession) -> CustomerRepository:
+        return SqlCustomerRepository(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:
