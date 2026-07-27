@@ -5,10 +5,13 @@ for the rationale. At M1 the subclasses are the tenant's own identity
 records; the business aggregates arrive with the M2 catalog.
 """
 
+from domain.core import Entity
 from infrastructure.persistence.repository import CrudRepository
 from infrastructure.types import TenantSession
 
 
-class TenantCrudRepository[EntityT, KeyT, ModelT](CrudRepository[EntityT, KeyT, ModelT]):
+class TenantCrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](
+    CrudRepository[EntityT, KeyT, ModelT]
+):
     def __init__(self, session: TenantSession) -> None:
         super().__init__(session)

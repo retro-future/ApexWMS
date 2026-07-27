@@ -11,8 +11,6 @@ from .base import TenantCrudRepository
 class SqlLocationRepository(TenantCrudRepository[Location, UUID, LocationModel]):
     model = LocationModel
 
-    def _key(self, entity: Location) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: LocationModel) -> Location:
         return Location(

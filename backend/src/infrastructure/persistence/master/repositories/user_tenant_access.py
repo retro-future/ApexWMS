@@ -13,8 +13,6 @@ class SqlUserTenantAccessRepository(
 ):
     model = UserTenantAccessModel
 
-    def _key(self, entity: UserTenantAccess) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: UserTenantAccessModel) -> UserTenantAccess:
         return UserTenantAccess(id=row.id, user_id=row.user_id, tenant_id=row.tenant_id)

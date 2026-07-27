@@ -14,8 +14,6 @@ class SqlEmployeeRepository(TenantCrudRepository[Employee, UUID, EmployeeModel])
 
     model = EmployeeModel
 
-    def _key(self, entity: Employee) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: EmployeeModel) -> Employee:
         return Employee(

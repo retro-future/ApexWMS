@@ -11,8 +11,6 @@ from .base import MasterCrudRepository
 class SqlUserRepository(MasterCrudRepository[User, UUID, UserModel]):
     model = UserModel
 
-    def _key(self, user: User) -> UUID:
-        return user.id
 
     def _to_entity(self, row: UserModel) -> User:
         return User(

@@ -11,8 +11,6 @@ from .base import TenantCrudRepository
 class SqlCustomerRepository(TenantCrudRepository[Customer, UUID, CustomerModel]):
     model = CustomerModel
 
-    def _key(self, entity: Customer) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: CustomerModel) -> Customer:
         return Customer(

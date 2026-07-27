@@ -12,8 +12,6 @@ from .base import MasterCrudRepository
 class SqlTenantRepository(MasterCrudRepository[Tenant, UUID, TenantModel]):
     model = TenantModel
 
-    def _key(self, entity: Tenant) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: TenantModel) -> Tenant:
         return Tenant(

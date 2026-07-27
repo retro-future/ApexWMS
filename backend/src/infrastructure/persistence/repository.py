@@ -10,16 +10,18 @@ from abc import ABC, abstractmethod
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from domain.core import Entity
 
-class CrudRepository[EntityT, KeyT, ModelT](ABC):
+
+class CrudRepository[EntityT: Entity[KeyT], KeyT, ModelT](ABC):
     model: type[ModelT]
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    @abstractmethod
     def _key(self, entity: EntityT) -> KeyT:
         """The identity the aggregate declares in domain (``Entity[TKey].id``)."""
+        return entity.id
 
     @abstractmethod
     def _to_entity(self, row: ModelT) -> EntityT: ...

@@ -13,8 +13,6 @@ from .base import TenantCrudRepository
 class SqlProductRepository(TenantCrudRepository[Product, UUID, ProductModel]):
     model = ProductModel
 
-    def _key(self, entity: Product) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: ProductModel) -> Product:
         currency = Currency(row.currency)

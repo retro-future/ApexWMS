@@ -10,8 +10,6 @@ from .base import MasterCrudRepository
 class SqlInvitationRepository(MasterCrudRepository[Invitation, UUID, InvitationModel]):
     model = InvitationModel
 
-    def _key(self, entity: Invitation) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: InvitationModel) -> Invitation:
         return Invitation(

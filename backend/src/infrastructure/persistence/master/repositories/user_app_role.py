@@ -12,8 +12,6 @@ from .base import MasterCrudRepository
 class SqlUserAppRoleRepository(MasterCrudRepository[UserAppRole, UUID, UserAppRoleModel]):
     model = UserAppRoleModel
 
-    def _key(self, entity: UserAppRole) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: UserAppRoleModel) -> UserAppRole:
         return UserAppRole(id=row.id, user_id=row.user_id, role=AppRole(row.role))
