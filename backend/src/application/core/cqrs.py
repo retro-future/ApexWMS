@@ -17,6 +17,11 @@ and ``PagedRequest`` (xterminal). Two bugs were found and fixed:
    ``ceil(items_count / page_size)`` and raise ``ZeroDivisionError``.
    Fixed with ``Field(ge=1)`` at the source rather than guarding the
    division downstream.
+
+The reference's ``order_by`` field is deliberately absent: no repository
+implements sorting yet, and a query parameter that appears in the OpenAPI
+schema and then silently does nothing is worse than no parameter at all.
+It comes back when M8's reporting specifies what may be sorted by.
 """
 
 from pydantic import Field
@@ -36,5 +41,5 @@ class Query[TResult: Result](IRequest[TResult], CamelModel):
 
 class PagedQuery[TResult: PagedResult](Query[TResult]):
     page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=10, ge=1, le=100)
-    order_by: str | None = None
+    # PRD §9: list endpoints paginate by default at 50, capped at 200.
+    page_size: int = Field(default=50, ge=1, le=200)

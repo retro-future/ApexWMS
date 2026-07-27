@@ -24,7 +24,11 @@ from application.ports.repository import Repository
 from application.ports.security import PasswordHasher, TokenService
 from application.ports.tenancy import TenantScope, TenantWorkspace
 from application.ports.tenant import (
+    CustomerRepository,
     EmployeeRepository,
+    LocationRepository,
+    ProductRepository,
+    SupplierRepository,
     TenantSettingsRepository,
     TenantUnitOfWork,
 )
@@ -32,12 +36,16 @@ from application.ports.uow import UnitOfWork
 
 __all__ = [
     "Clock",
+    "CustomerRepository",
     "EmployeeRepository",
     "InvitationRepository",
+    "LocationRepository",
     "MasterUnitOfWork",
     "PasswordHasher",
+    "ProductRepository",
     "RefreshTokenRepository",
     "Repository",
+    "SupplierRepository",
     "TenantProvisioner",
     "TenantRepository",
     "TenantScope",

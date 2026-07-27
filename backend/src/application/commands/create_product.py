@@ -1,0 +1,73 @@
+"""FR-2.1 / FR-2.6: a Manager creates a product with a tracking type and a
+currency.
+
+*currency* is optional on the wire and falls back to
+``Product.default_currency_for`` — USD for a phone, UZS for an accessory.
+The default lives in domain so no call site has to remember which is
+which; the caller may still override it here, and only here (FR-2.6).
+
+SKU and barcode uniqueness is checked before the insert so the caller
+gets a 409 naming the field rather than an opaque integrity error. The
+unique indexes are the backstop, not the check.
+"""
+
+from uuid import uuid4
+
+from application.catalog import parse_sale_price
+from application.core import Command, IRequestHandler, ResultWithData
+from application.errors import DuplicateBarcodeError, DuplicateSkuError
+from application.ports import Clock, ProductRepository, TenantUnitOfWork
+from application.queries.get_product import ProductData
+from domain.catalog import TrackingType
+from domain.entities import Product
+from domain.value_objects import SKU, Barcode, Currency
+
+
+class CreateProductCommand(Command[ResultWithData[ProductData]]):
+    sku: str
+    name: str
+    tracking_type: TrackingType
+    brand: str | None = None
+    model: str | None = None
+    currency: Currency | None = None
+    barcode: str | None = None
+    # A string or a whole number, never a JSON float — see application/catalog.py.
+    default_sale_price: str | int | None = None
+
+
+class CreateProductHandler(
+    IRequestHandler[ResultWithData[ProductData], CreateProductCommand]
+):
+    def __init__(
+        self, products: ProductRepository, clock: Clock, uow: TenantUnitOfWork
+    ) -> None:
+        self._products = products
+        self._clock = clock
+        self._uow = uow
+
+    async def handle(self, request: CreateProductCommand) -> ResultWithData[ProductData]:
+        sku = SKU.parse(request.sku)
+        if await self._products.get_by_sku(str(sku)) is not None:
+            raise DuplicateSkuError(f"a product with SKU {sku} already exists")
+
+        barcode = Barcode.parse(request.barcode) if request.barcode else None
+        if barcode is not None and await self._products.get_by_barcode(str(barcode)):
+            raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
+
+        currency = request.currency or Product.default_currency_for(request.tracking_type)
+        product = Product(
+            id=uuid4(),
+            sku=sku,
+            name=request.name.strip(),
+            brand=request.brand,
+            model=request.model,
+            tracking_type=request.tracking_type,
+            currency=currency,
+            barcode=barcode,
+            default_sale_price=parse_sale_price(request.default_sale_price, currency),
+            is_active=True,
+            created_at=self._clock.now(),
+        )
+        await self._products.add(product)
+        await self._uow.commit()
+        return ResultWithData[ProductData].succeed_with_data(ProductData.from_product(product))

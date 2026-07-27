@@ -14,10 +14,15 @@ from uuid import UUID, uuid4
 
 from application.dtos import OwnerSeed, RefreshTokenParts
 from application.errors import ProvisioningFailedError, TenantNotActiveError
+from domain.catalog import TrackingType
 from domain.entities import (
+    Customer,
     Employee,
     Invitation,
+    Location,
+    Product,
     RefreshTokenRecord,
+    Supplier,
     Tenant,
     User,
     UserAppRole,
@@ -210,6 +215,149 @@ class FakeEmployeeRepository:
 
     async def update(self, employee: Employee) -> None:
         self.by_id[employee.id] = employee
+
+
+def _page[T](items: list[T], page: int, page_size: int) -> tuple[list[T], int]:
+    """Same contract as ``CrudRepository._page``: the slice, and the
+    unpaged total the caller needs to work out how many pages there are."""
+    start = (page - 1) * page_size
+    return items[start : start + page_size], len(items)
+
+
+def _matches(term: str | None, *fields: str | None) -> bool:
+    return term is None or any(f is not None and term.lower() in f.lower() for f in fields)
+
+
+class FakeProductRepository:
+    def __init__(self) -> None:
+        self.by_id: dict[UUID, Product] = {}
+
+    async def get(self, product_id: UUID) -> Product | None:
+        return self.by_id.get(product_id)
+
+    async def get_by_sku(self, sku: str) -> Product | None:
+        return next((p for p in self.by_id.values() if str(p.sku) == sku), None)
+
+    async def get_by_barcode(self, barcode: str) -> Product | None:
+        return next(
+            (p for p in self.by_id.values() if p.barcode and str(p.barcode) == barcode), None
+        )
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+        tracking_type: TrackingType | None = None,
+    ) -> tuple[list[Product], int]:
+        found = [
+            p
+            for p in sorted(self.by_id.values(), key=lambda p: p.created_at)
+            if _matches(search, str(p.sku), p.name, p.brand, str(p.barcode) if p.barcode else None)
+            and (is_active is None or p.is_active is is_active)
+            and (tracking_type is None or p.tracking_type is tracking_type)
+        ]
+        return _page(found, page, page_size)
+
+    async def add(self, product: Product) -> None:
+        self.by_id[product.id] = product
+
+    async def update(self, product: Product) -> None:
+        self.by_id[product.id] = product
+
+
+class FakeLocationRepository:
+    def __init__(self) -> None:
+        self.by_id: dict[UUID, Location] = {}
+
+    async def get(self, location_id: UUID) -> Location | None:
+        return self.by_id.get(location_id)
+
+    async def get_by_name(self, name: str) -> Location | None:
+        return next((loc for loc in self.by_id.values() if loc.name == name), None)
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+    ) -> tuple[list[Location], int]:
+        found = [
+            loc
+            for loc in sorted(self.by_id.values(), key=lambda loc: loc.created_at)
+            if _matches(search, loc.name)
+            and (is_active is None or loc.is_active is is_active)
+        ]
+        return _page(found, page, page_size)
+
+    async def add(self, location: Location) -> None:
+        self.by_id[location.id] = location
+
+    async def update(self, location: Location) -> None:
+        self.by_id[location.id] = location
+
+
+class FakeSupplierRepository:
+    def __init__(self) -> None:
+        self.by_id: dict[UUID, Supplier] = {}
+
+    async def get(self, supplier_id: UUID) -> Supplier | None:
+        return self.by_id.get(supplier_id)
+
+    async def get_by_name(self, name: str) -> Supplier | None:
+        return next((s for s in self.by_id.values() if s.name == name), None)
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+    ) -> tuple[list[Supplier], int]:
+        found = [
+            s
+            for s in sorted(self.by_id.values(), key=lambda s: s.created_at)
+            if _matches(search, s.name, s.contact_name, s.phone)
+            and (is_active is None or s.is_active is is_active)
+        ]
+        return _page(found, page, page_size)
+
+    async def add(self, supplier: Supplier) -> None:
+        self.by_id[supplier.id] = supplier
+
+    async def update(self, supplier: Supplier) -> None:
+        self.by_id[supplier.id] = supplier
+
+
+class FakeCustomerRepository:
+    def __init__(self) -> None:
+        self.by_id: dict[UUID, Customer] = {}
+
+    async def get(self, customer_id: UUID) -> Customer | None:
+        return self.by_id.get(customer_id)
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+    ) -> tuple[list[Customer], int]:
+        found = [
+            c
+            for c in sorted(self.by_id.values(), key=lambda c: c.created_at)
+            if _matches(search, c.full_name, c.phone)
+            and (is_active is None or c.is_active is is_active)
+        ]
+        return _page(found, page, page_size)
+
+    async def add(self, customer: Customer) -> None:
+        self.by_id[customer.id] = customer
+
+    async def update(self, customer: Customer) -> None:
+        self.by_id[customer.id] = customer
 
 
 class FakeTenantSettingsRepository:

@@ -16,15 +16,31 @@ from uuid import UUID, uuid4
 from application.commands.accept_invite import AcceptInviteHandler
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
+from application.commands.create_customer import CreateCustomerHandler
+from application.commands.create_location import CreateLocationHandler
+from application.commands.create_product import CreateProductHandler
 from application.commands.create_superadmin import CreateSuperAdminHandler
+from application.commands.create_supplier import CreateSupplierHandler
 from application.commands.create_tenant import CreateTenantHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
+from application.commands.update_customer import UpdateCustomerHandler
+from application.commands.update_location import UpdateLocationHandler
+from application.commands.update_product import UpdateProductHandler
+from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
 from application.dtos import CurrentUser, RequestedTenant
+from application.queries.get_customer import GetCustomerHandler
+from application.queries.get_location import GetLocationHandler
 from application.queries.get_me import GetMeHandler
+from application.queries.get_product import GetProductHandler
+from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
+from application.queries.list_customers import ListCustomersHandler
+from application.queries.list_locations import ListLocationsHandler
+from application.queries.list_products import ListProductsHandler
+from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.services import ClaimsFactory, TokenIssuer
 from domain.entities import Employee, Tenant, User, UserTenantAccess
@@ -32,11 +48,15 @@ from domain.roles import TenantRole
 from domain.tenancy import TenantStatus
 from tests.application.fakes import (
     FakeClock,
+    FakeCustomerRepository,
     FakeEmployeeRepository,
     FakeHasher,
     FakeInvitationRepository,
+    FakeLocationRepository,
+    FakeProductRepository,
     FakeProvisioner,
     FakeRefreshTokenRepository,
+    FakeSupplierRepository,
     FakeTenantRepository,
     FakeTenantScope,
     FakeTenantSettingsRepository,
@@ -65,6 +85,10 @@ class World:
     refresh_tokens: FakeRefreshTokenRepository
     invitations: FakeInvitationRepository
     tenant_settings: FakeTenantSettingsRepository
+    products: FakeProductRepository
+    locations: FakeLocationRepository
+    suppliers: FakeSupplierRepository
+    customers: FakeCustomerRepository
     scope: FakeTenantScope
     uow: FakeUnitOfWork
     provisioner: FakeProvisioner
@@ -176,6 +200,56 @@ class World:
     def update_tenant_settings(self) -> UpdateTenantSettingsHandler:
         return UpdateTenantSettingsHandler(self.tenant_settings, self.uow)
 
+    # --- M2 catalog ------------------------------------------------------
+
+    def create_product(self) -> CreateProductHandler:
+        return CreateProductHandler(self.products, self.clock, self.uow)
+
+    def update_product(self) -> UpdateProductHandler:
+        return UpdateProductHandler(self.products, self.uow)
+
+    def get_product(self) -> GetProductHandler:
+        return GetProductHandler(self.products)
+
+    def list_products(self) -> ListProductsHandler:
+        return ListProductsHandler(self.products)
+
+    def create_location(self) -> CreateLocationHandler:
+        return CreateLocationHandler(self.locations, self.clock, self.uow)
+
+    def update_location(self) -> UpdateLocationHandler:
+        return UpdateLocationHandler(self.locations, self.uow)
+
+    def get_location(self) -> GetLocationHandler:
+        return GetLocationHandler(self.locations)
+
+    def list_locations(self) -> ListLocationsHandler:
+        return ListLocationsHandler(self.locations)
+
+    def create_supplier(self) -> CreateSupplierHandler:
+        return CreateSupplierHandler(self.suppliers, self.clock, self.uow)
+
+    def update_supplier(self) -> UpdateSupplierHandler:
+        return UpdateSupplierHandler(self.suppliers, self.uow)
+
+    def get_supplier(self) -> GetSupplierHandler:
+        return GetSupplierHandler(self.suppliers)
+
+    def list_suppliers(self) -> ListSuppliersHandler:
+        return ListSuppliersHandler(self.suppliers)
+
+    def create_customer(self) -> CreateCustomerHandler:
+        return CreateCustomerHandler(self.customers, self.clock, self.uow)
+
+    def update_customer(self) -> UpdateCustomerHandler:
+        return UpdateCustomerHandler(self.customers, self.uow)
+
+    def get_customer(self) -> GetCustomerHandler:
+        return GetCustomerHandler(self.customers)
+
+    def list_customers(self) -> ListCustomersHandler:
+        return ListCustomersHandler(self.customers)
+
     # --- fixture helpers -------------------------------------------------
 
     def add_tenant(
@@ -270,6 +344,10 @@ def make_world(provisioner_fails: bool = False) -> World:
         refresh_tokens=FakeRefreshTokenRepository(),
         invitations=FakeInvitationRepository(),
         tenant_settings=FakeTenantSettingsRepository(),
+        products=FakeProductRepository(),
+        locations=FakeLocationRepository(),
+        suppliers=FakeSupplierRepository(),
+        customers=FakeCustomerRepository(),
         scope=scope,
         uow=FakeUnitOfWork(),
         provisioner=FakeProvisioner(tenants, scope, clock, fail=provisioner_fails),

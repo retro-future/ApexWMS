@@ -92,9 +92,14 @@ def test_paged_query_rejects_non_positive_page_size() -> None:
     with pytest.raises(ValidationError):
         ListItemsQuery(page=0)
 
+    # And the upper bound, so one caller cannot ask for the whole table.
+    with pytest.raises(ValidationError):
+        ListItemsQuery(page_size=201)
+
+    # PRD §9: default 50, max 200.
     query = ListItemsQuery()
     assert query.page == 1
-    assert query.page_size == 10
+    assert query.page_size == 50
 
 
 def test_paged_result_succeed_with_data_computes_pages_count() -> None:

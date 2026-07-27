@@ -66,5 +66,17 @@ class InvalidTimezoneError(ApplicationError):
     """Not an IANA timezone name."""
 
 
+class DuplicateSkuError(ApplicationError):
+    """Another product in this store already owns that SKU."""
+
+
+class DuplicateBarcodeError(ApplicationError):
+    """Another product in this store already owns that barcode (FR-2.3)."""
+
+
+class DuplicateNameError(ApplicationError):
+    """Another location or supplier in this store already owns that name."""
+
+
 class ProvisioningFailedError(ApplicationError):
     """Tenant provisioning failed; the tenant row is left FAILED and retryable."""
