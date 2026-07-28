@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 from application.dtos import OwnerSeed, RefreshTokenParts
 from application.errors import ProvisioningFailedError, TenantNotActiveError
 from domain.catalog import TrackingType
+from domain.core import Entity
 from domain.entities import (
     Customer,
     Employee,
@@ -76,50 +77,41 @@ class FakeTokenService:
         return hashlib.sha256(secret.encode()).hexdigest()
 
 
+class FakeRepository[EntityT: Entity[UUID]]:
+    """The dict-backed half every fake repository shares.
+
+    Mirrors ``CrudRepository``: ``get``/``add``/``update`` keyed by the
+    identity the entity declares. Subclasses add only the finders their
+    port declares beyond that.
+    """
+
+    def __init__(self) -> None:
+        self.by_id: dict[UUID, EntityT] = {}
+
+    async def get(self, key: UUID) -> EntityT | None:
+        return self.by_id.get(key)
+
+    async def add(self, entity: EntityT) -> None:
+        self.by_id[entity.id] = entity
+
+    async def update(self, entity: EntityT) -> None:
+        self.by_id[entity.id] = entity
+
+
 # --- MasterDB -------------------------------------------------------------
 
 
-class FakeUserRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, User] = {}
-
-    async def get(self, user_id: UUID) -> User | None:
-        return self.by_id.get(user_id)
-
+class FakeUserRepository(FakeRepository[User]):
     async def get_by_email(self, email: str) -> User | None:
         return next((u for u in self.by_id.values() if u.email == email), None)
 
-    async def add(self, user: User) -> None:
-        self.by_id[user.id] = user
 
-    async def update(self, user: User) -> None:
-        self.by_id[user.id] = user
-
-
-class FakeUserAppRoleRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, UserAppRole] = {}
-
-    async def get(self, key: UUID) -> UserAppRole | None:
-        return self.by_id.get(key)
-
+class FakeUserAppRoleRepository(FakeRepository[UserAppRole]):
     async def list_for_user(self, user_id: UUID) -> list[UserAppRole]:
         return [a for a in self.by_id.values() if a.user_id == user_id]
 
-    async def add(self, assignment: UserAppRole) -> None:
-        self.by_id[assignment.id] = assignment
 
-    async def update(self, assignment: UserAppRole) -> None:
-        self.by_id[assignment.id] = assignment
-
-
-class FakeUserTenantAccessRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, UserTenantAccess] = {}
-
-    async def get(self, key: UUID) -> UserTenantAccess | None:
-        return self.by_id.get(key)
-
+class FakeUserTenantAccessRepository(FakeRepository[UserTenantAccess]):
     async def list_for_user(self, user_id: UUID) -> list[UserTenantAccess]:
         return [g for g in self.by_id.values() if g.user_id == user_id]
 
@@ -129,76 +121,30 @@ class FakeUserTenantAccessRepository:
             for g in self.by_id.values()
         )
 
-    async def add(self, grant: UserTenantAccess) -> None:
-        self.by_id[grant.id] = grant
 
-    async def update(self, grant: UserTenantAccess) -> None:
-        self.by_id[grant.id] = grant
-
-
-class FakeTenantRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Tenant] = {}
-
-    async def get(self, tenant_id: UUID) -> Tenant | None:
-        return self.by_id.get(tenant_id)
-
+class FakeTenantRepository(FakeRepository[Tenant]):
     async def get_by_slug(self, slug: str) -> Tenant | None:
         return next((t for t in self.by_id.values() if t.slug == slug), None)
 
     async def list_all(self) -> list[Tenant]:
         return sorted(self.by_id.values(), key=lambda t: t.created_at)
 
-    async def add(self, tenant: Tenant) -> None:
-        self.by_id[tenant.id] = tenant
 
-    async def update(self, tenant: Tenant) -> None:
-        self.by_id[tenant.id] = tenant
-
-
-class FakeRefreshTokenRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, RefreshTokenRecord] = {}
-
-    async def get(self, jti: UUID) -> RefreshTokenRecord | None:
-        return self.by_id.get(jti)
-
-    async def add(self, record: RefreshTokenRecord) -> None:
-        self.by_id[record.id] = record
-
-    async def update(self, record: RefreshTokenRecord) -> None:
-        self.by_id[record.id] = record
-
+class FakeRefreshTokenRepository(FakeRepository[RefreshTokenRecord]):
     async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> None:
         for record in self.by_id.values():
             if record.user_id == user_id and record.revoked_at is None:
                 record.revoked_at = now
 
 
-class FakeInvitationRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Invitation] = {}
-
-    async def get(self, invitation_id: UUID) -> Invitation | None:
-        return self.by_id.get(invitation_id)
-
-    async def add(self, invitation: Invitation) -> None:
-        self.by_id[invitation.id] = invitation
-
-    async def update(self, invitation: Invitation) -> None:
-        self.by_id[invitation.id] = invitation
+class FakeInvitationRepository(FakeRepository[Invitation]):
+    """Plain CRUD, like the port it stands in for."""
 
 
 # --- one tenant's database ------------------------------------------------
 
 
-class FakeEmployeeRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Employee] = {}
-
-    async def get(self, user_id: UUID) -> Employee | None:
-        return self.by_id.get(user_id)
-
+class FakeEmployeeRepository(FakeRepository[Employee]):
     async def get_by_email(self, email: str) -> Employee | None:
         return next((e for e in self.by_id.values() if e.email == email), None)
 
@@ -209,12 +155,6 @@ class FakeEmployeeRepository:
         return sum(
             1 for e in self.by_id.values() if e.role is TenantRole.OWNER and e.is_active
         )
-
-    async def add(self, employee: Employee) -> None:
-        self.by_id[employee.id] = employee
-
-    async def update(self, employee: Employee) -> None:
-        self.by_id[employee.id] = employee
 
 
 def _page[T](items: list[T], page: int, page_size: int) -> tuple[list[T], int]:
@@ -228,13 +168,7 @@ def _matches(term: str | None, *fields: str | None) -> bool:
     return term is None or any(f is not None and term.lower() in f.lower() for f in fields)
 
 
-class FakeProductRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Product] = {}
-
-    async def get(self, product_id: UUID) -> Product | None:
-        return self.by_id.get(product_id)
-
+class FakeProductRepository(FakeRepository[Product]):
     async def get_by_sku(self, sku: str) -> Product | None:
         return next((p for p in self.by_id.values() if str(p.sku) == sku), None)
 
@@ -260,20 +194,8 @@ class FakeProductRepository:
         ]
         return _page(found, page, page_size)
 
-    async def add(self, product: Product) -> None:
-        self.by_id[product.id] = product
 
-    async def update(self, product: Product) -> None:
-        self.by_id[product.id] = product
-
-
-class FakeLocationRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Location] = {}
-
-    async def get(self, location_id: UUID) -> Location | None:
-        return self.by_id.get(location_id)
-
+class FakeLocationRepository(FakeRepository[Location]):
     async def get_by_name(self, name: str) -> Location | None:
         return next((loc for loc in self.by_id.values() if loc.name == name), None)
 
@@ -292,20 +214,8 @@ class FakeLocationRepository:
         ]
         return _page(found, page, page_size)
 
-    async def add(self, location: Location) -> None:
-        self.by_id[location.id] = location
 
-    async def update(self, location: Location) -> None:
-        self.by_id[location.id] = location
-
-
-class FakeSupplierRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Supplier] = {}
-
-    async def get(self, supplier_id: UUID) -> Supplier | None:
-        return self.by_id.get(supplier_id)
-
+class FakeSupplierRepository(FakeRepository[Supplier]):
     async def get_by_name(self, name: str) -> Supplier | None:
         return next((s for s in self.by_id.values() if s.name == name), None)
 
@@ -324,20 +234,8 @@ class FakeSupplierRepository:
         ]
         return _page(found, page, page_size)
 
-    async def add(self, supplier: Supplier) -> None:
-        self.by_id[supplier.id] = supplier
 
-    async def update(self, supplier: Supplier) -> None:
-        self.by_id[supplier.id] = supplier
-
-
-class FakeCustomerRepository:
-    def __init__(self) -> None:
-        self.by_id: dict[UUID, Customer] = {}
-
-    async def get(self, customer_id: UUID) -> Customer | None:
-        return self.by_id.get(customer_id)
-
+class FakeCustomerRepository(FakeRepository[Customer]):
     async def list_page(
         self,
         page: int,
@@ -352,12 +250,6 @@ class FakeCustomerRepository:
             and (is_active is None or c.is_active is is_active)
         ]
         return _page(found, page, page_size)
-
-    async def add(self, customer: Customer) -> None:
-        self.by_id[customer.id] = customer
-
-    async def update(self, customer: Customer) -> None:
-        self.by_id[customer.id] = customer
 
 
 class FakeTenantSettingsRepository:

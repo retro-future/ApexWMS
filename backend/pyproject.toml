@@ -28,6 +28,10 @@ dev = [
     "httpx>=0.28",
     "testcontainers[postgres]>=4.9",
     "ruff>=0.9",
+    # Pinned below 0.0.64, which shipped without a win_amd64 wheel. ty is
+    # pre-1.0 and its diagnostics move between releases, so bump it
+    # deliberately rather than floating.
+    "ty>=0.0.63,<0.0.64",
 ]
 
 [build-system]
@@ -49,3 +53,16 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+# The MasterSession/TenantSession NewTypes and the application ports are
+# guardrails only a type checker can enforce — ruff does not type-check, so
+# without this they are documentation. `uv run ty check` is a CI gate.
+[tool.ty.environment]
+root = ["src"]
+python = "../.venv"
+
+# tests/ is deliberately excluded for now: the domain suites assert that
+# invalid calls are rejected (Money.from_major(10.5, ...)), and those lines
+# carry mypy-style `# type: ignore[arg-type]` codes ty does not recognise.
+[tool.ty.src]
+include = ["src"]

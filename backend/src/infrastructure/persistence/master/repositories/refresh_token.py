@@ -14,8 +14,6 @@ class SqlRefreshTokenRepository(
 ):
     model = RefreshTokenModel
 
-    def _key(self, entity: RefreshTokenRecord) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: RefreshTokenModel) -> RefreshTokenRecord:
         return RefreshTokenRecord(

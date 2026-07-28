@@ -1,13 +1,12 @@
 import uuid
-from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import TenantBase
+from .base import ActivatableRow, TenantBase
 
 
-class SupplierModel(TenantBase):
+class SupplierModel(TenantBase, ActivatableRow):
     """Who this store buys from (PRD §4.2).
 
     No currency column — currency belongs to the product (§4.5 rule 3), so
@@ -21,5 +20,3 @@ class SupplierModel(TenantBase):
     contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

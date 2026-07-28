@@ -40,6 +40,7 @@ from infrastructure import migrations
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
 from infrastructure.tenancy import tenant_db_url
+from infrastructure.types import MasterSession
 
 DEFAULT_TIMEZONE = "Asia/Tashkent"
 
@@ -124,10 +125,11 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
     engine = create_async_engine(settings.master_db_url)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+            master = MasterSession(session)
             clock = SystemClock()
             handler = CreateTenantHandler(
-                tenants=SqlTenantRepository(session),
-                users=SqlUserRepository(session),
+                tenants=SqlTenantRepository(master),
+                users=SqlUserRepository(master),
                 hasher=Argon2PasswordHasher(),
                 tokens=JwtTokenService(
                     settings.jwt_secret,
@@ -136,7 +138,7 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
                 ),
                 provisioner=DefaultTenantProvisioner(engine, settings),
                 clock=clock,
-                uow=SqlMasterUnitOfWork(session),
+                uow=SqlMasterUnitOfWork(master),
             )
             result = await handler.handle(
                 CreateTenantCommand(
@@ -178,10 +180,11 @@ async def _create_superadmin(settings: Settings, args: argparse.Namespace) -> in
     engine = create_async_engine(settings.master_db_url)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+            master = MasterSession(session)
             clock = SystemClock()
             handler = CreateSuperAdminHandler(
-                users=SqlUserRepository(session),
-                app_roles=SqlUserAppRoleRepository(session),
+                users=SqlUserRepository(master),
+                app_roles=SqlUserAppRoleRepository(master),
                 hasher=Argon2PasswordHasher(),
                 tokens=JwtTokenService(
                     settings.jwt_secret,
@@ -189,7 +192,7 @@ async def _create_superadmin(settings: Settings, args: argparse.Namespace) -> in
                     clock,
                 ),
                 clock=clock,
-                uow=SqlMasterUnitOfWork(session),
+                uow=SqlMasterUnitOfWork(master),
             )
             result = await handler.handle(
                 CreateSuperAdminCommand(

@@ -1,7 +1,5 @@
 from uuid import UUID
 
-from sqlalchemy import select
-
 from domain.entities import Location
 from infrastructure.persistence.tenant.models import LocationModel
 
@@ -11,8 +9,6 @@ from .base import TenantCrudRepository
 class SqlLocationRepository(TenantCrudRepository[Location, UUID, LocationModel]):
     model = LocationModel
 
-    def _key(self, entity: Location) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: LocationModel) -> Location:
         return Location(
@@ -32,10 +28,7 @@ class SqlLocationRepository(TenantCrudRepository[Location, UUID, LocationModel])
         row.is_active = entity.is_active
 
     async def get_by_name(self, name: str) -> Location | None:
-        row = await self._session.scalar(
-            select(LocationModel).where(LocationModel.name == name)
-        )
-        return self._to_entity(row) if row else None
+        return await self._find_one(LocationModel.name == name)
 
     async def list_page(
         self,
@@ -44,9 +37,6 @@ class SqlLocationRepository(TenantCrudRepository[Location, UUID, LocationModel])
         search: str | None = None,
         is_active: bool | None = None,
     ) -> tuple[list[Location], int]:
-        stmt = select(LocationModel)
-        if search:
-            stmt = stmt.where(LocationModel.name.ilike(f"%{search.strip()}%"))
-        if is_active is not None:
-            stmt = stmt.where(LocationModel.is_active.is_(is_active))
-        return await self._page(stmt.order_by(LocationModel.created_at), page, page_size)
+        return await self._browse_page(
+            page, page_size, search, is_active, LocationModel.name
+        )

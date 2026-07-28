@@ -1,13 +1,12 @@
 import uuid
-from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String
+from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import TenantBase
+from .base import ActivatableRow, TenantBase
 
 
-class ProductModel(TenantBase):
+class ProductModel(TenantBase, ActivatableRow):
     """A catalog entry (PRD §4.2).
 
     One ``currency`` column, not one per amount: currency is a property of
@@ -33,5 +32,3 @@ class ProductModel(TenantBase):
     # SERIAL product can carry no barcode without colliding (FR-2.3).
     barcode: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
     default_sale_price_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

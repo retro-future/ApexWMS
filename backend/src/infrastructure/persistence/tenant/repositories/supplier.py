@@ -1,7 +1,5 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select
-
 from domain.entities import Supplier
 from infrastructure.persistence.tenant.models import SupplierModel
 
@@ -11,8 +9,6 @@ from .base import TenantCrudRepository
 class SqlSupplierRepository(TenantCrudRepository[Supplier, UUID, SupplierModel]):
     model = SupplierModel
 
-    def _key(self, entity: Supplier) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: SupplierModel) -> Supplier:
         return Supplier(
@@ -44,10 +40,7 @@ class SqlSupplierRepository(TenantCrudRepository[Supplier, UUID, SupplierModel])
         row.is_active = entity.is_active
 
     async def get_by_name(self, name: str) -> Supplier | None:
-        row = await self._session.scalar(
-            select(SupplierModel).where(SupplierModel.name == name)
-        )
-        return self._to_entity(row) if row else None
+        return await self._find_one(SupplierModel.name == name)
 
     async def list_page(
         self,
@@ -56,16 +49,12 @@ class SqlSupplierRepository(TenantCrudRepository[Supplier, UUID, SupplierModel])
         search: str | None = None,
         is_active: bool | None = None,
     ) -> tuple[list[Supplier], int]:
-        stmt = select(SupplierModel)
-        if search:
-            term = f"%{search.strip()}%"
-            stmt = stmt.where(
-                or_(
-                    SupplierModel.name.ilike(term),
-                    SupplierModel.contact_name.ilike(term),
-                    SupplierModel.phone.ilike(term),
-                )
-            )
-        if is_active is not None:
-            stmt = stmt.where(SupplierModel.is_active.is_(is_active))
-        return await self._page(stmt.order_by(SupplierModel.created_at), page, page_size)
+        return await self._browse_page(
+            page,
+            page_size,
+            search,
+            is_active,
+            SupplierModel.name,
+            SupplierModel.contact_name,
+            SupplierModel.phone,
+        )

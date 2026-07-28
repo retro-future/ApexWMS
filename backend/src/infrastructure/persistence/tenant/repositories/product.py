@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from domain.catalog import TrackingType
 from domain.entities import Product
@@ -13,8 +13,6 @@ from .base import TenantCrudRepository
 class SqlProductRepository(TenantCrudRepository[Product, UUID, ProductModel]):
     model = ProductModel
 
-    def _key(self, entity: Product) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: ProductModel) -> Product:
         currency = Currency(row.currency)
@@ -68,14 +66,10 @@ class SqlProductRepository(TenantCrudRepository[Product, UUID, ProductModel]):
         row.is_active = entity.is_active
 
     async def get_by_sku(self, sku: str) -> Product | None:
-        row = await self._session.scalar(select(ProductModel).where(ProductModel.sku == sku))
-        return self._to_entity(row) if row else None
+        return await self._find_one(ProductModel.sku == sku)
 
     async def get_by_barcode(self, barcode: str) -> Product | None:
-        row = await self._session.scalar(
-            select(ProductModel).where(ProductModel.barcode == barcode)
-        )
-        return self._to_entity(row) if row else None
+        return await self._find_one(ProductModel.barcode == barcode)
 
     async def list_page(
         self,
@@ -86,18 +80,16 @@ class SqlProductRepository(TenantCrudRepository[Product, UUID, ProductModel]):
         tracking_type: TrackingType | None = None,
     ) -> tuple[list[Product], int]:
         stmt = select(ProductModel)
-        if search:
-            term = f"%{search.strip()}%"
-            stmt = stmt.where(
-                or_(
-                    ProductModel.sku.ilike(term),
-                    ProductModel.name.ilike(term),
-                    ProductModel.brand.ilike(term),
-                    ProductModel.barcode.ilike(term),
-                )
-            )
-        if is_active is not None:
-            stmt = stmt.where(ProductModel.is_active.is_(is_active))
         if tracking_type is not None:
             stmt = stmt.where(ProductModel.tracking_type == tracking_type.value)
-        return await self._page(stmt.order_by(ProductModel.created_at), page, page_size)
+        return await self._browse_page(
+            page,
+            page_size,
+            search,
+            is_active,
+            ProductModel.sku,
+            ProductModel.name,
+            ProductModel.brand,
+            ProductModel.barcode,
+            stmt=stmt,
+        )

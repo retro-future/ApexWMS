@@ -1,13 +1,12 @@
 import uuid
-from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import TenantBase
+from .base import ActivatableRow, TenantBase
 
 
-class CustomerModel(TenantBase):
+class CustomerModel(TenantBase, ActivatableRow):
     """Who this store sells to (PRD §4.2).
 
     ``full_name`` is indexed but *not* unique: two people share a name, and
@@ -23,5 +22,3 @@ class CustomerModel(TenantBase):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     full_name: Mapped[str] = mapped_column(String(200), index=True)
     phone: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

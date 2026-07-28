@@ -93,6 +93,8 @@ class DefaultTenantProvisioner:
             existing = await session.get(TenantDatabaseModel, tenant_id)
             if existing is None:
                 tenant = await session.get(TenantModel, tenant_id)
+                if tenant is None:
+                    raise LookupError(f"tenant {tenant_id} does not exist")
                 session.add(
                     TenantDatabaseModel(
                         tenant_id=tenant_id, db_name=db_name, created_at=tenant.created_at

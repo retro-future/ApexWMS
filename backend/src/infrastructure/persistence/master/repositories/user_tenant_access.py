@@ -13,8 +13,6 @@ class SqlUserTenantAccessRepository(
 ):
     model = UserTenantAccessModel
 
-    def _key(self, entity: UserTenantAccess) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: UserTenantAccessModel) -> UserTenantAccess:
         return UserTenantAccess(id=row.id, user_id=row.user_id, tenant_id=row.tenant_id)
@@ -28,10 +26,9 @@ class SqlUserTenantAccessRepository(
         row.tenant_id = entity.tenant_id
 
     async def list_for_user(self, user_id: UUID) -> list[UserTenantAccess]:
-        rows = await self._session.scalars(
+        return await self._find_many(
             select(UserTenantAccessModel).where(UserTenantAccessModel.user_id == user_id)
         )
-        return [self._to_entity(r) for r in rows]
 
     async def exists(self, user_id: UUID, tenant_id: UUID) -> bool:
         found = await self._session.scalar(

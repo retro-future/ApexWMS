@@ -1,7 +1,5 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select
-
 from domain.entities import Customer
 from infrastructure.persistence.tenant.models import CustomerModel
 
@@ -11,8 +9,6 @@ from .base import TenantCrudRepository
 class SqlCustomerRepository(TenantCrudRepository[Customer, UUID, CustomerModel]):
     model = CustomerModel
 
-    def _key(self, entity: Customer) -> UUID:
-        return entity.id
 
     def _to_entity(self, row: CustomerModel) -> Customer:
         return Customer(
@@ -44,12 +40,6 @@ class SqlCustomerRepository(TenantCrudRepository[Customer, UUID, CustomerModel])
         search: str | None = None,
         is_active: bool | None = None,
     ) -> tuple[list[Customer], int]:
-        stmt = select(CustomerModel)
-        if search:
-            term = f"%{search.strip()}%"
-            stmt = stmt.where(
-                or_(CustomerModel.full_name.ilike(term), CustomerModel.phone.ilike(term))
-            )
-        if is_active is not None:
-            stmt = stmt.where(CustomerModel.is_active.is_(is_active))
-        return await self._page(stmt.order_by(CustomerModel.created_at), page, page_size)
+        return await self._browse_page(
+            page, page_size, search, is_active, CustomerModel.full_name, CustomerModel.phone
+        )
