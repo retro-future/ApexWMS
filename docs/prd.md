@@ -35,6 +35,7 @@ Naming these is the point of this section. If a request falls in this list, it i
 | **Inter-location transfers** | The schema will model `Location` and record it on every movement, so transfers are additive in v2. Deliberately deferred to keep v1 shippable. |
 | **Payment *processing*** | The system **records** payments received (cash handed over, a transfer that landed) against a store-credit balance — that's core to debt tracking (§4.7). It does **not** *process* payments: no card rails, no payment gateway, no cash drawer, no till reconciliation. "Customer paid 2,000,000 today" is a recorded fact, not a transaction the system executes. |
 | **Lending mechanics** | Store credit is an **open balance only** (§4.7): no schedules, no due dates, no interest/APR, no late fees, no credit scoring, no overdue engine, no repossession workflow. The credit company's own repayment plan is its business, not this system's. |
+| **Automated used-price valuation** | A used handset's price is **entered by a human, per handset** (§4.5b). The system does not derive it from a condition grade, a percentage of the new price, a depreciation curve, or a market feed. A computed price for used goods is a false precision the owner would override on every unit — and a price that is always overridden is worse than no price, because it looks calculated. |
 | **Repairs / service tickets** | A separate domain with its own workflow. Out of scope. |
 | **E-commerce / marketplace sync** | No Shopify, no marketplace feeds. |
 | **External accounting integration** | The system keeps its *own* internal financial ledger (§4.6) and produces a month-end report (§5.10). What it does **not** do in v1: export to QuickBooks/1C, file taxes, run a chart of accounts, or do full double-entry bookkeeping. It is an inventory-and-margin ledger, not a general ledger. |
@@ -75,6 +76,7 @@ This table is not decoration: it is the source for the **permission catalog** in
 | **See acquisition cost / margin** | ✅ | ✅ | ❌ | ❌ |
 | Sell / issue stock | ✅ | ✅ | ❌ | ✅ |
 | Set / override sale price | ✅ | ✅ | ❌ | ❌ |
+| Price a unit at intake / reprice it in stock (§4.5b) | ✅ | ✅ | ❌ | ❌ |
 | Sell via credit company / store credit | ✅ | ✅ | ❌ | ✅ |
 | Manage credit companies (reference list) | ✅ | ❌ | ❌ | ❌ |
 | Record a customer payment | ✅ | ✅ | ❌ | ✅ |
@@ -212,7 +214,7 @@ A single flag on `Product` decides which path every stock operation takes. Both 
 
 ### 4.2 Entities
 
-**`Product`** — a catalog entry, not a physical thing. *"iPhone 15 Pro 256GB Titanium"*. Fields: `sku`, `name`, `brand`, `model`, `tracking_type`, `barcode` (EAN/UPC, for quantity items), `default_sale_price` (Money), `is_active`.
+**`Product`** — a catalog entry, not a physical thing. *"iPhone 15 Pro 256GB Titanium"*. Fields: `sku`, `name`, `brand`, `model`, `tracking_type`, `barcode` (EAN/UPC, for quantity items), `default_sale_price` (Money, **nullable** — see §4.5b), `is_active`.
 
 **`DeviceUnit`** — one physical handset. The heart of the system.
 - `imei` — unique within the tenant, **validated with the Luhn check digit** at the boundary. A typo'd IMEI is worse than no IMEI.
@@ -221,8 +223,11 @@ A single flag on `Product` decides which path every stock operation takes. Both 
 - `status` ∈ `IN_STOCK | RESERVED | SOLD | RETURNED_TO_SUPPLIER | WRITTEN_OFF`.
 - `location_id` — where it physically is (null once sold).
 - `acquisition_cost` (Money) — what *this specific unit* cost. Two identical iPhones bought a month apart have different costs; average costing would destroy that.
-- `condition` ∈ `NEW | REFURBISHED | USED`.
+- `asking_price` (Money, **nullable**) — what *this specific unit* is offered at. The mirror image of `acquisition_cost`, and for the same reason: two used handsets of the same model are not worth the same money (§4.5b). `NULL` means "no unit price — use the catalog price, if the resolution rule allows it".
+- `condition` ∈ `NEW | REFURBISHED | USED`. Not decoration: it is what decides whether this unit may inherit the catalog's price (§4.5b).
 - Provenance: the receipt document that brought it in.
+
+Both `acquisition_cost` and `asking_price` are stored as a bare `BIGINT` minor amount and **inherit the product's currency** — there is no per-unit currency column, because a unit cannot be denominated differently from the catalog row it belongs to (§4.5 rule 3).
 
 **`StockLevel`** — `(product_id, location_id) → quantity`, for `QUANTITY` products only. **A projection, never a source of truth** (see §4.3).
 
@@ -279,6 +284,10 @@ DRAFT  ──confirm──▶  CONFIRMED  ──cancel──▶  CANCELLED
 | **`WriteOff`** | internal | Marks units `WRITTEN_OFF` / decrements levels. `−` movements. |
 
 **Stock only moves on confirm.** A draft document is a shopping list; it touches nothing. This means a half-finished receipt sitting open on someone's screen has zero effect on the books.
+
+**A document is editable only while `DRAFT` — and, while `DRAFT`, it is freely editable.** Lines may be added, removed, and repriced as many times as the operator likes, because nothing downstream has happened yet: no movement, no financial transaction, no PDF, no customer debt. That freedom is the entire purpose of the draft state.
+
+**Confirming ends it.** From `CONFIRMED` onward the document is **immutable** — every field, every line, every amount. There is no "small correction" path: a confirmed document that is wrong is **cancelled** (which writes compensating movements, §4.3) and re-entered. This is not strictness for its own sake — a confirmed document has already written rows into two append-only ledgers and, for a sale, may have opened a customer debt. Editing it after the fact would leave the ledgers describing a document that no longer exists, and the whole audit chain of §4.3 rests on that never happening.
 
 **Cancel writes compensating movements**, never deletes. A cancelled sale is *two* sets of movements (the sale, and its reversal), not zero.
 
@@ -365,6 +374,104 @@ A customer buying a phone and a case is **one sale on one invoice**. The system 
 **Credit does not complicate this.** Mixed currencies exist only on the *revenue* side (per-currency subtotals, per-currency margin). The *debt* side is untouched: a store-credit sale's debt is a single som figure the seller enters for the whole invoice, whatever mix of currencies its lines carry (§4.7). One invoice, two revenue subtotals, one som debt.
 
 **What this costs us:** every money field is two columns (`amount_minor` + `currency`), and every comparison must check currency — the `Money` value object enforces this. **What it saves us:** no exchange rates, no conversion, no rate-freezing, no FX settings, and reports whose numbers are reproducible because nothing is ever recalculated.
+
+### 4.5b Sale price — catalog price vs per-unit price
+
+> This section decides **where a sale price lives**. It does not touch §4.5's seven rules: a price is still an amount in the product's currency, still never converted, still never summed across currencies. Nothing here reopens the money model.
+
+#### The problem: used handsets are not interchangeable
+
+`Product.default_sale_price` is a **model-level** price, and for new goods that is exactly right — every sealed "iPhone 15 Pro 256GB Titanium" in the box is the same thing, so one price serves all of them.
+
+Used stock breaks that assumption, and this store trades used stock. Two handsets of the same model:
+
+| Unit | Battery | Screen | Box | Bought for | Priced at |
+|---|---|---|---|---|---|
+| **A** | 95% | clean | yes | $380 | **$520** |
+| **B** | 78% | scratched | no | $300 | **$400** |
+
+Same catalog row, same SKU, same `Product` — **different money**. One price field on the catalog entry cannot express that, and no amount of care at the call site will make it able to.
+
+#### The decision: the price lives where the cost lives
+
+The system already solved this exact shape once, on the cost side. `DeviceUnit.acquisition_cost` is per-unit because *"two identical iPhones bought a month apart have different costs; average costing would destroy that"* (§4.2), and COGS for phones is specific identification (§4.6). The sale price of a used handset is the same problem viewed from the other side, and it gets the same answer:
+
+> **A serialized unit's sale price is a property of the unit, not of the catalog entry.** `DeviceUnit.asking_price` sits next to `acquisition_cost`, in the same currency, set by the same person, at the same moment.
+
+This is deliberately *not* symmetric with new goods. New goods keep the catalog price, because for new goods the catalog price is correct and re-entering it on every unit would be pure friction.
+
+#### Resolving the price of a line — one rule, and its one hard edge
+
+When a unit is added to a Sales Invoice (FR-4.2), its price is resolved in exactly this order:
+
+```
+price_for(unit, product):
+    1. unit.asking_price is not None          →  unit.asking_price
+    2. unit.condition is NEW
+       and product.default_sale_price is not None
+                                              →  product.default_sale_price
+    3. otherwise                              →  PriceNotSetError  (the line is refused)
+```
+
+**Step 2's `condition is NEW` guard is the whole point of the rule, and it is not optional.**
+
+The obvious version — *"unit price, else catalog price"* — is a silent-corruption trap. A used iPhone 15 Pro worth $500, received without an asking price, against a catalog row holding the **new** price of $900, would be quoted at **$900** at the counter. There is no error, no empty field, no visual cue: the invoice has a number on it, the ledger books $900 of revenue, and the margin report shows a $600 profit that never existed. The failure is invisible precisely because a plausible figure appeared. **A unit whose condition is not `NEW` never inherits the catalog price.** It carries its own price or it cannot be sold.
+
+Two useful consequences fall out of the rule for free:
+
+- **A model the store only ever trades used** — an iPhone 11 nobody sells new any more — is just a catalog row with `default_sale_price = NULL`. Step 2 then never fires for any of its units, so every one of them must be priced individually. **No "is this a used-only product" flag is needed**; the absence of a catalog price already says it.
+- **A specific *new* unit can still be discounted individually** — an opened box, a display model, a unit with a damaged carton — by giving it an `asking_price`. Step 1 takes precedence over the catalog for every condition, so this needs no separate mechanism.
+
+#### The price is set at intake, and enforced at both ends
+
+The owner prices a used handset **when they acquire it** — that is the only moment when the phone is in their hands, the battery health is on screen, and the purchase price was just negotiated. So a Goods Receipt's per-unit scan row carries, for a serialized line, `(imei, acquisition_cost, condition, asking_price?)` rather than `(imei)` alone.
+
+Two guards, at deliberately different layers:
+
+1. **A Goods Receipt cannot be confirmed** while any of its serialized units has `condition ≠ NEW` and no `asking_price`. Unpriced used stock never reaches the shelf.
+2. **An invoice line refuses to resolve** (`PriceNotSetError`) when the rule above falls through to step 3. Redundant on the happy path — and necessary anyway, because a unit can enter stock **without passing through a receipt at all**: a stock count's *unexpected* list (FR-6.3) creates units for handsets the system did not know it had, and those arrive with no price by construction.
+
+Pricing is an Owner/Manager permission (§2.1) — a Storekeeper *"should not see margins or set prices"* (§2). The practical consequence is stated plainly rather than discovered later: **a receipt containing used units needs an Owner or Manager to price it before it can be confirmed.** That matches how the business actually runs, since the owner is the one who buys the trade-in and decides what it is worth.
+
+#### Markdowns are an append-only log, and `asking_price` is its projection
+
+Used stock that does not move gets cut, then cut again. That is the core discipline of the trade, and *"we paid $300, asked $420, cut it twice, sold at $360"* is a question the owner will ask — of a specific handset, months later.
+
+So repricing is not an `UPDATE`. It is a row:
+
+```
+device_unit_price_changes:
+  id, device_unit_id, occurred_at,
+  old_price_minor (nullable — the first pricing has no predecessor),
+  new_price_minor, reason, user_id
+```
+
+`DeviceUnit.asking_price` is **the latest row of that log**, exactly as `StockLevel` is a projection of `stock_movements` (§4.3) and a customer's balance is a projection of debt-minus-payments (§4.7). The initial pricing at intake writes the first row (`old = NULL`), so the log is complete from the unit's first moment and the projection is never seeded out of band. Same discipline, same reason, same `verify-projections` sweep — this introduces a table, not a concept.
+
+Constraints worth naming: only a unit that is `IN_STOCK` or `RESERVED` may be repriced (repricing a sold handset is meaningless and would corrupt its trace), and a price cannot be **un**set — there is no reprice-to-`NULL`.
+
+#### What an asking price is *not*
+
+- **It is not the price the unit sold for.** The `SalesInvoice` line snapshots its own `unit_price` at confirm, and *that* is what revenue is booked from (§4.6). The asking price only ever *seeds* the line. A later markdown cannot retroactively change what a past invoice says — which is why the two are separate fields with separate names.
+- **It is not an inventory value.** On-hand value and COGS are computed from `acquisition_cost`, always (§4.6). **A markdown below cost does not write inventory down** — v1 carries stock at cost, with no lower-of-cost-or-market rule. The loss on a bad buy is recognised when the unit sells, as a thin (or negative) margin, not when the owner changes the sticker.
+- **It is not a financial transaction.** Repricing moves no money, so it writes **no** `FinancialTransaction` row. The money ledger records what happened, and nothing happened.
+- **It does not exist for `QUANTITY` products.** Accessories have no per-unit identity to hang a price on (§4.1); they are priced from the catalog, full stop. This entire section concerns `SERIAL` products only.
+
+#### Overriding a price on one sale — the deviation is recorded, not policed
+
+Repricing a unit in stock is logged with its author (above). **Selling one handset below its price is the same economic act by an easier route** — edit the invoice line, leave the shelf price alone — so leaving that route unlogged would make the log above trivially avoidable. It is recorded too.
+
+But not as edit history. A draft's line may be repriced freely and untracked (FR-4.5c); what is recorded is **one fact at confirm**: what the system resolved (FR-2.14), what was actually charged, and **who approved the difference**. Last writer wins — there is no history of a person trying three figures before settling.
+
+The author matters because the two acts can be different people: a Manager approves the discount, a Seller confirms the invoice. Without this, the ledger's `user_id` names the Seller and **misattributes the decision** — worse than recording nothing.
+
+**No threshold, no approval workflow, no mandatory justification.** A note may be given and is kept, but is never required: a field demanded on every $20 haggle becomes a dash within a week and then means nothing. And the right threshold differs between new goods (a deviation is an exception) and used (a deviation is the negotiation the asking price always anticipated) — v1 does not pretend to know it. **The system makes the deviation visible; the owner decides what it means** — the same stance as the debtor list, which sorts by age and issues no penalties.
+
+Naming is deliberately neutral: a **deviation**, not a discount. Selling a sought-after model *above* its asking price is the same event, and equally worth seeing.
+
+**What this buys us:** used stock is priced honestly, per handset, by the person who valued it; the new-goods flow is untouched; every price a handset ever carried is recoverable from one table ordered by time; and no price concession can be made without a name attached to it. **What this costs us:** one nullable column on the unit, one small append-only table, three columns on an invoice line, and a receipt that a Storekeeper cannot finish alone when it contains used goods.
+
+> **On timing:** `device_units` does not exist yet (M2 is catalog; the table lands in M3). Deciding this now costs one column in a schema still being written. Deciding it at M5 costs a migration plus a backfill of prices onto used stock already on the shelf — figures nobody recorded, which would have to be guessed.
 
 ### 4.6 `FinancialTransaction` — the money ledger
 
@@ -492,25 +599,46 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 - **FR-2.10** Adding or comparing two `Money` values of different currencies raises a domain error. There is no implicit conversion anywhere in the domain.
 - **FR-2.11** **Every monetary total in every report is grouped by currency and presented per currency.** No figure anywhere sums USD and UZS into a single number. *(Test: a report over a period containing both phone and accessory sales returns a USD total and a UZS total as separate values — never one combined figure.)*
 
+### 5.2c Sale Price — catalog vs per-unit (§4.5b)
+
+- **FR-2.12** A product's `default_sale_price` is **optional**. A product created without one is valid and sellable — its units simply must each carry their own price. *(Test: create a product with no catalog price; it saves, and appears in the catalog with an empty price.)*
+- **FR-2.13** A `SERIAL` `DeviceUnit` may carry an `asking_price`, denominated in **its product's currency** — there is no per-unit currency, and a price in any other currency is rejected. `QUANTITY` products have no per-unit price at all. *(Test: attempt to price a unit of a USD product in UZS — rejected with a currency error.)*
+- **FR-2.14** An invoice line's price is resolved as: **the unit's own `asking_price`; else the product's `default_sale_price` — but only if the unit's `condition` is `NEW`; else the line is refused** with a "price not set" error. **A unit whose condition is not `NEW` never inherits the catalog price.** *(Test: a `USED` unit with no asking price, whose product's catalog price is $900, is refused — it must not be quoted at $900. Then price the unit at $500 and confirm the line takes $500.)*
+- **FR-2.15** Setting or changing a unit's asking price requires the pricing permission (Owner/Manager, §2.1) and **appends a `device_unit_price_change` row** recording old price, new price, reason, actor, and timestamp. `DeviceUnit.asking_price` is the latest such row and is never written independently. *(Test: price a unit at intake, cut it twice — the unit shows the third price and its history shows three rows in order, the first with a null old price.)*
+- **FR-2.16** Only a unit that is `IN_STOCK` or `RESERVED` may be repriced, and a price cannot be unset. *(Test: reprice a `SOLD` unit — rejected, stating the unit's status.)*
+- **FR-2.17** Repricing writes **no** `FinancialTransaction` and does **not** change the unit's `acquisition_cost` or any inventory value — including when the new price is below cost. *(Test: mark a unit down below what it cost; the financial ledger is unchanged and on-hand value still reports the acquisition cost.)*
+- **FR-2.18** A unit's `condition` is set at intake and may afterwards be changed only by Owner/Manager — it is a pricing input, not a description. Changing it away from `NEW` while the unit holds no asking price makes it unsellable by FR-2.14 rather than silently repricing it, and the unit is surfaced as needing a price (FR-9.6). *(Test: flip a `NEW` unit with no unit price to `USED`, then attempt to sell it — refused, not quoted at the catalog price.)*
+
 ### 5.3 Inbound — Purchase Orders & Receiving
 
 - **FR-3.1** A Manager creates a Purchase Order: supplier and lines of `(product, quantity, unit_cost)` — each line's currency comes from its product (FR-2.7); the document has no currency of its own. It is a `DRAFT`.
 - **FR-3.2** Confirming a PO fixes its numbers and generates a PDF. **It does not change stock.**
 - **FR-3.3** A Storekeeper creates a Goods Receipt, optionally from a PO (which pre-fills its lines).
 - **FR-3.4** For a `SERIAL` line, the Storekeeper scans one IMEI per unit. The system validates the Luhn check digit and rejects malformed IMEIs **at scan time**, not on submit.
+- **FR-3.4b** Each scanned unit carries its own `acquisition_cost`, `condition`, and — where the condition is not `NEW` — its own `asking_price` (§4.5b). Cost and price are visible and settable only to Owner/Manager (§2.1); a Storekeeper scans IMEIs and states condition.
 - **FR-3.5** Scanning an IMEI that already exists in this tenant is rejected immediately with a message naming the existing unit's status and location. *(A duplicate IMEI is either a scanning error or a stolen-goods red flag. Never silently accept it.)*
 - **FR-3.6** For a `QUANTITY` line, the Storekeeper enters a count.
 - **FR-3.7** Confirming a Goods Receipt creates the `DeviceUnit`s with their per-unit acquisition cost, increments quantity levels, and writes one `+` movement per line. Units enter as `IN_STOCK` at the receipt's location.
 - **FR-3.8** A receipt whose serial line has fewer scanned IMEIs than its declared quantity cannot be confirmed.
 - **FR-3.9** Receiving against a PO records the linkage, and the PO reports its received-vs-ordered state (`pending`, `partial`, `complete`).
+- **FR-3.10** A Goods Receipt **cannot be confirmed** while any of its serialized units has `condition ≠ NEW` and no `asking_price`. The error names the offending IMEIs, so the pricing gap is fixed in one pass rather than discovered one unit at a time. *(Test: receive two units, one `NEW` and one `USED` with no price — confirm is refused and names only the used unit; price it, and confirm succeeds.)*
+- **FR-3.11** Confirming a receipt writes the initial `device_unit_price_change` row for every unit given an asking price at intake (FR-2.15), so a unit's price history begins at the moment it enters stock.
+- **FR-3.12** A receipt's lines, scanned IMEIs, costs, conditions, and asking prices are editable **only while it is `DRAFT`** (§4.4); a `CONFIRMED` receipt is immutable and is corrected by cancellation, not by patching. A draft may sit with units unpriced or unscanned indefinitely — the completeness checks (FR-3.8, FR-3.10) run at confirm, not at scan. *(Test: leave a used unit unpriced in a draft receipt — the draft saves fine; confirm is refused until it is priced.)*
 
 ### 5.4 Outbound — Sales & Issue
 
 - **FR-4.1** A Seller creates a Sales Invoice: customer (optional) and location. Line currencies come from their products (FR-2.7); the invoice has no currency of its own.
-- **FR-4.2** The Seller scans an IMEI; the system resolves it to a `DeviceUnit` and adds it as a line at the product's default sale price.
+- **FR-4.2** The Seller scans an IMEI; the system resolves it to a `DeviceUnit` and adds it as a line at that unit's **resolved price** (FR-2.14): its own `asking_price` if it has one, otherwise the product's `default_sale_price` — the latter only for a `NEW` unit.
+- **FR-4.2b** A scan that resolves to no price is **rejected at scan time** with a "price not set" error naming the unit, in the same spirit as FR-3.4's Luhn rejection — never added as a zero-priced or catalog-priced line. The Seller cannot fix it (pricing is Owner/Manager, §2.1), so the message says who can. *(Test: scan a `USED` unit with no asking price whose product has a catalog price; the line is refused and no invoice line is created.)*
 - **FR-4.3** Scanning an IMEI that is not `IN_STOCK` is rejected, stating the actual status. *(You cannot sell a phone that is already sold.)*
 - **FR-4.4** Scanning an IMEI held at a different location than the invoice's is rejected.
-- **FR-4.5** Only Owner/Manager may override a line's price. A Seller's invoice uses the catalog price.
+- **FR-4.5** Only Owner/Manager may override a line's price. A Seller's invoice uses the resolved price (FR-4.2) unchanged. An override edits **that invoice line only** — it is a negotiation on one sale, and it does not reprice the unit in stock or write a `device_unit_price_change`. *(Test: override a line to $480, then cancel the invoice — the unit returns to stock still asking its original price.)*
+- **FR-4.5b** Confirming an invoice **snapshots each line's `unit_price`**; revenue is booked from the snapshot (§4.6), never re-read from the unit or the catalog. *(Test: a unit asking $520 is sold with the line overridden to $480 — the confirmed invoice and its `SALE_REVENUE` both read $480, while the unit's own price history still ends at $520.)*
+- **FR-4.5c** A line may be added, removed, or repriced **only while the invoice is `DRAFT`**, and while `DRAFT` it may be repriced any number of times — a draft has written nothing, so there is nothing to keep consistent. No history is kept of edits within a draft. *(Test: reprice a draft line three times, then confirm — the invoice books the third price and nothing records the first two.)*
+- **FR-4.5d** Any attempt to add, remove, or edit a line on a `CONFIRMED` or `CANCELLED` invoice is **rejected with no side effect** (§4.4): a wrong confirmed invoice is cancelled and re-entered, never patched. *(Test: confirm an invoice, then `PATCH` one of its lines — rejected, and re-reading the invoice, the stock ledger, and the financial ledger shows all three byte-identical to before the attempt.)*
+- **FR-4.5e** A line's price must be **zero or positive** in the product's own currency. A negative price is rejected — a giveaway is a zero-priced line, and money flowing the other way is a return, not a sale. *(Test: override a line to a negative amount — rejected with a domain error, not stored.)*
+- **FR-4.5f** Every confirmed line stores the price the system **resolved** (FR-2.14) alongside the price actually **charged**. Where they differ, the line also stores **`price_approved_by`** — the user who last overrode it — and an **optional** free-text note. The approver is stamped when the override is made, not at confirm, because **the person who approves a discount and the person who confirms the invoice need not be the same** — without it the ledger's `user_id` names the confirmer and misattributes the decision. *(Test: a Manager overrides a $520 line to $300 and a Seller confirms — the line reports resolved $520, charged $300, approved by the Manager, while the `SALE_REVENUE` row still names the Seller as the confirmer.)*
+- **FR-4.5g** The note is **never mandatory** — no threshold, no approval workflow, no justification gate (§4.5b). *(Test: override a line with no note; the invoice confirms normally and the deviation is still fully attributed.)*
 - **FR-4.6** Confirming the invoice marks each unit `SOLD`, decrements quantity lines, writes one `−` movement per line, and generates the invoice PDF.
 - **FR-4.7** Confirming an invoice whose line quantity exceeds available stock is rejected atomically — no partial fulfilment.
 - **FR-4.8** Cancelling a confirmed invoice returns the units to `IN_STOCK` **by writing compensating `+` movements**. The original movements remain.
@@ -527,12 +655,13 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 - **FR-6.2** The Storekeeper scans every IMEI physically present and enters counts for quantity products.
 - **FR-6.3** On close, the system reports three lists: **matched**, **missing** (expected, not scanned), and **unexpected** (scanned, not expected — including IMEIs unknown to the system entirely).
 - **FR-6.4** Only Owner/Manager may confirm the count's adjustments. Confirming writes `±` adjustment movements bringing the system in line with reality.
+- **FR-6.4b** A unit created from the **unexpected** list enters stock with **no `asking_price`** — nothing about a surprise handset says what it is worth. It is therefore unsellable until priced (FR-2.14), and appears on the "needs pricing" list (FR-9.6). *(Test: confirm a count that found an unknown IMEI, then attempt to sell it — refused for want of a price, not quoted from the catalog.)*
 - **FR-6.5** A Manager can write off units (damage, loss, theft) with a mandatory reason, producing `−` movements. Units become `WRITTEN_OFF`.
 
 ### 5.7 Scanning & Lookup
 
 - **FR-7.1** `GET /scan/lookup?code=<x>` resolves a scanned string to *either* a `DeviceUnit` (by IMEI) *or* a `Product` (by barcode/SKU), and **states which kind it found**. One call — the operator's scanner does not know what it just scanned.
-- **FR-7.2** The lookup returns, for a device: model, status, location, and (role permitting) cost. This is the "customer walks in with a phone" screen.
+- **FR-7.2** The lookup returns, for a device: model, status, location, **condition, and the price it would sell at** (its resolved price per FR-2.14, or an explicit "not priced"), plus — role permitting — its cost and margin. The price is what the Seller actually needs at the counter; the cost is what they must not see (FR-1.7). This is the "customer walks in with a phone" screen.
 - **FR-7.3** Lookup responds within **200ms at p95**. A storekeeper scanning 50 units must never wait on the system.
 - **FR-7.4** An unrecognized code returns a clear "not found" — not a 500, not an empty 200.
 
@@ -546,10 +675,12 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 ### 5.9 Reporting
 
 - **FR-9.1** **Stock on hand** — by location, by product, by brand. Includes total cost value (Owner/Manager only).
-- **FR-9.2** **IMEI trace** — given an IMEI, the complete chronological movement history: received on which document, from which supplier, at what cost, sold on which invoice, to whom, for how much, by which user.
+- **FR-9.2** **IMEI trace** — given an IMEI, the complete chronological movement history: received on which document, from which supplier, at what cost, **every price it was ever offered at and who changed it** (§4.5b), sold on which invoice, to whom, for how much, by which user. *(Test: a handset bought at $300, priced at $420, cut to $390 then $360, and sold at $350 renders every one of those events, in order, on one timeline.)*
 - **FR-9.3** **Sales summary** — over a date range, by location: units sold, revenue, cost of goods, margin.
-- **FR-9.4** **Ageing** — units `IN_STOCK` for longer than N days. *(Dead stock is the phone retailer's core financial risk.)*
+- **FR-9.4** **Ageing** — units `IN_STOCK` for longer than N days, each with its **acquisition cost, current asking price, implied margin, and how many times it has been marked down**. *(Dead stock is the phone retailer's core financial risk, and a used handset that has been cut twice and still has not moved is the sharpest form of it.)*
 - **FR-9.5** **Movement log** — the raw ledger, filterable by product, location, user, date, movement type.
+- **FR-9.6** **Needs pricing** — every `IN_STOCK` unit that resolves to no price (FR-2.14): used units received before anyone priced them, and units surfaced by a stock count (FR-6.4b). This is the worklist that keeps unsellable stock from being discovered at the counter with a customer standing there.
+- **FR-9.7** **Price deviations** — over a date range, every confirmed line whose charged price differed from the resolved one (FR-4.5f): the handset, the two prices, the difference, **who approved it**, the customer, and the note if one was given. Sortable by approver and by customer, because *"one manager, one customer, over and over"* is the pattern this report exists to make visible. It reports deviations in **both** directions — a model sold above its asking price is information too.
 
 ### 5.10 Financial Ledger & Month-End Report
 
@@ -698,7 +829,7 @@ Tracing one operation through every layer, because this is the pattern every oth
 
 1. **`presentation/routers/receipts.py`** — `POST /receipts/{id}/confirm`. The request body **is** `ConfirmReceiptCommand` (parsed and structurally validated by Pydantic before the route body runs); the router checks the role, asks Dishka for a `ConfirmReceiptHandler`, and returns what it returns — no separate request/response schema.
 2. **`application/commands/confirm_receipt.py`** — `ConfirmReceiptHandler.__call__(request: ConfirmReceiptCommand) -> ResultWithData[ReceiptData]`. Depends only on ports: `GoodsReceiptRepository`, `DeviceUnitRepository`, `StockMovementRepository`, `UnitOfWork`, `Clock`, plus `CurrentUser` for the acting user. It loads the receipt, asks the domain to validate it, creates the `DeviceUnit`s, writes the movements, commits, and returns `ResultWithData[ReceiptData].succeed_with_data(...)`.
-3. **`domain/entities/goods_receipt.py`** — `GoodsReceipt.confirm()` enforces the invariants: not already confirmed; every serial line has exactly as many scanned IMEIs as its declared quantity; no IMEI appears twice. **These rules live in the domain and are testable with no I/O whatsoever.**
+3. **`domain/entities/goods_receipt.py`** — `GoodsReceipt.confirm()` enforces the invariants: not already confirmed; every serial line has exactly as many scanned IMEIs as its declared quantity; no IMEI appears twice; **no unit with `condition ≠ NEW` lacks an `asking_price`** (FR-3.10). **These rules live in the domain and are testable with no I/O whatsoever** — the pricing guard in particular is a pure function of the receipt's own lines, needing neither the catalog nor a database.
 4. **`infrastructure/persistence/`** — the SQLAlchemy repositories that actually satisfy those ports, and the `UnitOfWork` that wraps it all in one transaction against *this tenant's* database.
 
 The handler does not know a tenant exists. It does not know Postgres exists. That is the entire point.
@@ -760,7 +891,7 @@ There is no tenant-management API: tenants are created and administered with the
 | `POST` | `/purchase-orders/{id}/confirm` | Manager |
 | `GET` | `/purchase-orders/{id}/pdf` | Manager |
 | `GET` / `POST` | `/receipts` | Storekeeper+ |
-| `POST` | `/receipts/{id}/scan` | Storekeeper+ (append one IMEI) |
+| `POST` | `/receipts/{id}/scan` | Storekeeper+ (append one IMEI + condition; `acquisition_cost` and `asking_price` require the pricing permission) |
 | `DELETE` | `/receipts/{id}/scan/{imei}` | Storekeeper+ (undo a scan) |
 | `POST` | `/receipts/{id}/confirm` | Storekeeper+ |
 
@@ -769,7 +900,7 @@ There is no tenant-management API: tenants are created and administered with the
 |---|---|---|
 | `GET` / `POST` | `/invoices` | Seller+ |
 | `POST` | `/invoices/{id}/scan` | Seller+ |
-| `PATCH` | `/invoices/{id}/lines/{line_id}` | Manager (price override) |
+| `PATCH` | `/invoices/{id}/lines/{line_id}` | Manager (price override; **`DRAFT` only** — `409` on a confirmed invoice) |
 | `POST` | `/invoices/{id}/confirm` | Seller+ (body carries `payment_type`; for store credit: som debt total + down payment; for credit company: company + contract ref) |
 | `POST` | `/invoices/{id}/cancel` | Manager |
 | `GET` | `/invoices/{id}/pdf` | Seller+ |
@@ -801,7 +932,10 @@ There is no tenant-management API: tenants are created and administered with the
 | Method | Path | Role |
 |---|---|---|
 | `GET` | `/scan/lookup?code=` | any |
-| `GET` | `/devices/{imei}/history` | any (cost hidden by role) |
+| `GET` | `/devices/{imei}/history` | any (cost hidden by role; includes the price-change timeline) |
+| `POST` | `/devices/{imei}/reprice` | Manager (append a price change: new price + reason) |
+| `GET` | `/reports/needs-pricing` | Manager (in-stock units that resolve to no price) |
+| `GET` | `/reports/price-deviations?from=&to=` | Manager (lines charged off their resolved price, with the approver) |
 | `GET` | `/reports/stock-on-hand` | Manager |
 | `GET` | `/reports/sales-summary` | Manager |
 | `GET` | `/reports/ageing` | Manager |
@@ -859,14 +993,14 @@ Each milestone is independently demoable.
 |---|---|---|
 | **M0** | **Bootstrap** | uv workspace, FastAPI + Dishka skeleton, the four-layer structure, docker-compose (Postgres), CI. Demo: `/health` responds. |
 | **M1** | **Tenancy & Auth** | MasterDB registry + identity, per-store `employees`, SuperAdmin provisioning CLI, engine registry, migration fan-out, JWT, two role namespaces, permission catalog. Demo: `apexwms create-tenant` twice; prove store A cannot see store B; then show one person holding one login and two different roles across both. |
-| **M2** | **Catalog** | Products (both tracking types, **per-product currency** with USD/UZS defaults), locations, suppliers, customers. Demo: build a catalog. |
-| **M3** | **The ledgers** | `StockMovement` **and** `FinancialTransaction`, projections, valuation rules, `verify-projections` + financial reconciliation. Demo: a confirm writes both a stock movement and its money entry, and both reconcile. |
-| **M4** | **Inbound** | PO → Goods Receipt, IMEI scan-in, Luhn + duplicate rejection, `PURCHASE` financial entries. Demo: **scan 10 phones into stock with a real scanner.** |
-| **M5** | **Outbound** | Sales Invoice, scan-to-sell, confirm, cancel-with-compensation, `SALE_REVENUE` + `COGS` entries. Demo: scan a phone, sell it, cancel, watch both goods and money reverse. |
+| **M2** | **Catalog** | Products (both tracking types, **per-product currency** with USD/UZS defaults, **optional catalog sale price**), locations, suppliers, customers. Demo: build a catalog. |
+| **M3** | **The ledgers** | `StockMovement` **and** `FinancialTransaction`, projections, valuation rules, `verify-projections` + financial reconciliation. Also the `device_units` table itself — including `condition`, the nullable `asking_price`, and the `device_unit_price_changes` log it projects from (§4.5b), because these are columns in a schema being written now and a migration later. Demo: a confirm writes both a stock movement and its money entry, and both reconcile. |
+| **M4** | **Inbound** | PO → Goods Receipt, IMEI scan-in, Luhn + duplicate rejection, per-unit cost/condition/asking price, the unpriced-used-unit confirm guard (FR-3.10), `PURCHASE` financial entries. Demo: **scan 10 phones into stock with a real scanner** — some new, some used and individually priced. |
+| **M5** | **Outbound** | Sales Invoice, scan-to-sell, **price resolution (FR-2.14) with its refusal to fall back on used units**, confirm, cancel-with-compensation, **line-price overrides carrying their approver** (FR-4.5f), `SALE_REVENUE` + `COGS` entries. Demo: scan a phone, sell it, cancel, watch both goods and money reverse — then scan an unpriced used handset and watch the counter refuse it rather than quote the new-goods price. |
 | **M5b** | **Credit sales & customer debt** | `payment_type` on sales, `CreditCompany` reference list, som-denominated store-credit debt, `Payment` ledger, customer accounts, debtor list, `verify-balances`. Demo: **sell a $600 phone on store credit for 7.8M som with an 800k down payment, record two payments, show the remaining balance — then sell another via a credit company and show it settled with zero debt.** |
 | **M6** | **Counts, write-offs, supplier returns** | Full discrepancy → adjustment flow with `WRITE_OFF_LOSS` / `COUNT_ADJUSTMENT` / `SUPPLIER_RETURN_CREDIT` entries. Demo: hide a phone, run a count, watch the system find it missing and book the loss. |
 | **M7** | **Documents** | PDF generation for PO, Invoice, Supplier Return. Demo: print a real invoice with an IMEI on it. |
-| **M8** | **Reporting** | Stock on hand, IMEI trace, sales summary, ageing, financial ledger. Demo: trace one IMEI's entire life. |
+| **M8** | **Reporting** | Stock on hand, IMEI trace (**including its full price history**), sales summary, ageing with cost/asking price/markdown count, needs-pricing worklist, price-deviation report, financial ledger. Demo: trace one IMEI's entire life — bought, priced, cut twice, sold below asking, with the name of whoever approved that. |
 | **M9** | **Month-End Report** | Period close in tenant timezone, per-location inventory value, opening→closing reconciliation, margin, **customer-debt movement + cash collected**, PDF export. Demo: **run last month's report for the warehouse and the store, reconcile closing value against on-hand, and closing debt against customer balances.** |
 
 **M4 is the milestone that proves the product** operationally; **M9 is the milestone that proves it financially.** Note that the financial ledger is *not* deferred to M9 — it is written from M3 onward as each document type lands, because retrofitting money entries onto already-confirmed documents would mean backfilling history. M9 only adds the *reporting* on top of a ledger that has been accruing all along.
@@ -882,6 +1016,10 @@ Each milestone is independently demoable.
 | **Projection drift** from the ledger | Medium | `verify-projections` in CI and on demand. The ledger is the source of truth; projections are always rebuildable. |
 | **Stock & money ledgers disagree** | High | Both are written in the *same* DB transaction on confirm (FR-10.1); a reconciliation check (FR-10.7) recomputes closing inventory value from stock and asserts it against the financial ledger. A mismatch is an error surfaced in the report, never auto-hidden. |
 | **Accessory valuation method** | Medium | Weighted-average cost for quantity items, maintained from the purchase ledger (§4.6). Serialized phones sidestep this entirely via specific identification. **Confirm this matches how the owner actually thinks about accessory cost** before M3. |
+| **A used unit silently inheriting the new-goods catalog price** | **High** | The signature bug of bolting used stock onto a new-goods catalog, and it is invisible: a plausible number appears on the invoice and the margin report shows profit that never existed. Mitigated structurally — a unit whose `condition ≠ NEW` **never** falls back to `default_sale_price` (§4.5b, FR-2.14), and the test asserts a used unit against a $900 catalog row is *refused*, not quoted. |
+| **Unpriced used stock discovered at the counter** | Medium | The cost of FR-2.14's strictness: a customer is standing there and the sale is blocked. Mitigated by pushing pricing to intake, where it belongs — a receipt with unpriced used units cannot be confirmed (FR-3.10) — plus a "needs pricing" worklist (FR-9.6) for the residual path, units surfaced by a stock count (FR-6.4b), which no intake guard can catch. |
+| **Markdowns mistaken for inventory write-downs** | Medium | Cutting an asking price moves no money and writes no `FinancialTransaction` (FR-2.17). v1 carries stock **at cost**, with no lower-of-cost-or-market rule: a bad buy is recognised as thin or negative margin when the unit sells, not when the sticker changes. Stated explicitly in §4.5b because the opposite is a reasonable thing to assume. |
+| **Trade-ins have no supplier to receive against** | **Medium — open question, decide before M4** | Used handsets typically arrive from **walk-in customers**, but §4.4 defines `GoodsReceipt` as strictly *← supplier*, so today there is nowhere for a trade-in to come from. Two candidates: a `Supplier` row literally named "Trade-in / walk-in" (zero schema change, poor reporting), or a nullable `supplier_id` plus `acquisition_source ∈ SUPPLIER \| TRADE_IN` (honest, and makes "what did we make on trade-ins?" answerable). **This is a separate decision from §4.5b, on the same code path — settle it before the receipt flow is built.** |
 | **Month boundaries & timezone** | Medium | Period math runs in the tenant's timezone (FR-10.8), so a tenant timezone setting must land in M1. Without it, a late-night sale slips into the wrong month and the report is quietly wrong. |
 | **Month-end report performance** at scale | Low (v1) | v1 computes opening/closing live from the full ledger — fine at MVP volumes. If a tenant's ledger grows large, add stored month-end snapshots (opening = prior stored closing) as a v2 optimization; correctness is unaffected either way. |
 | **PDF library choice** | Low | **Open question.** WeasyPrint (HTML/CSS templates — far easier to iterate on, but a heavier system dependency: cairo/pango) vs ReportLab (pure Python, no system deps, but layouts are written in code). Leaning WeasyPrint; decide at M7. |
@@ -898,5 +1036,7 @@ Each milestone is independently demoable.
 
 ### Deferred to v2 (schema anticipates them)
 Inter-location transfers · customer returns/refunds · reservations · low-stock alerts · domain events · barcode label printing · **a single combined cross-currency bottom line (would require an FX rate — deliberately absent in v1)** · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **due dates / overdue tracking on store credit · customer credit limits · installment schedules · credit-company payout & commission tracking** · supplier accounts-payable (store's debts to suppliers).
+
+**Pricing** (§4.5b decides where a price lives; these decide how one is *chosen*, which v1 leaves to the owner): **condition grades driving an automatic used price** (Grade A = 85% of new, …) · **depreciation curves or market price feeds** · **a floor/minimum price per unit** — only meaningful once Sellers can discount, which FR-4.5 does not allow · **scheduled or automatic markdowns** by age · **lower-of-cost-or-market inventory write-downs** (v1 carries stock at cost, FR-2.17) · price lists per customer or channel.
 
 **Tenancy & administration** (see §3.5 for the reasoning behind each): a **SuperAdmin-only admin portal** for tenant management — create, edit, change subscription plan · an **`/admin/*` API** · **billing / subscription metadata** on the tenant registry · **per-store custom roles** (DB-driven `TenantRole` rather than the fixed enum) · **API keys, feature flags, impersonation** · **welcome email** delivering the Owner's temporary password · a **server-side hard gate on `must_change_password`**. Note what is *not* deferred — it shipped in M1: public sign-up is **removed**, tenants are **SuperAdmin-provisioned**, identity is **split** between MasterDB (`users`) and each store (`employees`), and authorization runs on a **permission catalog**.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ApexWMS is a multi-tenant (database-per-tenant) warehouse management system for phone stores: IMEI-level device tracking, append-only stock & financial ledgers, credit/installment sales. Full spec lives in `docs/prd.md` (772 lines) — read the relevant section before implementing a feature; this file only orients you, it doesn't replace the PRD.
+ApexWMS is a multi-tenant (database-per-tenant) warehouse management system for phone stores: IMEI-level device tracking, append-only stock & financial ledgers, credit/installment sales. It is also a CRM: customer records, credit/installment relationships, and customer-facing history are first-class alongside the inventory and ledger domain — not a bolted-on afterthought. Full spec lives in `docs/prd.md` (772 lines) — read the relevant section before implementing a feature; this file only orients you, it doesn't replace the PRD.
 
 The project is a uv workspace with one member so far: `backend/` (FastAPI). A `frontend/` (Next.js) is planned but not started.
 
