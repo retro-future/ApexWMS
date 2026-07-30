@@ -27,6 +27,7 @@ dev = [
     "pytest-asyncio>=0.25",
     "httpx>=0.28",
     "testcontainers[postgres]>=4.9",
+    "faker>=33.1",
     "ruff>=0.9",
     # Pinned below 0.0.64, which shipped without a win_amd64 wheel. ty is
     # pre-1.0 and its diagnostics move between releases, so bump it

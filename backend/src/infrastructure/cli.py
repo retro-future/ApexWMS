@@ -8,6 +8,7 @@
     apexwms list-tenants
     apexwms suspend-tenant <uuid> | apexwms activate-tenant <uuid>
     apexwms retry-provisioning <uuid> [--timezone tz]
+    apexwms seed-tenant <uuid> [--products N] [--customers N] [--suppliers N]
 
 There is no HTTP admin API in the MVP: shell access to the server plus the
 MasterDB URL *is* the SuperAdmin credential. The admin portal, and the
@@ -85,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
     retry.add_argument("tenant_id", type=UUID)
     retry.add_argument("--timezone", default=DEFAULT_TIMEZONE)
 
+    seed = sub.add_parser(
+        "seed-tenant", help="fill a tenant's catalog with fake demo data (dev/demo only)"
+    )
+    seed.add_argument("tenant_id", type=UUID)
+    seed.add_argument("--products", type=int, default=30)
+    seed.add_argument("--customers", type=int, default=20)
+    seed.add_argument("--suppliers", type=int, default=5)
+    seed.add_argument("--seed", type=int, default=None, help="random seed, for reproducible data")
+
     args = parser.parse_args(argv)
     settings = Settings()
 
@@ -107,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_set_status(settings, args.tenant_id, TenantStatus.ACTIVE))
     if args.command == "retry-provisioning":
         return asyncio.run(_retry_provisioning(settings, args.tenant_id, args.timezone))
+    if args.command == "seed-tenant":
+        return asyncio.run(_seed_tenant(settings, args))
     return 2
 
 
@@ -311,6 +323,40 @@ async def _retry_provisioning(settings: Settings, tenant_id: UUID, timezone: str
         return 1
     finally:
         await engine.dispose()
+
+
+async def _seed_tenant(settings: Settings, args: argparse.Namespace) -> int:
+    # Local import: seeding pulls in Faker, a dev-only dependency.
+    from infrastructure.seeding import seed_catalog
+
+    engine = create_async_engine(settings.master_db_url)
+    try:
+        async with async_sessionmaker(engine)() as session:
+            row = await session.get(TenantDatabaseModel, args.tenant_id)
+    finally:
+        await engine.dispose()
+
+    if row is None:
+        print(f"no such tenant database: {args.tenant_id}", file=sys.stderr)
+        print(
+            "(has this tenant finished provisioning? see `apexwms list-tenants`)",
+            file=sys.stderr,
+        )
+        return 1
+
+    url = tenant_db_url(settings.master_db_url, row.db_name)
+    summary = await seed_catalog(
+        url,
+        products=args.products,
+        customers=args.customers,
+        suppliers=args.suppliers,
+        seed=args.seed,
+    )
+    print(f"tenant {args.tenant_id} seeded:")
+    print(f"  products:  {summary.products_created}")
+    print(f"  customers: {summary.customers_created}")
+    print(f"  suppliers: {summary.suppliers_created}")
+    return 0
 
 
 if __name__ == "__main__":
