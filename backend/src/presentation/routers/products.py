@@ -12,7 +12,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
 from application.commands.update_product import UpdateProductCommand, UpdateProductHandler
@@ -21,9 +21,14 @@ from application.dtos import CurrentUser
 from application.queries.get_product import GetProductHandler, GetProductQuery, ProductData
 from application.queries.list_products import ListProductsHandler, ListProductsQuery
 from domain.permissions import Permission
-from presentation.security import require
+from presentation.security import bearer_scheme, require
 
-router = APIRouter(prefix="/products", tags=["catalog"], route_class=DishkaRoute)
+router = APIRouter(
+    prefix="/products",
+    tags=["catalog"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(bearer_scheme)],
+)
 
 
 @router.get("")

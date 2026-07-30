@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from application.commands.change_user_role import ChangeUserRoleCommand, ChangeUserRoleHandler
 from application.commands.invite_user import (
@@ -15,9 +15,14 @@ from application.core import ResultWithData
 from application.dtos import CurrentUser
 from application.queries.list_users import EmployeeListItem, ListUsersHandler, ListUsersQuery
 from domain.permissions import Permission
-from presentation.security import require
+from presentation.security import bearer_scheme, require
 
-router = APIRouter(prefix="/users", tags=["users"], route_class=DishkaRoute)
+router = APIRouter(
+    prefix="/users",
+    tags=["users"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(bearer_scheme)],
+)
 
 
 @router.get("")

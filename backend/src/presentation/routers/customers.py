@@ -9,7 +9,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from application.commands.create_customer import CreateCustomerCommand, CreateCustomerHandler
 from application.commands.update_customer import UpdateCustomerCommand, UpdateCustomerHandler
@@ -22,9 +22,14 @@ from application.queries.get_customer import (
 )
 from application.queries.list_customers import ListCustomersHandler, ListCustomersQuery
 from domain.permissions import Permission
-from presentation.security import require
+from presentation.security import bearer_scheme, require
 
-router = APIRouter(prefix="/customers", tags=["catalog"], route_class=DishkaRoute)
+router = APIRouter(
+    prefix="/customers",
+    tags=["catalog"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(bearer_scheme)],
+)
 
 
 @router.get("")

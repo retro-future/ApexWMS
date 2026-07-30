@@ -11,7 +11,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from application.commands.create_supplier import CreateSupplierCommand, CreateSupplierHandler
 from application.commands.update_supplier import UpdateSupplierCommand, UpdateSupplierHandler
@@ -24,9 +24,14 @@ from application.queries.get_supplier import (
 )
 from application.queries.list_suppliers import ListSuppliersHandler, ListSuppliersQuery
 from domain.permissions import Permission
-from presentation.security import require
+from presentation.security import bearer_scheme, require
 
-router = APIRouter(prefix="/suppliers", tags=["catalog"], route_class=DishkaRoute)
+router = APIRouter(
+    prefix="/suppliers",
+    tags=["catalog"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(bearer_scheme)],
+)
 
 
 @router.get("")

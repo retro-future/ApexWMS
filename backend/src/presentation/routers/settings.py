@@ -1,7 +1,7 @@
 """Tenant settings: read for any member, write for the Owner (PRD §2.1)."""
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from application.commands.update_tenant_settings import (
     UpdateTenantSettingsCommand,
@@ -15,9 +15,14 @@ from application.queries.get_tenant_settings import (
     TenantSettingsData,
 )
 from domain.permissions import Permission
-from presentation.security import require
+from presentation.security import bearer_scheme, require
 
-router = APIRouter(prefix="/settings", tags=["settings"], route_class=DishkaRoute)
+router = APIRouter(
+    prefix="/settings",
+    tags=["settings"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(bearer_scheme)],
+)
 
 
 @router.get("/tenant")

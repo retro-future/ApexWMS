@@ -6,8 +6,17 @@ compare. A route names the permission it needs and the caller either holds
 it or does not, whether it came from a tenant role or a platform one.
 """
 
+from fastapi.security import HTTPBearer
+
 from application.dtos import CurrentUser
 from application.errors import AuthorizationError
+
+# Declares the bearer scheme in the OpenAPI schema so Swagger UI shows an
+# "Authorize" button on the routers that depend on it. Cosmetic only: the
+# actual token is read straight off the header by ``RequestBearerClaims``
+# regardless of this dependency, so it must never raise — a missing/absent
+# token still reaches the handler and comes out as 401 from there.
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def require(user: CurrentUser, *permissions: str) -> None:

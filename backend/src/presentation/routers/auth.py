@@ -10,7 +10,7 @@ here and only matters for someone who works at more than one store.
 """
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from application.commands.accept_invite import (
     AcceptInviteCommand,
@@ -29,6 +29,7 @@ from application.commands.refresh_tokens import (
 )
 from application.core import ResultWithData
 from application.queries.get_me import GetMeHandler, GetMeQuery, MeData
+from presentation.security import bearer_scheme
 
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=DishkaRoute)
 
@@ -54,13 +55,13 @@ async def accept_invite(
     return await handler.handle(body)
 
 
-@router.post("/change-password", status_code=204)
+@router.post("/change-password", status_code=204, dependencies=[Depends(bearer_scheme)])
 async def change_password(
     body: ChangePasswordCommand, handler: FromDishka[ChangePasswordHandler]
 ) -> None:
     await handler.handle(body)
 
 
-@router.get("/me", response_model_exclude_none=True)
+@router.get("/me", response_model_exclude_none=True, dependencies=[Depends(bearer_scheme)])
 async def me(handler: FromDishka[GetMeHandler]) -> ResultWithData[MeData]:
     return await handler.handle(GetMeQuery())
