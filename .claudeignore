@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Version control / IDE
+.git/
+.idea/
+.vscode/
+
+# Docker / env
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
