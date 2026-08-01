@@ -34,7 +34,7 @@ async def list_locations(
     current: FromDishka[CurrentUser],
     handler: FromDishka[ListLocationsHandler],
 ) -> PagedResult[LocationData]:
-    require(current, Permission.Location.View)
+    require(current, Permission.LOCATION_VIEW)
     return await handler.handle(query)
 
 
@@ -44,7 +44,7 @@ async def create_location(
     current: FromDishka[CurrentUser],
     handler: FromDishka[CreateLocationHandler],
 ) -> ResultWithData[LocationData]:
-    require(current, Permission.Location.Manage)
+    require(current, Permission.LOCATION_MANAGE)
     return await handler.handle(body)
 
 
@@ -54,7 +54,7 @@ async def get_location(
     current: FromDishka[CurrentUser],
     handler: FromDishka[GetLocationHandler],
 ) -> ResultWithData[LocationData]:
-    require(current, Permission.Location.View)
+    require(current, Permission.LOCATION_VIEW)
     return await handler.handle(GetLocationQuery(location_id=location_id))
 
 
@@ -65,5 +65,5 @@ async def update_location(
     current: FromDishka[CurrentUser],
     handler: FromDishka[UpdateLocationHandler],
 ) -> ResultWithData[LocationData]:
-    require(current, Permission.Location.Manage)
+    require(current, Permission.LOCATION_MANAGE)
     return await handler.handle(body.model_copy(update={"location_id": location_id}))

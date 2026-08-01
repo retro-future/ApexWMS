@@ -11,6 +11,7 @@ and registers them in ``di.container.create_container``.
 """
 
 from di.providers.auth import AuthProvider
+from di.providers.authorization import AuthorizationProvider
 from di.providers.config import ConfigProvider
 from di.providers.handlers import HandlersProvider
 from di.providers.master_db import MasterDbProvider
@@ -21,6 +22,7 @@ from di.providers.tenant_repositories import TenantRepositoriesProvider
 
 __all__ = [
     "AuthProvider",
+    "AuthorizationProvider",
     "ConfigProvider",
     "HandlersProvider",
     "MasterDbProvider",

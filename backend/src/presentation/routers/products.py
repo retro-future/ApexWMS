@@ -37,7 +37,7 @@ async def list_products(
     current: FromDishka[CurrentUser],
     handler: FromDishka[ListProductsHandler],
 ) -> PagedResult[ProductData]:
-    require(current, Permission.Catalog.View)
+    require(current, Permission.CATALOG_VIEW)
     return await handler.handle(query)
 
 
@@ -47,7 +47,7 @@ async def create_product(
     current: FromDishka[CurrentUser],
     handler: FromDishka[CreateProductHandler],
 ) -> ResultWithData[ProductData]:
-    require(current, Permission.Catalog.Manage)
+    require(current, Permission.CATALOG_MANAGE)
     return await handler.handle(body)
 
 
@@ -57,7 +57,7 @@ async def get_product(
     current: FromDishka[CurrentUser],
     handler: FromDishka[GetProductHandler],
 ) -> ResultWithData[ProductData]:
-    require(current, Permission.Catalog.View)
+    require(current, Permission.CATALOG_VIEW)
     return await handler.handle(GetProductQuery(product_id=product_id))
 
 
@@ -68,5 +68,5 @@ async def update_product(
     current: FromDishka[CurrentUser],
     handler: FromDishka[UpdateProductHandler],
 ) -> ResultWithData[ProductData]:
-    require(current, Permission.Catalog.Manage)
+    require(current, Permission.CATALOG_MANAGE)
     return await handler.handle(body.model_copy(update={"product_id": product_id}))

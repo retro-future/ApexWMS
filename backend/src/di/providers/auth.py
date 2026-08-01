@@ -13,6 +13,7 @@ from dishka import Provider, Scope, provide
 from fastapi import Request
 
 from application.dtos import CurrentUser
+from domain.permissions import PermissionEvaluator
 from infrastructure.security.current_user_accessor import CurrentUserAccessor
 from infrastructure.security.request_claims import RequestBearerClaims
 from infrastructure.security.tokens import JwtTokenService
@@ -24,8 +25,10 @@ class AuthProvider(Provider):
         return RequestBearerClaims(request, tokens)
 
     @provide(scope=Scope.REQUEST)
-    def current_user_accessor(self, claims: RequestBearerClaims) -> CurrentUserAccessor:
-        return CurrentUserAccessor(claims)
+    def current_user_accessor(
+        self, claims: RequestBearerClaims, evaluator: PermissionEvaluator
+    ) -> CurrentUserAccessor:
+        return CurrentUserAccessor(claims, evaluator)
 
     @provide(scope=Scope.REQUEST)
     def current_user(self, accessor: CurrentUserAccessor) -> CurrentUser:

@@ -38,7 +38,7 @@ async def list_customers(
     current: FromDishka[CurrentUser],
     handler: FromDishka[ListCustomersHandler],
 ) -> PagedResult[CustomerData]:
-    require(current, Permission.Customer.View)
+    require(current, Permission.CUSTOMER_VIEW)
     return await handler.handle(query)
 
 
@@ -48,7 +48,7 @@ async def create_customer(
     current: FromDishka[CurrentUser],
     handler: FromDishka[CreateCustomerHandler],
 ) -> ResultWithData[CustomerData]:
-    require(current, Permission.Customer.Manage)
+    require(current, Permission.CUSTOMER_MANAGE)
     return await handler.handle(body)
 
 
@@ -58,7 +58,7 @@ async def get_customer(
     current: FromDishka[CurrentUser],
     handler: FromDishka[GetCustomerHandler],
 ) -> ResultWithData[CustomerData]:
-    require(current, Permission.Customer.View)
+    require(current, Permission.CUSTOMER_VIEW)
     return await handler.handle(GetCustomerQuery(customer_id=customer_id))
 
 
@@ -69,5 +69,5 @@ async def update_customer(
     current: FromDishka[CurrentUser],
     handler: FromDishka[UpdateCustomerHandler],
 ) -> ResultWithData[CustomerData]:
-    require(current, Permission.Customer.Manage)
+    require(current, Permission.CUSTOMER_MANAGE)
     return await handler.handle(body.model_copy(update={"customer_id": customer_id}))

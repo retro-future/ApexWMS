@@ -30,7 +30,7 @@ async def list_users(
     current: FromDishka[CurrentUser],
     handler: FromDishka[ListUsersHandler],
 ) -> ResultWithData[list[EmployeeListItem]]:
-    require(current, Permission.Users.View)
+    require(current, Permission.USERS_VIEW)
     return await handler.handle(ListUsersQuery())
 
 
@@ -40,7 +40,7 @@ async def invite(
     current: FromDishka[CurrentUser],
     handler: FromDishka[InviteUserHandler],
 ) -> ResultWithData[InviteResultData]:
-    require(current, Permission.Users.Manage)
+    require(current, Permission.USERS_MANAGE)
     # No tenant check here: InviteUserHandler is built from the resolved
     # tenant, so a request that named no store never reaches this route.
     return await handler.handle(body)
@@ -53,5 +53,5 @@ async def change_role(
     current: FromDishka[CurrentUser],
     handler: FromDishka[ChangeUserRoleHandler],
 ) -> None:
-    require(current, Permission.Users.Manage)
+    require(current, Permission.USERS_MANAGE)
     await handler.handle(body.model_copy(update={"target_user_id": user_id}))

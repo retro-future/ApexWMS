@@ -29,7 +29,7 @@ router = APIRouter(
 async def get_settings(
     current: FromDishka[CurrentUser], handler: FromDishka[GetTenantSettingsHandler]
 ) -> ResultWithData[TenantSettingsData]:
-    require(current, Permission.TenantSettings.View)
+    require(current, Permission.TENANT_SETTINGS_VIEW)
     return await handler.handle(GetTenantSettingsQuery())
 
 
@@ -39,5 +39,5 @@ async def update_settings(
     current: FromDishka[CurrentUser],
     handler: FromDishka[UpdateTenantSettingsHandler],
 ) -> ResultWithData[TenantSettingsData]:
-    require(current, Permission.TenantSettings.Manage)
+    require(current, Permission.TENANT_SETTINGS_MANAGE)
     return await handler.handle(body)

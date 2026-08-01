@@ -12,6 +12,7 @@ shape, or does it just carry context through the DI graph?
 from dataclasses import dataclass
 from uuid import UUID
 
+from domain.permissions import Permission
 from domain.roles import AppRole, TenantRole
 
 
@@ -26,7 +27,7 @@ class CurrentUser:
     """
 
     user_id: UUID
-    permissions: frozenset[str]
+    permissions: frozenset[Permission]
     tenant_id: UUID | None = None
     tenant_role: TenantRole | None = None
     app_roles: tuple[AppRole, ...] = ()

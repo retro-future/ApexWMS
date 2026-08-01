@@ -9,6 +9,7 @@ from dishka import AsyncContainer, make_async_container
 from dishka.integrations.fastapi import FastapiProvider
 
 from di.providers import (
+    AuthorizationProvider,
     AuthProvider,
     ConfigProvider,
     HandlersProvider,
@@ -27,6 +28,7 @@ def create_container(settings: Settings | None = None) -> AsyncContainer:
         MasterDbProvider(),
         TenantDbProvider(),
         SecurityProvider(),
+        AuthorizationProvider(),
         AuthProvider(),
         MasterRepositoriesProvider(),
         TenantRepositoriesProvider(),

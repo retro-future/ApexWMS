@@ -40,7 +40,7 @@ async def list_suppliers(
     current: FromDishka[CurrentUser],
     handler: FromDishka[ListSuppliersHandler],
 ) -> PagedResult[SupplierData]:
-    require(current, Permission.Catalog.View)
+    require(current, Permission.CATALOG_VIEW)
     return await handler.handle(query)
 
 
@@ -50,7 +50,7 @@ async def create_supplier(
     current: FromDishka[CurrentUser],
     handler: FromDishka[CreateSupplierHandler],
 ) -> ResultWithData[SupplierData]:
-    require(current, Permission.Catalog.Manage)
+    require(current, Permission.CATALOG_MANAGE)
     return await handler.handle(body)
 
 
@@ -60,7 +60,7 @@ async def get_supplier(
     current: FromDishka[CurrentUser],
     handler: FromDishka[GetSupplierHandler],
 ) -> ResultWithData[SupplierData]:
-    require(current, Permission.Catalog.View)
+    require(current, Permission.CATALOG_VIEW)
     return await handler.handle(GetSupplierQuery(supplier_id=supplier_id))
 
 
@@ -71,5 +71,5 @@ async def update_supplier(
     current: FromDishka[CurrentUser],
     handler: FromDishka[UpdateSupplierHandler],
 ) -> ResultWithData[SupplierData]:
-    require(current, Permission.Catalog.Manage)
+    require(current, Permission.CATALOG_MANAGE)
     return await handler.handle(body.model_copy(update={"supplier_id": supplier_id}))

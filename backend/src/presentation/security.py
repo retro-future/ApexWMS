@@ -10,6 +10,7 @@ from fastapi.security import HTTPBearer
 
 from application.dtos import CurrentUser
 from application.errors import AuthorizationError
+from domain.permissions import Permission
 
 # Declares the bearer scheme in the OpenAPI schema so Swagger UI shows an
 # "Authorize" button on the routers that depend on it. Cosmetic only: the
@@ -19,7 +20,7 @@ from application.errors import AuthorizationError
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def require(user: CurrentUser, *permissions: str) -> None:
+def require(user: CurrentUser, *permissions: Permission) -> None:
     """Every named permission must be held. Raises 403 otherwise."""
     missing = [p for p in permissions if p not in user.permissions]
     if missing:
@@ -28,7 +29,7 @@ def require(user: CurrentUser, *permissions: str) -> None:
         )
 
 
-def require_any(user: CurrentUser, *permissions: str) -> None:
+def require_any(user: CurrentUser, *permissions: Permission) -> None:
     """At least one of the named permissions must be held."""
     if not any(p in user.permissions for p in permissions):
         raise AuthorizationError(
