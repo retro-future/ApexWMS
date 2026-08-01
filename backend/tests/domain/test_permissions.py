@@ -2,6 +2,7 @@
 
 import pytest
 
+from domain.enums import APP_PREFIX, TENANT_PREFIX, AppRole, TenantRole
 from domain.permissions import (
     AppRolePermissionProvider,
     Permission,
@@ -10,7 +11,6 @@ from domain.permissions import (
     TenantRolePermissionProvider,
     permissions_for,
 )
-from domain.roles import APP_PREFIX, TENANT_PREFIX, AppRole, TenantRole
 
 _app_provider = AppRolePermissionProvider()
 _tenant_provider = TenantRolePermissionProvider()

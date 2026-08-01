@@ -18,16 +18,10 @@ the response returned to whoever sent the invitation.
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 from uuid import UUID
 
 from domain.core import MasterEntity, UuidEntity
-from domain.roles import AppRole, TenantRole
-
-
-class InvitationKind(StrEnum):
-    EMPLOYEE = "employee"
-    APP_USER = "app_user"
+from domain.enums import AppRole, InvitationKind, TenantRole
 
 
 @dataclass(eq=False, kw_only=True)

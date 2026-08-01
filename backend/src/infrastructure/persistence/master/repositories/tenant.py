@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from domain.entities import Tenant
-from domain.tenancy import TenantStatus
+from domain.enums import TenantStatus
 from infrastructure.persistence.master.models import TenantModel
 
 from .base import MasterCrudRepository

@@ -24,7 +24,8 @@ from application.commands.create_customer import CreateCustomerCommand, CreateCu
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
 from application.commands.create_supplier import CreateSupplierCommand, CreateSupplierHandler
 from application.errors import ApplicationError
-from domain.catalog import TrackingType
+from application.services import SalePriceParser
+from domain.enums import TrackingType
 from infrastructure.clock import SystemClock
 from infrastructure.persistence.tenant.repositories import (
     SqlCustomerRepository,
@@ -88,7 +89,10 @@ async def seed_catalog(
             uow = SqlTenantUnitOfWork(tenant_session)
 
             product_handler = CreateProductHandler(
-                products=SqlProductRepository(tenant_session), clock=clock, uow=uow
+                products=SqlProductRepository(tenant_session),
+                clock=clock,
+                uow=uow,
+                sale_price=SalePriceParser(),
             )
             customer_handler = CreateCustomerHandler(
                 customers=SqlCustomerRepository(tenant_session), clock=clock, uow=uow

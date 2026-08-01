@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from domain.entities import UserAppRole
-from domain.roles import AppRole
+from domain.enums import AppRole
 from infrastructure.persistence.master.models import UserAppRoleModel
 
 from .base import MasterCrudRepository

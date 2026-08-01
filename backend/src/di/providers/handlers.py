@@ -5,6 +5,10 @@ Every constructor parameter here is already a DI-resolvable port or
 dishka can wire each class by reflecting on its ``__init__`` — no
 hand-written factory needed (.claude/rules/backend/providers.md).
 
+The collaborator services some of these handlers depend on
+(``ClaimsFactory``, ``SalePriceParser``, ...) are registered by
+``ApplicationServicesProvider`` (``di/providers/services.py``), not here.
+
 ``CreateTenantHandler`` and ``CreateSuperAdminHandler`` are deliberately
 absent: both are CLI-only, because creating stores and platform operators
 has no HTTP surface in the MVP (PRD §3.4, §3.5).
@@ -38,15 +42,12 @@ from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
-from application.services import ClaimsFactory, TokenIssuer
 
 
 class HandlersProvider(Provider):
     scope = Scope.REQUEST
 
     handlers = provide_all(
-        ClaimsFactory,
-        TokenIssuer,
         LoginHandler,
         RefreshTokensHandler,
         ChangePasswordHandler,

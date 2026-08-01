@@ -22,7 +22,7 @@ from application.ports import (
     UserRepository,
 )
 from domain.entities import User, UserAppRole
-from domain.roles import AppRole
+from domain.enums import AppRole
 
 
 class CreateSuperAdminData(CamelModel):

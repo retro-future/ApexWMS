@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from domain.core import MasterEntity, UuidEntity
-from domain.tenancy import TenantStatus
+from domain.enums import TenantStatus
 
 
 @dataclass(eq=False, kw_only=True)

@@ -29,7 +29,7 @@ from application.ports import (
 )
 from application.types import InviteTtl, ResolvedTenantId
 from domain.entities import Invitation, InvitationKind
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 
 
 class InviteResultData(CamelModel):

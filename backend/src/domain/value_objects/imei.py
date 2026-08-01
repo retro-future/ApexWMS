@@ -9,10 +9,9 @@ separate, database-level concern.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from domain.errors import InvalidIMEIError
-
-IMEI_LENGTH = 15
 
 
 def _luhn_checksum(digits: str) -> int:
@@ -33,12 +32,14 @@ def _luhn_checksum(digits: str) -> int:
 class IMEI:
     value: str
 
+    LENGTH: ClassVar[int] = 15
+
     def __post_init__(self) -> None:
         if not isinstance(self.value, str):
             raise InvalidIMEIError(f"IMEI must be a string, got {type(self.value).__name__}")
-        if len(self.value) != IMEI_LENGTH:
+        if len(self.value) != self.LENGTH:
             raise InvalidIMEIError(
-                f"IMEI must be exactly {IMEI_LENGTH} digits, got {len(self.value)}"
+                f"IMEI must be exactly {self.LENGTH} digits, got {len(self.value)}"
             )
         if not self.value.isascii() or not self.value.isdigit():
             raise InvalidIMEIError("IMEI must contain only digits 0-9")

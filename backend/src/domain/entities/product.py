@@ -18,18 +18,12 @@ inherits it, and the invariant below is what keeps the two from drifting.
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import ClassVar
 
-from domain.catalog import TrackingType
 from domain.core import TenantEntity, UuidEntity
+from domain.enums import TrackingType
 from domain.errors import BarcodeNotAllowedError, CurrencyMismatchError, InvalidMoneyError
 from domain.value_objects import SKU, Barcode, Currency, Money
-
-# FR-2.6: phones are bought and sold in dollars, accessories in som. A
-# convenience, not a constraint — the creator may override it.
-_DEFAULT_CURRENCY = {
-    TrackingType.SERIAL: Currency.USD,
-    TrackingType.QUANTITY: Currency.UZS,
-}
 
 
 @dataclass(eq=False, kw_only=True)
@@ -44,6 +38,13 @@ class Product(UuidEntity, TenantEntity):
     default_sale_price: Money | None = None
     is_active: bool
     created_at: datetime
+
+    # FR-2.6: phones are bought and sold in dollars, accessories in som. A
+    # convenience, not a constraint — the creator may override it.
+    _DEFAULT_CURRENCY: ClassVar[dict[TrackingType, Currency]] = {
+        TrackingType.SERIAL: Currency.USD,
+        TrackingType.QUANTITY: Currency.UZS,
+    }
 
     def __post_init__(self) -> None:
         if self.barcode is not None and self.tracking_type is TrackingType.SERIAL:
@@ -63,4 +64,4 @@ class Product(UuidEntity, TenantEntity):
     @staticmethod
     def default_currency_for(tracking_type: TrackingType) -> Currency:
         """FR-2.6's default, so no call site has to remember which is which."""
-        return _DEFAULT_CURRENCY[tracking_type]
+        return Product._DEFAULT_CURRENCY[tracking_type]

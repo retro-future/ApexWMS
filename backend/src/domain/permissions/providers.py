@@ -11,8 +11,8 @@ evaluator or to these two classes required.
 
 from typing import Protocol
 
+from domain.enums import AppRole, TenantRole
 from domain.permissions.catalog import Permission
-from domain.roles import AppRole, TenantRole
 
 
 class RolePermissionProvider(Protocol):

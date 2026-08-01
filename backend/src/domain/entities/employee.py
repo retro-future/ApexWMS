@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from domain.core import TenantEntity, UuidEntity
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 
 
 @dataclass(eq=False, kw_only=True)

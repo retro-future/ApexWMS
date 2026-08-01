@@ -5,7 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from application.dtos import RefreshTokenParts
-from domain.roles import AppRole, TenantRole
+from domain.enums import AppRole, TenantRole
 
 
 class PasswordHasher(Protocol):

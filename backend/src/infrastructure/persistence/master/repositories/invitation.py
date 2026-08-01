@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from domain.entities import Invitation, InvitationKind
-from domain.roles import AppRole, TenantRole
+from domain.enums import AppRole, TenantRole
 from infrastructure.persistence.master.models import InvitationModel
 
 from .base import MasterCrudRepository

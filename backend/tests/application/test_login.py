@@ -14,8 +14,7 @@ from application.errors import (
     InvalidCredentialsError,
     TenantNotActiveError,
 )
-from domain.roles import AppRole, TenantRole
-from domain.tenancy import TenantStatus
+from domain.enums import AppRole, TenantRole, TenantStatus
 from tests.application.builders import make_world
 
 PASSWORD = "hunter2000"

@@ -34,7 +34,7 @@ from application.errors import (
     TenantNotActiveError,
     TenantNotFoundError,
 )
-from domain.tenancy import TenantStatus
+from domain.enums import TenantStatus
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import (
     TenantDatabaseModel,
@@ -45,10 +45,10 @@ from infrastructure.security.request_claims import RequestBearerClaims
 from infrastructure.tenancy import TenantContext, tenant_db_url
 from infrastructure.types import MasterSession
 
-TENANT_HEADER = "X-Tenant"
-
 
 class CurrentTenantAccessor:
+    TENANT_HEADER = "X-Tenant"
+
     def __init__(
         self,
         request: Request,
@@ -96,7 +96,7 @@ class CurrentTenantAccessor:
         if not requested:
             if claims is None or claims.tenant_id is None:
                 raise MissingTenantError(
-                    f"name the tenant with a {TENANT_HEADER} header or a token "
+                    f"name the tenant with a {self.TENANT_HEADER} header or a token "
                     "carrying a tenant claim"
                 )
             tenant = await self._master.get(TenantModel, claims.tenant_id)
@@ -133,4 +133,4 @@ class CurrentTenantAccessor:
             )
 
     def _header_value(self) -> str:
-        return self._request.headers.get(TENANT_HEADER, "").strip().lower()
+        return self._request.headers.get(self.TENANT_HEADER, "").strip().lower()

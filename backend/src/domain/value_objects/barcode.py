@@ -14,10 +14,9 @@ Uniqueness is a database-level concern, deliberately not handled here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from domain.errors import InvalidBarcodeError
-
-VALID_LENGTHS = (8, 12, 13, 14)
 
 
 def _gs1_check_digit(digits: str) -> int:
@@ -37,14 +36,16 @@ def _gs1_check_digit(digits: str) -> int:
 class Barcode:
     value: str
 
+    VALID_LENGTHS: ClassVar[tuple[int, ...]] = (8, 12, 13, 14)
+
     def __post_init__(self) -> None:
         if not isinstance(self.value, str):
             raise InvalidBarcodeError(
                 f"barcode must be a string, got {type(self.value).__name__}"
             )
-        if len(self.value) not in VALID_LENGTHS:
+        if len(self.value) not in self.VALID_LENGTHS:
             raise InvalidBarcodeError(
-                f"barcode must be {', '.join(map(str, VALID_LENGTHS))} digits (EAN/UPC), "
+                f"barcode must be {', '.join(map(str, self.VALID_LENGTHS))} digits (EAN/UPC), "
                 f"got {len(self.value)}"
             )
         if not self.value.isascii() or not self.value.isdigit():

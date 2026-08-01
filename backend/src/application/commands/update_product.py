@@ -18,11 +18,11 @@ from uuid import UUID
 
 from pydantic import Field
 
-from application.catalog import parse_sale_price
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, NotFoundError
 from application.ports import ProductRepository, TenantUnitOfWork
 from application.queries.get_product import ProductData
+from application.services import SalePriceParser
 from domain.entities import Product
 from domain.value_objects import Barcode
 
@@ -41,9 +41,15 @@ class UpdateProductCommand(Command[ResultWithData[ProductData]]):
 class UpdateProductHandler(
     IRequestHandler[ResultWithData[ProductData], UpdateProductCommand]
 ):
-    def __init__(self, products: ProductRepository, uow: TenantUnitOfWork) -> None:
+    def __init__(
+        self,
+        products: ProductRepository,
+        uow: TenantUnitOfWork,
+        sale_price: SalePriceParser,
+    ) -> None:
         self._products = products
         self._uow = uow
+        self._sale_price = sale_price
 
     async def handle(self, request: UpdateProductCommand) -> ResultWithData[ProductData]:
         assert request.product_id is not None
@@ -63,7 +69,7 @@ class UpdateProductHandler(
         if "barcode" in sent:
             product.barcode = await self._resolved_barcode(request.barcode, product)
         if "default_sale_price" in sent:
-            product.default_sale_price = parse_sale_price(
+            product.default_sale_price = self._sale_price.parse(
                 request.default_sale_price, product.currency
             )
 

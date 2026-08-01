@@ -11,7 +11,7 @@ from application.core import CamelModel, IRequestHandler, Query, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import InvalidTokenError
 from application.ports import UserRepository
-from domain.roles import AppRole, TenantRole
+from domain.enums import AppRole, TenantRole
 
 
 class MeData(CamelModel):

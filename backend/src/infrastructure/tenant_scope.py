@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from application.errors import TenantNotActiveError
 from application.ports import EmployeeRepository, UnitOfWork
-from domain.tenancy import TenantStatus
+from domain.enums import TenantStatus
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
 from infrastructure.persistence.tenant.repositories import SqlEmployeeRepository

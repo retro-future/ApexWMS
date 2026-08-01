@@ -16,7 +16,7 @@ from pydantic import Field
 from application.core import Command, IRequestHandler, Result
 from application.errors import LastOwnerError, NotFoundError
 from application.ports import EmployeeRepository, TenantUnitOfWork
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 
 
 class ChangeUserRoleCommand(Command[Result]):

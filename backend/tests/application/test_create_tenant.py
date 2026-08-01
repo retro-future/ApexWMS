@@ -11,8 +11,7 @@ from application.errors import (
     ProvisioningFailedError,
     SlugAlreadyTakenError,
 )
-from domain.roles import AppRole, TenantRole
-from domain.tenancy import TenantStatus
+from domain.enums import AppRole, TenantRole, TenantStatus
 from tests.application.builders import make_world
 
 COMMAND = CreateTenantCommand(

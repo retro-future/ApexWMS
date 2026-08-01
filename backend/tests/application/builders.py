@@ -42,10 +42,15 @@ from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
-from application.services import ClaimsFactory, TokenIssuer
+from application.services import (
+    ClaimsFactory,
+    SalePriceParser,
+    SlugNormalizer,
+    TimezoneValidator,
+    TokenIssuer,
+)
 from domain.entities import Employee, Tenant, User, UserTenantAccess
-from domain.roles import TenantRole
-from domain.tenancy import TenantStatus
+from domain.enums import TenantRole, TenantStatus
 from tests.application.fakes import (
     FakeClock,
     FakeCustomerRepository,
@@ -117,6 +122,8 @@ class World:
             self.provisioner,
             self.clock,
             self.uow,
+            SlugNormalizer(),
+            TimezoneValidator(),
         )
 
     def create_superadmin(self) -> CreateSuperAdminHandler:
@@ -198,15 +205,17 @@ class World:
         return GetTenantSettingsHandler(self.tenant_settings)
 
     def update_tenant_settings(self) -> UpdateTenantSettingsHandler:
-        return UpdateTenantSettingsHandler(self.tenant_settings, self.uow)
+        return UpdateTenantSettingsHandler(
+            self.tenant_settings, self.uow, TimezoneValidator()
+        )
 
     # --- M2 catalog ------------------------------------------------------
 
     def create_product(self) -> CreateProductHandler:
-        return CreateProductHandler(self.products, self.clock, self.uow)
+        return CreateProductHandler(self.products, self.clock, self.uow, SalePriceParser())
 
     def update_product(self) -> UpdateProductHandler:
-        return UpdateProductHandler(self.products, self.uow)
+        return UpdateProductHandler(self.products, self.uow, SalePriceParser())
 
     def get_product(self) -> GetProductHandler:
         return GetProductHandler(self.products)

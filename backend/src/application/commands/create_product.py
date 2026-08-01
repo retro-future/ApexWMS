@@ -13,13 +13,13 @@ unique indexes are the backstop, not the check.
 
 from uuid import uuid4
 
-from application.catalog import parse_sale_price
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, DuplicateSkuError
 from application.ports import Clock, ProductRepository, TenantUnitOfWork
 from application.queries.get_product import ProductData
-from domain.catalog import TrackingType
+from application.services import SalePriceParser
 from domain.entities import Product
+from domain.enums import TrackingType
 from domain.value_objects import SKU, Barcode, Currency
 
 
@@ -31,7 +31,7 @@ class CreateProductCommand(Command[ResultWithData[ProductData]]):
     model: str | None = None
     currency: Currency | None = None
     barcode: str | None = None
-    # A string or a whole number, never a JSON float — see application/catalog.py.
+    # A string or a whole number, never a JSON float — see application/services/sale_price.py.
     default_sale_price: str | int | None = None
 
 
@@ -39,11 +39,16 @@ class CreateProductHandler(
     IRequestHandler[ResultWithData[ProductData], CreateProductCommand]
 ):
     def __init__(
-        self, products: ProductRepository, clock: Clock, uow: TenantUnitOfWork
+        self,
+        products: ProductRepository,
+        clock: Clock,
+        uow: TenantUnitOfWork,
+        sale_price: SalePriceParser,
     ) -> None:
         self._products = products
         self._clock = clock
         self._uow = uow
+        self._sale_price = sale_price
 
     async def handle(self, request: CreateProductCommand) -> ResultWithData[ProductData]:
         sku = SKU.parse(request.sku)
@@ -64,7 +69,7 @@ class CreateProductHandler(
             tracking_type=request.tracking_type,
             currency=currency,
             barcode=barcode,
-            default_sale_price=parse_sale_price(request.default_sale_price, currency),
+            default_sale_price=self._sale_price.parse(request.default_sale_price, currency),
             is_active=True,
             created_at=self._clock.now(),
         )

@@ -17,6 +17,7 @@ from application.commands.create_superadmin import (
     CreateSuperAdminHandler,
 )
 from application.commands.create_tenant import CreateTenantCommand, CreateTenantHandler
+from application.services import SlugNormalizer, TimezoneValidator
 from infrastructure import migrations
 from infrastructure.clock import SystemClock
 from infrastructure.config import Settings
@@ -179,6 +180,8 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
                     provisioner=DefaultTenantProvisioner(engine, settings),
                     clock=clock,
                     uow=SqlMasterUnitOfWork(session),
+                    slugs=SlugNormalizer(),
+                    timezones=TimezoneValidator(),
                 )
                 result = await handler.handle(
                     CreateTenantCommand(

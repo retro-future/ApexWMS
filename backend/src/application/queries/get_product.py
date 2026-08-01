@@ -17,8 +17,8 @@ from uuid import UUID
 from application.core import CamelModel, IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.ports import ProductRepository
-from domain.catalog import TrackingType
 from domain.entities import Product
+from domain.enums import TrackingType
 from domain.value_objects import Currency
 
 

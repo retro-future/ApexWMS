@@ -2,8 +2,8 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from domain.catalog import TrackingType
 from domain.entities import Product
+from domain.enums import TrackingType
 from domain.value_objects import SKU, Barcode, Currency, Money
 from infrastructure.persistence.tenant.models import ProductModel
 

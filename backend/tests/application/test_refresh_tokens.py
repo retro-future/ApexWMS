@@ -15,7 +15,7 @@ from application.errors import (
     AuthorizationError,
     InvalidTokenError,
 )
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 from tests.application.builders import REFRESH_TTL, make_world
 
 

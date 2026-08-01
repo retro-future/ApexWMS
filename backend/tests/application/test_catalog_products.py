@@ -10,7 +10,7 @@ from application.commands.update_product import UpdateProductCommand
 from application.errors import DuplicateBarcodeError, DuplicateSkuError, NotFoundError
 from application.queries.get_product import GetProductQuery
 from application.queries.list_products import ListProductsQuery
-from domain.catalog import TrackingType
+from domain.enums import TrackingType
 from domain.errors import BarcodeNotAllowedError, InvalidBarcodeError, InvalidMoneyError
 from domain.value_objects import Currency
 from tests.application.builders import make_world

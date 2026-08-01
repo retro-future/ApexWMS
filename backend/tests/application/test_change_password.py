@@ -6,7 +6,7 @@ import pytest
 
 from application.commands.change_password import ChangePasswordCommand
 from application.errors import InvalidCredentialsError, NotFoundError
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 from tests.application.builders import make_world
 
 OLD = "hunter2000"

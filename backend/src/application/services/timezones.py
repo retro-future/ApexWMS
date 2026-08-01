@@ -10,9 +10,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from application.errors import InvalidTimezoneError
 
 
-def validate_timezone(timezone: str) -> str:
-    try:
-        ZoneInfo(timezone)
-    except (ZoneInfoNotFoundError, ValueError, KeyError):
-        raise InvalidTimezoneError(f"not an IANA timezone: {timezone!r}") from None
-    return timezone
+class TimezoneValidator:
+    def validate(self, timezone: str) -> str:
+        try:
+            ZoneInfo(timezone)
+        except (ZoneInfoNotFoundError, ValueError, KeyError):
+            raise InvalidTimezoneError(f"not an IANA timezone: {timezone!r}") from None
+        return timezone

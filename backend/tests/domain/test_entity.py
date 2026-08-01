@@ -5,8 +5,7 @@ from uuid import uuid4
 
 from domain.core import MasterEntity, TenantEntity
 from domain.entities import Employee, Tenant, User
-from domain.roles import TenantRole
-from domain.tenancy import TenantStatus
+from domain.enums import TenantRole, TenantStatus
 
 NOW = datetime(2026, 7, 20, tzinfo=UTC)
 

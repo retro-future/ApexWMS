@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from domain.tenancy import TenantStatus
+from domain.enums import TenantStatus
 from infrastructure import migrations
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
@@ -15,7 +15,7 @@ from infrastructure.persistence.tenant.models import (
     LocationModel,
     TenantSettingsModel,
 )
-from infrastructure.provisioning import DEFAULT_LOCATION_NAME, DefaultTenantProvisioner
+from infrastructure.provisioning import DefaultTenantProvisioner
 from infrastructure.tenancy import tenant_db_url
 
 
@@ -54,7 +54,7 @@ async def test_the_tenant_database_is_migrated_and_seeded(create_tenant, setting
             tz = await session.scalar(select(TenantSettingsModel.timezone))
             assert tz == "Europe/Berlin"
             locations = (await session.scalars(select(LocationModel.name))).all()
-            assert list(locations) == [DEFAULT_LOCATION_NAME]
+            assert list(locations) == [DefaultTenantProvisioner.DEFAULT_LOCATION_NAME]
     finally:
         await engine.dispose()
 
@@ -154,7 +154,7 @@ async def test_reprovisioning_is_idempotent(create_tenant, settings):
         async with AsyncSession(engine) as session:
             locations = (await session.scalars(select(LocationModel.name))).all()
             # The seed did not run twice.
-            assert list(locations) == [DEFAULT_LOCATION_NAME]
+            assert list(locations) == [DefaultTenantProvisioner.DEFAULT_LOCATION_NAME]
             owners = (await session.scalars(select(EmployeeModel.email))).all()
             assert len(owners) == 1, "a rerun must not duplicate the Owner"
     finally:

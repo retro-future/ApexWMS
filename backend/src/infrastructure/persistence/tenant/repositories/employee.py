@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 
 from domain.entities import Employee
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 from infrastructure.persistence.tenant.models import EmployeeModel
 
 from .base import TenantCrudRepository

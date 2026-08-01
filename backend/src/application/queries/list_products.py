@@ -8,7 +8,7 @@ catalog on every keystroke of a search box.
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.ports import ProductRepository
 from application.queries.get_product import ProductData
-from domain.catalog import TrackingType
+from domain.enums import TrackingType
 
 
 class ListProductsQuery(PagedQuery[PagedResult[ProductData]]):

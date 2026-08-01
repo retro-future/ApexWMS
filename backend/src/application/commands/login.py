@@ -19,7 +19,7 @@ from application.errors import InvalidCredentialsError
 from application.ports import MasterUnitOfWork, PasswordHasher, UserRepository
 from application.services.claims import ClaimsFactory
 from application.services.token_issuer import TokenIssuer
-from domain.roles import AppRole, TenantRole
+from domain.enums import AppRole, TenantRole
 
 
 class LoginData(CamelModel):

@@ -13,7 +13,7 @@ from application.commands.accept_invite import AcceptInviteCommand
 from application.commands.invite_user import InviteEmployeeCommand
 from application.errors import AlreadyMemberError, InvitationError
 from domain.entities import Invitation, InvitationKind
-from domain.roles import AppRole, TenantRole
+from domain.enums import AppRole, TenantRole
 from tests.application.builders import INVITE_TTL, make_world
 
 INVITEE = "seller@example.com"

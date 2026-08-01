@@ -35,8 +35,8 @@ from application.commands.create_superadmin import (
 )
 from application.commands.create_tenant import CreateTenantCommand, CreateTenantHandler
 from application.errors import ApplicationError
-from domain.roles import AppRole
-from domain.tenancy import TenantStatus
+from application.services import SlugNormalizer, TimezoneValidator
+from domain.enums import AppRole, TenantStatus
 from infrastructure import migrations
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
@@ -151,6 +151,8 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
                 provisioner=DefaultTenantProvisioner(engine, settings),
                 clock=clock,
                 uow=SqlMasterUnitOfWork(master),
+                slugs=SlugNormalizer(),
+                timezones=TimezoneValidator(),
             )
             result = await handler.handle(
                 CreateTenantCommand(

@@ -14,7 +14,6 @@ from uuid import UUID, uuid4
 
 from application.dtos import OwnerSeed, RefreshTokenParts
 from application.errors import ProvisioningFailedError, TenantNotActiveError
-from domain.catalog import TrackingType
 from domain.core import Entity
 from domain.entities import (
     Customer,
@@ -29,8 +28,7 @@ from domain.entities import (
     UserAppRole,
     UserTenantAccess,
 )
-from domain.roles import AppRole, TenantRole
-from domain.tenancy import TenantStatus
+from domain.enums import AppRole, TenantRole, TenantStatus, TrackingType
 
 
 class FakeClock:

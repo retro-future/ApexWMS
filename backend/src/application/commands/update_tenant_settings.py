@@ -3,7 +3,7 @@
 from application.core import Command, IRequestHandler, ResultWithData
 from application.ports import TenantSettingsRepository, TenantUnitOfWork
 from application.queries.get_tenant_settings import TenantSettingsData
-from application.timezones import validate_timezone
+from application.services import TimezoneValidator
 
 
 class UpdateTenantSettingsCommand(Command[ResultWithData[TenantSettingsData]]):
@@ -13,14 +13,20 @@ class UpdateTenantSettingsCommand(Command[ResultWithData[TenantSettingsData]]):
 class UpdateTenantSettingsHandler(
     IRequestHandler[ResultWithData[TenantSettingsData], UpdateTenantSettingsCommand]
 ):
-    def __init__(self, settings: TenantSettingsRepository, uow: TenantUnitOfWork) -> None:
+    def __init__(
+        self,
+        settings: TenantSettingsRepository,
+        uow: TenantUnitOfWork,
+        timezones: TimezoneValidator,
+    ) -> None:
         self._settings = settings
         self._uow = uow
+        self._timezones = timezones
 
     async def handle(
         self, request: UpdateTenantSettingsCommand
     ) -> ResultWithData[TenantSettingsData]:
-        validate_timezone(request.timezone)
+        self._timezones.validate(request.timezone)
         await self._settings.set_timezone(request.timezone)
         await self._uow.commit()
         return ResultWithData[TenantSettingsData].succeed_with_data(

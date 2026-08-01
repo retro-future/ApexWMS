@@ -17,10 +17,12 @@ from di.providers.handlers import HandlersProvider
 from di.providers.master_db import MasterDbProvider
 from di.providers.master_repositories import MasterRepositoriesProvider
 from di.providers.security import SecurityProvider
+from di.providers.services import ApplicationServicesProvider
 from di.providers.tenant_db import TenantDbProvider
 from di.providers.tenant_repositories import TenantRepositoriesProvider
 
 __all__ = [
+    "ApplicationServicesProvider",
     "AuthProvider",
     "AuthorizationProvider",
     "ConfigProvider",

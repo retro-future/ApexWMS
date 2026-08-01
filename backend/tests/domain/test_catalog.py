@@ -8,8 +8,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from domain.catalog import TrackingType
 from domain.entities import Product
+from domain.enums import TrackingType
 from domain.errors import (
     BarcodeNotAllowedError,
     CurrencyMismatchError,

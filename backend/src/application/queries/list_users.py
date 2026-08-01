@@ -9,7 +9,7 @@ from uuid import UUID
 from application.core import CamelModel, IRequestHandler, Query, ResultWithData
 from application.ports import EmployeeRepository
 from domain.entities import Employee
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 
 
 class EmployeeListItem(CamelModel):

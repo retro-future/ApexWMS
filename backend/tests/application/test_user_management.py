@@ -12,7 +12,7 @@ import pytest
 from application.commands.change_user_role import ChangeUserRoleCommand
 from application.errors import LastOwnerError, NotFoundError
 from application.queries.list_users import ListUsersQuery
-from domain.roles import TenantRole
+from domain.enums import TenantRole
 from tests.application.builders import make_world
 
 

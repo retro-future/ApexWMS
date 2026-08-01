@@ -22,9 +22,7 @@ import jwt
 from application.dtos import RefreshTokenParts
 from application.errors import InvalidTokenError
 from application.ports import Clock
-from domain.roles import AppRole, TenantRole
-
-_ALGORITHM = "HS256"
+from domain.enums import AppRole, TenantRole
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +36,8 @@ class AccessClaims:
 class JwtTokenService:
     """Implements the application ``TokenService`` port, plus access-token
     decoding for the request-auth path (used by DI, not by use cases)."""
+
+    _ALGORITHM = "HS256"
 
     def __init__(self, secret: str, access_ttl: timedelta, clock: Clock) -> None:
         self._secret = secret
@@ -62,11 +62,11 @@ class JwtTokenService:
         if tenant_id is not None and tenant_role is not None:
             payload["tenant"] = str(tenant_id)
             payload["role"] = tenant_role.value
-        return jwt.encode(payload, self._secret, algorithm=_ALGORITHM)
+        return jwt.encode(payload, self._secret, algorithm=self._ALGORITHM)
 
     def decode_access(self, token: str) -> AccessClaims:
         try:
-            payload = jwt.decode(token, self._secret, algorithms=[_ALGORITHM])
+            payload = jwt.decode(token, self._secret, algorithms=[self._ALGORITHM])
             tenant = payload.get("tenant")
             role = payload.get("role")
             return AccessClaims(

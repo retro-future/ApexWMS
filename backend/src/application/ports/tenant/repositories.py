@@ -14,8 +14,8 @@ from typing import Protocol
 from uuid import UUID
 
 from application.ports.repository import Repository
-from domain.catalog import TrackingType
 from domain.entities import Customer, Employee, Location, Product, Supplier
+from domain.enums import TrackingType
 
 
 class EmployeeRepository(Repository[Employee, UUID], Protocol):

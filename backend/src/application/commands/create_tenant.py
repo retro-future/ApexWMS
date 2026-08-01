@@ -23,10 +23,9 @@ from application.ports import (
     TokenService,
     UserRepository,
 )
-from application.slugs import normalize_slug
-from application.timezones import validate_timezone
+from application.services import SlugNormalizer, TimezoneValidator
 from domain.entities import Tenant, User
-from domain.tenancy import TenantStatus
+from domain.enums import TenantStatus
 
 
 class CreateTenantData(CamelModel):
@@ -59,6 +58,8 @@ class CreateTenantHandler(
         provisioner: TenantProvisioner,
         clock: Clock,
         uow: MasterUnitOfWork,
+        slugs: SlugNormalizer,
+        timezones: TimezoneValidator,
     ) -> None:
         self._tenants = tenants
         self._users = users
@@ -67,12 +68,14 @@ class CreateTenantHandler(
         self._provisioner = provisioner
         self._clock = clock
         self._uow = uow
+        self._slugs = slugs
+        self._timezones = timezones
 
     async def handle(
         self, request: CreateTenantCommand
     ) -> ResultWithData[CreateTenantData]:
-        validate_timezone(request.timezone)
-        slug = normalize_slug(request.slug)
+        self._timezones.validate(request.timezone)
+        slug = self._slugs.normalize(request.slug)
         if await self._tenants.get_by_slug(slug) is not None:
             raise SlugAlreadyTakenError(slug)
 

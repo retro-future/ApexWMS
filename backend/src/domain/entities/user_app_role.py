@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from domain.core import MasterEntity, UuidEntity
-from domain.roles import AppRole
+from domain.enums import AppRole
 
 
 @dataclass(eq=False, kw_only=True)

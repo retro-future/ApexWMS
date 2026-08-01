@@ -23,8 +23,7 @@ from sqlalchemy.ext.asyncio import (
 
 from application.dtos import OwnerSeed
 from application.errors import ProvisioningFailedError
-from domain.roles import TenantRole
-from domain.tenancy import TenantStatus
+from domain.enums import TenantRole, TenantStatus
 from infrastructure import migrations
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
@@ -36,12 +35,12 @@ from infrastructure.persistence.tenant.models import (
 from infrastructure.persistence.tenant.repositories import SETTINGS_ROW_ID
 from infrastructure.tenancy import tenant_db_url
 
-_DUPLICATE_DATABASE_SQLSTATE = "42P04"
-DEFAULT_LOCATION_NAME = "Main Store"
-
 
 class DefaultTenantProvisioner:
     """Implements the application ``TenantProvisioner`` port."""
+
+    _DUPLICATE_DATABASE_SQLSTATE = "42P04"
+    DEFAULT_LOCATION_NAME = "Main Store"
 
     def __init__(self, master_engine: AsyncEngine, settings: Settings) -> None:
         self._engine = master_engine
@@ -85,7 +84,7 @@ class DefaultTenantProvisioner:
             try:
                 await autocommit.execute(text(f'CREATE DATABASE "{db_name}"'))
             except DBAPIError as exc:
-                if getattr(exc.orig, "sqlstate", None) != _DUPLICATE_DATABASE_SQLSTATE:
+                if getattr(exc.orig, "sqlstate", None) != self._DUPLICATE_DATABASE_SQLSTATE:
                     raise
 
     async def _record_database(self, tenant_id: UUID, db_name: str) -> None:
@@ -115,7 +114,7 @@ class DefaultTenantProvisioner:
                     session.add(
                         LocationModel(
                             id=uuid.uuid4(),
-                            name=DEFAULT_LOCATION_NAME,
+                            name=self.DEFAULT_LOCATION_NAME,
                             is_active=True,
                             created_at=datetime.now(UTC),
                         )
