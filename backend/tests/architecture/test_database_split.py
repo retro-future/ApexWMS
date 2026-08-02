@@ -32,10 +32,30 @@ TENANT_TABLES = {
     "tenant_settings": None,  # singleton settings row
     # --- M2 catalog ---
     "products": entities.Product,
+    "product_price_changes": entities.ProductPriceChange,
     "locations": entities.Location,
     "suppliers": entities.Supplier,
     "customers": entities.Customer,
+    # --- M3 ledgers and their projections ---
+    "device_units": entities.DeviceUnit,
+    "device_unit_price_changes": entities.DeviceUnitPriceChange,
+    "stock_movements": entities.StockMovement,
+    "financial_transactions": entities.FinancialTransaction,
+    "stock_levels": entities.StockLevel,
 }
+
+# Append-only tables: every row names its author (PRD §4.3 rule 3, §4.5b).
+# Listed explicitly rather than matched on a name pattern, so adding a
+# ledger without its ``user_id`` is a failure here and not a discovery in
+# M9 when someone asks who booked a figure.
+AUTHORED_TABLES = frozenset(
+    {
+        "product_price_changes",
+        "device_unit_price_changes",
+        "stock_movements",
+        "financial_transactions",
+    }
+)
 
 
 class TestTablesLandInTheRightDatabase:
@@ -95,6 +115,21 @@ class TestPhysicalIsolation:
                 assert "float" not in column.type.__class__.__name__.lower(), (
                     f"{name}.{column.name} is floating point"
                 )
+
+    def test_every_append_only_row_names_its_author(self):
+        """A ledger row nobody signed answers "what happened" but never
+        "who did it" — half of what §4.3 exists for."""
+        for name in AUTHORED_TABLES:
+            table = TenantBase.metadata.tables[name]
+            assert "user_id" in table.columns, f"{name} records no author"
+
+    def test_authored_tables_reference_employees(self):
+        """``Employee.id`` *is* the master ``User.id`` (§3.1), which is what
+        lets the author be a real foreign key instead of a loose UUID."""
+        for name in AUTHORED_TABLES:
+            column = TenantBase.metadata.tables[name].columns["user_id"]
+            targets = {fk.target_fullname for fk in column.foreign_keys}
+            assert targets == {"employees.id"}, f"{name}.user_id → {targets}"
 
     def test_employees_and_users_agree_on_key_type(self):
         """``Employee.id`` *is* ``User.id`` — the ledger's FKs depend on it.

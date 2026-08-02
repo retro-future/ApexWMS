@@ -1,0 +1,211 @@
+"""FR-3.4d: ``cash_paid`` enters no ledger, no total, and no report figure.
+
+**This suite exists to catch a future report quietly summing it.** §4.5b
+is explicit that the field is deliberately denormalized, deliberately
+inert, and exists only to be read one row at a time — *"any report that
+adds ``cash_paid`` to anything is a bug"*.
+
+The method is the one FR-3.4d prescribes: compute everything twice, once
+with the som figure recorded and once with it cleared, and assert the two
+runs are identical. A figure that leaks into a total cannot survive that.
+"""
+
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from application.dtos import MoneyEffect, Posting, PostingEntry
+from application.services import LedgerReconciler
+from domain.entities import DeviceUnit, Product
+from domain.enums import (
+    DeviceCondition,
+    DeviceStatus,
+    DocumentType,
+    MovementType,
+    TrackingType,
+    TransactionType,
+)
+from domain.value_objects import IMEI, SKU, Currency, Money
+from tests.application.builders import make_world
+
+NOW = datetime(2026, 3, 1, tzinfo=UTC)
+IMEI_A = "490154203237518"
+# The §4.5b worked example: a handset bought from a walk-in for som and
+# booked at the dollar figure the owner had in mind when they made the offer.
+BOOKED = "330"
+CASH_PAID_SOM = 4_200_000
+
+
+def usd(major: str) -> Money:
+    return Money.from_major(major, Currency.USD)
+
+
+async def trade_in_store(*, record_cash: bool):
+    """A store holding one som-paid trade-in, with and without the record."""
+    world = make_world()
+    location = uuid4()
+    product = Product(
+        sku=SKU("IP11-64"),
+        name="iPhone 11 64GB",
+        tracking_type=TrackingType.SERIAL,
+        currency=Currency.USD,
+        is_active=True,
+        created_at=NOW,
+    )
+    await world.products.add(product)
+
+    unit = DeviceUnit(
+        imei=IMEI(IMEI_A),
+        product_id=product.id,
+        status=DeviceStatus.IN_STOCK,
+        location_id=location,
+        acquisition_cost=usd(BOOKED),
+        condition=DeviceCondition.USED,
+        cash_paid_minor=CASH_PAID_SOM if record_cash else None,
+        cash_paid_currency=Currency.UZS if record_cash else None,
+        created_at=NOW,
+    )
+    await world.units.add(unit)
+
+    await world.poster().post(
+        Posting(
+            document_type=DocumentType.GOODS_RECEIPT,
+            document_id=uuid4(),
+            entries=[
+                PostingEntry(
+                    movement_type=MovementType.RECEIPT,
+                    product_id=product.id,
+                    location_id=location,
+                    quantity_delta=1,
+                    device_unit_id=unit.id,
+                    new_status=DeviceStatus.IN_STOCK,
+                    new_location_id=location,
+                    money=[MoneyEffect(TransactionType.PURCHASE, -usd(BOOKED))],
+                )
+            ],
+        )
+    )
+    return world, unit
+
+
+def reconciler(world) -> LedgerReconciler:
+    return LedgerReconciler(
+        world.units, world.transactions, world.movements, world.products
+    )
+
+
+class TestTheBookedFigureIsWhatCounts:
+    async def test_the_purchase_entry_is_exactly_the_dollar_cost(self):
+        """FR-3.4c's stated test: booked at $330, and the ledger says −$330
+        — not a converted figure, and not the som one."""
+        world, _ = await trade_in_store(record_cash=True)
+
+        totals = await world.transactions.totals_by_type()
+
+        assert totals == {(TransactionType.PURCHASE, Currency.USD): usd("-330")}
+
+    async def test_inventory_value_is_the_dollar_cost(self):
+        world, _ = await trade_in_store(record_cash=True)
+
+        assert await reconciler(world).on_hand_value() == {Currency.USD: usd("330")}
+
+    async def test_no_figure_anywhere_equals_the_som_amount(self):
+        """§4.5b: *"no figure anywhere equals or contains 4 200 000"*."""
+        world, _ = await trade_in_store(record_cash=True)
+
+        amounts = [
+            *(t.amount.amount_minor for t in world.transactions.rows),
+            *(m.amount_minor for m in (await reconciler(world).on_hand_value()).values()),
+            *(m.amount_minor for m in (await reconciler(world).ledger_value()).values()),
+        ]
+
+        assert all(abs(amount) != CASH_PAID_SOM for amount in amounts)
+
+    async def test_no_som_column_appears_at_all(self):
+        """The som figure would otherwise create a UZS total for a store
+        that has only ever dealt in dollars — the most visible symptom of
+        the leak this guards against."""
+        world, _ = await trade_in_store(record_cash=True)
+
+        assert Currency.UZS not in await reconciler(world).on_hand_value()
+        assert Currency.UZS not in await reconciler(world).ledger_value()
+
+
+class TestClearingItChangesNothing:
+    """FR-3.4d's method: every figure computed twice, identical both ways."""
+
+    async def test_the_money_ledger_is_identical(self):
+        recorded, _ = await trade_in_store(record_cash=True)
+        cleared, _ = await trade_in_store(record_cash=False)
+
+        assert (
+            await recorded.transactions.totals_by_type()
+            == await cleared.transactions.totals_by_type()
+        )
+
+    async def test_inventory_value_is_identical(self):
+        recorded, _ = await trade_in_store(record_cash=True)
+        cleared, _ = await trade_in_store(record_cash=False)
+
+        assert (
+            await reconciler(recorded).on_hand_value()
+            == await reconciler(cleared).on_hand_value()
+        )
+
+    async def test_the_reconciliation_is_identical(self):
+        recorded, _ = await trade_in_store(record_cash=True)
+        cleared, _ = await trade_in_store(record_cash=False)
+
+        assert await reconciler(recorded).reconcile() == []
+        assert await reconciler(cleared).reconcile() == []
+
+    async def test_the_margin_on_a_sale_is_identical(self):
+        """Rule 5: margin is same-currency subtraction. A som cost would
+        make it uncomputable, which is exactly why the som figure is not
+        the cost."""
+        margins = []
+        for record_cash in (True, False):
+            world, unit = await trade_in_store(record_cash=record_cash)
+            await world.poster().post(
+                Posting(
+                    document_type=DocumentType.SALES_INVOICE,
+                    document_id=uuid4(),
+                    entries=[
+                        PostingEntry(
+                            movement_type=MovementType.SALE,
+                            product_id=unit.product_id,
+                            location_id=unit.location_id,
+                            quantity_delta=-1,
+                            device_unit_id=unit.id,
+                            new_status=DeviceStatus.SOLD,
+                            new_location_id=None,
+                            money=[
+                                MoneyEffect(TransactionType.SALE_REVENUE, usd("420")),
+                                MoneyEffect(TransactionType.COGS, -unit.acquisition_cost),
+                            ],
+                        )
+                    ],
+                )
+            )
+            totals = await world.transactions.totals_by_type()
+            margins.append(
+                totals[(TransactionType.SALE_REVENUE, Currency.USD)]
+                + totals[(TransactionType.COGS, Currency.USD)]
+            )
+
+        assert margins[0] == margins[1] == usd("90")
+
+
+class TestItIsStillReadableOneRowAtATime:
+    """What the field *is* for: the IMEI trace and the unit's own page
+    show *"paid 4 200 000 so'm · booked at $330"* months later."""
+
+    async def test_the_unit_reports_what_actually_left_the_till(self):
+        _, unit = await trade_in_store(record_cash=True)
+
+        assert unit.cash_paid_display() == "4 200 000 so'm"
+        assert unit.acquisition_cost.format() == "$330.00"
+
+    async def test_a_unit_paid_in_its_own_currency_shows_nothing_extra(self):
+        _, unit = await trade_in_store(record_cash=False)
+
+        assert unit.cash_paid_display() is None

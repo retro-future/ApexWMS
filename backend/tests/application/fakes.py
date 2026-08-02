@@ -17,18 +17,32 @@ from application.errors import ProvisioningFailedError, TenantNotActiveError
 from domain.core import Entity
 from domain.entities import (
     Customer,
+    DeviceUnit,
+    DeviceUnitPriceChange,
     Employee,
+    FinancialTransaction,
     Invitation,
     Location,
     Product,
+    ProductPriceChange,
     RefreshTokenRecord,
+    StockLevel,
+    StockMovement,
     Supplier,
     Tenant,
     User,
     UserAppRole,
     UserTenantAccess,
 )
-from domain.enums import AppRole, TenantRole, TenantStatus, TrackingType
+from domain.enums import (
+    AppRole,
+    DocumentType,
+    TenantRole,
+    TenantStatus,
+    TrackingType,
+    TransactionType,
+)
+from domain.value_objects import Currency, Money
 
 
 class FakeClock:
@@ -164,6 +178,162 @@ def _page[T](items: list[T], page: int, page_size: int) -> tuple[list[T], int]:
 
 def _matches(term: str | None, *fields: str | None) -> bool:
     return term is None or any(f is not None and term.lower() in f.lower() for f in fields)
+
+
+class FakeAppendOnlyRepository[EntityT: Entity[UUID]]:
+    """The list-backed half every append-only fake shares.
+
+    A list, not a dict: order of arrival *is* the data for a ledger, and
+    there is no ``update`` because the port does not have one (§4.3 rule 2).
+    """
+
+    def __init__(self) -> None:
+        self.rows: list[EntityT] = []
+
+    async def add(self, entity: EntityT) -> None:
+        self.rows.append(entity)
+
+
+class FakeProductPriceChangeRepository(FakeAppendOnlyRepository[ProductPriceChange]):
+    async def list_for_product(self, product_id: UUID) -> list[ProductPriceChange]:
+        return [c for c in self.rows if c.product_id == product_id]
+
+    async def latest_for_product(self, product_id: UUID) -> ProductPriceChange | None:
+        found = await self.list_for_product(product_id)
+        return found[-1] if found else None
+
+
+class FakeDeviceUnitPriceChangeRepository(FakeAppendOnlyRepository[DeviceUnitPriceChange]):
+    async def list_for_unit(self, device_unit_id: UUID) -> list[DeviceUnitPriceChange]:
+        return [c for c in self.rows if c.device_unit_id == device_unit_id]
+
+    async def latest_for_unit(self, device_unit_id: UUID) -> DeviceUnitPriceChange | None:
+        found = await self.list_for_unit(device_unit_id)
+        return found[-1] if found else None
+
+    async def count_for_unit(self, device_unit_id: UUID) -> int:
+        return len(await self.list_for_unit(device_unit_id))
+
+
+class FakeDeviceUnitRepository(FakeRepository[DeviceUnit]):
+    async def get_by_imei(self, imei: str) -> DeviceUnit | None:
+        return next((u for u in self.by_id.values() if str(u.imei) == imei), None)
+
+    async def list_by_ids(self, ids: Sequence[UUID]) -> list[DeviceUnit]:
+        return [self.by_id[i] for i in ids if i in self.by_id]
+
+    async def list_on_hand(self, location_id: UUID | None = None) -> list[DeviceUnit]:
+        return [
+            u
+            for u in sorted(self.by_id.values(), key=lambda u: u.created_at)
+            if u.status.is_on_hand
+            and (location_id is None or u.location_id == location_id)
+        ]
+
+
+class FakeStockMovementRepository(FakeAppendOnlyRepository[StockMovement]):
+    async def list_for_document(
+        self, document_type: DocumentType, document_id: UUID
+    ) -> list[StockMovement]:
+        return [
+            m
+            for m in self.rows
+            if m.document_type is document_type and m.document_id == document_id
+        ]
+
+    async def list_for_unit(self, device_unit_id: UUID) -> list[StockMovement]:
+        return [m for m in self.rows if m.device_unit_id == device_unit_id]
+
+    async def net_quantity(self, product_id: UUID, location_id: UUID) -> int:
+        return sum(
+            m.quantity_delta
+            for m in self.rows
+            if m.product_id == product_id and m.location_id == location_id
+        )
+
+    async def list_for_pair(
+        self, product_id: UUID, location_id: UUID
+    ) -> list[StockMovement]:
+        return [
+            m
+            for m in self.rows
+            if m.product_id == product_id
+            and m.location_id == location_id
+            and m.device_unit_id is None
+        ]
+
+    async def list_units_on_hand(self) -> list[UUID]:
+        net: dict[UUID, int] = {}
+        for m in self.rows:
+            if m.device_unit_id is not None:
+                net[m.device_unit_id] = net.get(m.device_unit_id, 0) + m.quantity_delta
+        return [unit_id for unit_id, total in net.items() if total > 0]
+
+    async def list_moved_pairs(self) -> list[tuple[UUID, UUID]]:
+        return list(
+            dict.fromkeys(
+                (m.product_id, m.location_id)
+                for m in self.rows
+                if m.device_unit_id is None
+            )
+        )
+
+
+class FakeFinancialTransactionRepository(FakeAppendOnlyRepository[FinancialTransaction]):
+    async def list_for_document(
+        self, document_type: DocumentType, document_id: UUID
+    ) -> list[FinancialTransaction]:
+        return [
+            t
+            for t in self.rows
+            if t.document_type is document_type and t.document_id == document_id
+        ]
+
+    async def list_for_pair(
+        self, product_id: UUID, location_id: UUID
+    ) -> list[FinancialTransaction]:
+        return [
+            t
+            for t in self.rows
+            if t.product_id == product_id
+            and t.location_id == location_id
+            and t.device_unit_id is None
+        ]
+
+    async def totals_by_type(
+        self,
+        *,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> dict[tuple[TransactionType, Currency], Money]:
+        totals: dict[tuple[TransactionType, Currency], Money] = {}
+        for txn in self.rows:
+            if since is not None and txn.occurred_at < since:
+                continue
+            if until is not None and txn.occurred_at >= until:
+                continue
+            if location_id is not None and txn.location_id != location_id:
+                continue
+            key = (txn.txn_type, txn.currency)
+            running = totals.get(key)
+            totals[key] = txn.amount if running is None else running + txn.amount
+        return totals
+
+
+class FakeStockLevelRepository(FakeRepository[StockLevel]):
+    async def get_for(self, product_id: UUID, location_id: UUID) -> StockLevel | None:
+        return next(
+            (
+                level
+                for level in self.by_id.values()
+                if level.product_id == product_id and level.location_id == location_id
+            ),
+            None,
+        )
+
+    async def list_all(self) -> list[StockLevel]:
+        return list(self.by_id.values())
 
 
 class FakeProductRepository(FakeRepository[Product]):

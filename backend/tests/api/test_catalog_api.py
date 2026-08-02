@@ -180,6 +180,120 @@ class TestProducts:
         assert [p["sku"] for p in found.json()["data"]] == ["SG-S24"]
 
 
+class TestCatalogPriceHistory:
+    """FR-2.19 / FR-9.2b against the real 0003 migration — the log's
+    ``user_id`` is a genuine foreign key into ``employees``, so these are
+    what prove the "``Employee.id`` *is* the master ``User.id``" contract
+    (PRD §3.1) holds at the database level and not just in prose."""
+
+    async def test_the_owner_who_set_a_price_is_recorded_as_its_author(
+        self, client, owner
+    ):
+        created = await post_product(client, owner, defaultSalePrice="900")
+        product_id = created.json()["data"]["id"]
+
+        history = await client.get(
+            f"/api/v1/products/{product_id}/price-history", headers=owner.auth
+        )
+
+        rows = history.json()["data"]
+        assert len(rows) == 1
+        assert rows[0]["userId"] == owner.user_id
+        assert rows[0]["oldPrice"] is None
+
+    async def test_two_cuts_leave_three_rows_and_the_product_shows_the_last(
+        self, client, owner
+    ):
+        """FR-2.19's stated test, over HTTP: $900 → $850 → $780."""
+        created = await post_product(client, owner, defaultSalePrice="900")
+        product_id = created.json()["data"]["id"]
+
+        for price in ("850", "780"):
+            patched = await client.patch(
+                f"/api/v1/products/{product_id}",
+                headers=owner.auth,
+                json={"defaultSalePrice": price},
+            )
+            assert patched.status_code == 200, patched.text
+
+        product = await client.get(f"/api/v1/products/{product_id}", headers=owner.auth)
+        assert product.json()["data"]["defaultSalePrice"] == "780.00"
+
+        history = await client.get(
+            f"/api/v1/products/{product_id}/price-history", headers=owner.auth
+        )
+        rows = history.json()["data"]
+        assert [(r["oldPrice"], r["newPrice"]) for r in rows] == [
+            (None, "900.00"),
+            ("900.00", "850.00"),
+            ("850.00", "780.00"),
+        ]
+
+    async def test_a_reason_survives_the_round_trip(self, client, owner):
+        created = await post_product(client, owner, defaultSalePrice="900")
+        product_id = created.json()["data"]["id"]
+
+        await client.patch(
+            f"/api/v1/products/{product_id}",
+            headers=owner.auth,
+            json={"defaultSalePrice": "780", "priceReason": "iPhone 16 shipped"},
+        )
+
+        history = await client.get(
+            f"/api/v1/products/{product_id}/price-history", headers=owner.auth
+        )
+        assert history.json()["data"][-1]["reason"] == "iPhone 16 shipped"
+
+    async def test_a_som_priced_accessory_logs_whole_som(self, client, owner):
+        """UZS is exponent 0 (PRD §4.5): 50 000 so'm is stored as 50000,
+        not 5 000 000. The log inherits the product's currency rather than
+        carrying one, so this is the check that the join recovers it."""
+        created = await post_product(
+            client,
+            owner,
+            sku="CASE-CLEAR",
+            name="Clear case",
+            trackingType="quantity",
+            defaultSalePrice="50000",
+        )
+        product_id = created.json()["data"]["id"]
+
+        history = await client.get(
+            f"/api/v1/products/{product_id}/price-history", headers=owner.auth
+        )
+
+        row = history.json()["data"][0]
+        assert (row["currency"], row["newPriceMinor"], row["newPrice"]) == (
+            "UZS",
+            50000,
+            "50000",
+        )
+
+    async def test_a_price_cannot_be_cleared_once_set(self, client, owner):
+        """The projection would otherwise contradict the log it is derived
+        from — there is no row meaning "no longer priced" (FR-2.19)."""
+        created = await post_product(client, owner, defaultSalePrice="900")
+        product_id = created.json()["data"]["id"]
+
+        resp = await client.patch(
+            f"/api/v1/products/{product_id}",
+            headers=owner.auth,
+            json={"defaultSalePrice": None},
+        )
+
+        assert resp.status_code == 422, resp.text
+        product = await client.get(f"/api/v1/products/{product_id}", headers=owner.auth)
+        assert product.json()["data"]["defaultSalePrice"] == "900.00"
+
+    async def test_an_unknown_product_has_no_history_to_read(self, client, owner):
+        resp = await client.get(
+            "/api/v1/products/00000000-0000-0000-0000-000000000000/price-history",
+            headers=owner.auth,
+        )
+
+        assert resp.status_code == 404
+
+
 class TestReferenceData:
     async def test_provisioning_already_seeded_a_location(self, client, owner):
         """PRD §3.4 — a new store can receive goods before anyone opens the

@@ -14,6 +14,9 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 from application.commands.accept_invite import AcceptInviteHandler
+from application.commands.change_device_unit_condition import (
+    ChangeDeviceUnitConditionHandler,
+)
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.create_customer import CreateCustomerHandler
@@ -25,6 +28,8 @@ from application.commands.create_tenant import CreateTenantHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
+from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
+from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
 from application.commands.update_product import UpdateProductHandler
@@ -32,9 +37,14 @@ from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
 from application.dtos import CurrentUser, RequestedTenant
 from application.queries.get_customer import GetCustomerHandler
+from application.queries.get_device_unit import GetDeviceUnitHandler
+from application.queries.get_device_unit_price_history import (
+    GetDeviceUnitPriceHistoryHandler,
+)
 from application.queries.get_location import GetLocationHandler
 from application.queries.get_me import GetMeHandler
 from application.queries.get_product import GetProductHandler
+from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.list_customers import ListCustomersHandler
@@ -44,6 +54,9 @@ from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.services import (
     ClaimsFactory,
+    DeviceUnitRepricer,
+    LedgerPoster,
+    ProductRepricer,
     SalePriceParser,
     SlugNormalizer,
     TimezoneValidator,
@@ -51,16 +64,23 @@ from application.services import (
 )
 from domain.entities import Employee, Tenant, User, UserTenantAccess
 from domain.enums import TenantRole, TenantStatus
+from domain.permissions import Permission
 from tests.application.fakes import (
     FakeClock,
     FakeCustomerRepository,
+    FakeDeviceUnitPriceChangeRepository,
+    FakeDeviceUnitRepository,
     FakeEmployeeRepository,
+    FakeFinancialTransactionRepository,
     FakeHasher,
     FakeInvitationRepository,
     FakeLocationRepository,
+    FakeProductPriceChangeRepository,
     FakeProductRepository,
     FakeProvisioner,
     FakeRefreshTokenRepository,
+    FakeStockLevelRepository,
+    FakeStockMovementRepository,
     FakeSupplierRepository,
     FakeTenantRepository,
     FakeTenantScope,
@@ -91,9 +111,15 @@ class World:
     invitations: FakeInvitationRepository
     tenant_settings: FakeTenantSettingsRepository
     products: FakeProductRepository
+    price_changes: FakeProductPriceChangeRepository
     locations: FakeLocationRepository
     suppliers: FakeSupplierRepository
     customers: FakeCustomerRepository
+    units: FakeDeviceUnitRepository
+    unit_price_changes: FakeDeviceUnitPriceChangeRepository
+    movements: FakeStockMovementRepository
+    transactions: FakeFinancialTransactionRepository
+    levels: FakeStockLevelRepository
     scope: FakeTenantScope
     uow: FakeUnitOfWork
     provisioner: FakeProvisioner
@@ -211,14 +237,92 @@ class World:
 
     # --- M2 catalog ------------------------------------------------------
 
-    def create_product(self) -> CreateProductHandler:
-        return CreateProductHandler(self.products, self.clock, self.uow, SalePriceParser())
+    def repricer(self, actor: UUID | None = None) -> ProductRepricer:
+        """*actor* is who the price change will name — pass one when the
+        test asserts on authorship, omit it when it is beside the point."""
+        return ProductRepricer(
+            self.price_changes,
+            self.clock,
+            CurrentUser(user_id=actor or uuid4(), permissions=frozenset()),
+        )
 
-    def update_product(self) -> UpdateProductHandler:
-        return UpdateProductHandler(self.products, self.uow, SalePriceParser())
+    def create_product(self, actor: UUID | None = None) -> CreateProductHandler:
+        return CreateProductHandler(
+            self.products, self.clock, self.uow, SalePriceParser(), self.repricer(actor)
+        )
+
+    def update_product(self, actor: UUID | None = None) -> UpdateProductHandler:
+        return UpdateProductHandler(
+            self.products, self.uow, SalePriceParser(), self.repricer(actor)
+        )
 
     def get_product(self) -> GetProductHandler:
         return GetProductHandler(self.products)
+
+    def get_product_price_history(self) -> GetProductPriceHistoryHandler:
+        return GetProductPriceHistoryHandler(self.products, self.price_changes)
+
+    # --- M3 ledgers ------------------------------------------------------
+
+    def unit_repricer(self, actor: UUID | None = None) -> DeviceUnitRepricer:
+        return DeviceUnitRepricer(
+            self.unit_price_changes,
+            self.clock,
+            CurrentUser(user_id=actor or uuid4(), permissions=frozenset()),
+        )
+
+    def _as(self, actor: UUID | None, *permissions: Permission) -> CurrentUser:
+        """The acting identity a unit handler shapes its response for
+        (FR-1.7) — pass ``Permission.COST_VIEW`` to see cost."""
+        return CurrentUser(user_id=actor or uuid4(), permissions=frozenset(permissions))
+
+    def get_device_unit(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> GetDeviceUnitHandler:
+        return GetDeviceUnitHandler(self.units, self.products, self._as(actor, *permissions))
+
+    def get_device_unit_price_history(self) -> GetDeviceUnitPriceHistoryHandler:
+        return GetDeviceUnitPriceHistoryHandler(self.units, self.unit_price_changes)
+
+    def reprice_device_unit(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> RepriceDeviceUnitHandler:
+        return RepriceDeviceUnitHandler(
+            self.units,
+            self.products,
+            self.unit_repricer(actor),
+            SalePriceParser(),
+            self.uow,
+            self._as(actor, *permissions),
+        )
+
+    def reprice_device_units(self, actor: UUID | None = None) -> RepriceDeviceUnitsHandler:
+        return RepriceDeviceUnitsHandler(
+            self.units,
+            self.products,
+            self.unit_repricer(actor),
+            SalePriceParser(),
+            self.uow,
+        )
+
+    def change_device_unit_condition(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> ChangeDeviceUnitConditionHandler:
+        return ChangeDeviceUnitConditionHandler(
+            self.units, self.products, self.uow, self._as(actor, *permissions)
+        )
+
+    def poster(self, actor: UUID | None = None) -> LedgerPoster:
+        """*actor* is who the ledger rows will name — pass one when the
+        test asserts on authorship (§4.3 rule 3), omit it otherwise."""
+        return LedgerPoster(
+            self.movements,
+            self.transactions,
+            self.levels,
+            self.units,
+            self.clock,
+            CurrentUser(user_id=actor or uuid4(), permissions=frozenset()),
+        )
 
     def list_products(self) -> ListProductsHandler:
         return ListProductsHandler(self.products)
@@ -354,6 +458,12 @@ def make_world(provisioner_fails: bool = False) -> World:
         invitations=FakeInvitationRepository(),
         tenant_settings=FakeTenantSettingsRepository(),
         products=FakeProductRepository(),
+        price_changes=FakeProductPriceChangeRepository(),
+        units=FakeDeviceUnitRepository(),
+        unit_price_changes=FakeDeviceUnitPriceChangeRepository(),
+        movements=FakeStockMovementRepository(),
+        transactions=FakeFinancialTransactionRepository(),
+        levels=FakeStockLevelRepository(),
         locations=FakeLocationRepository(),
         suppliers=FakeSupplierRepository(),
         customers=FakeCustomerRepository(),

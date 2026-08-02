@@ -1,5 +1,7 @@
 """FR-1.6 / PRD §2.1: each endpoint × each role, and a 403 has no side effect."""
 
+from uuid import uuid4
+
 import pytest
 
 ROLES = ["tenant.manager", "tenant.storekeeper", "tenant.seller"]
@@ -170,6 +172,96 @@ async def test_an_owner_and_a_manager_can_create_a_product(client, tenant_with_r
     )
 
     assert resp.status_code == 201, resp.text
+
+
+# --- pricing (FR-2.19: setting a price is its own permission) -------------
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_pricing_history_is_closed_to_staff_who_cannot_see_cost(
+    client, tenant_with_roles, role
+):
+    """§2.1 keeps a Storekeeper and a Seller out of margins; what a model
+    has cost over time is the same class of figure."""
+    owner, tokens, _ = tenant_with_roles
+    created = await client.post(
+        "/api/v1/products", headers=owner.auth, json={**PRODUCT, "defaultSalePrice": "900"}
+    )
+    product_id = created.json()["data"]["id"]
+
+    denied = await client.get(
+        f"/api/v1/products/{product_id}/price-history", headers=tokens[role]
+    )
+
+    assert denied.status_code == 403
+
+
+@pytest.mark.parametrize("role", ["tenant.owner", "tenant.manager"])
+async def test_an_owner_and_a_manager_can_read_pricing_history(
+    client, tenant_with_roles, role
+):
+    owner, tokens, _ = tenant_with_roles
+    created = await client.post(
+        "/api/v1/products", headers=owner.auth, json={**PRODUCT, "defaultSalePrice": "900"}
+    )
+    product_id = created.json()["data"]["id"]
+
+    resp = await client.get(
+        f"/api/v1/products/{product_id}/price-history", headers=tokens[role]
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert len(resp.json()["data"]) == 1
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_staff_cannot_price_a_handset(client, tenant_with_roles, role):
+    """§2: *"a Storekeeper should not see margins or set prices"*. The
+    consequence is deliberate and stated in FR-4.2b — a Seller who scans an
+    unpriced used handset cannot fix it, which is why the resolution error
+    names who can."""
+    _, tokens, _ = tenant_with_roles
+
+    denied = await client.patch(
+        f"/api/v1/device-units/{uuid4()}/price",
+        headers=tokens[role],
+        json={"askingPrice": "400"},
+    )
+
+    # 403 before the handler runs, so a missing unit never becomes a 404
+    # that leaks whether the IMEI exists.
+    assert denied.status_code == 403
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_staff_cannot_bulk_reprice_or_regrade(client, tenant_with_roles, role):
+    _, tokens, _ = tenant_with_roles
+
+    bulk = await client.post(
+        "/api/v1/device-units/price",
+        headers=tokens[role],
+        json={"prices": [{"deviceUnitId": str(uuid4()), "askingPrice": "400"}]},
+    )
+    condition = await client.patch(
+        f"/api/v1/device-units/{uuid4()}/condition",
+        headers=tokens[role],
+        json={"condition": "used"},
+    )
+
+    assert (bulk.status_code, condition.status_code) == (403, 403)
+
+
+@pytest.mark.parametrize("role", ["tenant.owner", *ROLES])
+async def test_every_role_can_look_a_handset_up(client, tenant_with_roles, role):
+    """FR-7.2: this is the "customer walks in with a phone" screen, and a
+    Seller needs it. The *cost* is what they must not see — which
+    ``test_device_unit_pricing.py`` covers, because it is the payload that
+    narrows, not the route that closes."""
+    _, tokens, _ = tenant_with_roles
+
+    resp = await client.get(f"/api/v1/device-units/{uuid4()}", headers=tokens[role])
+
+    assert resp.status_code == 404
 
 
 @pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
