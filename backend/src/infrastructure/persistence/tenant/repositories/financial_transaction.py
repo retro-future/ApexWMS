@@ -17,13 +17,12 @@ from domain.enums import DocumentType, TransactionType
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import FinancialTransactionModel
 
-from .base import TenantLedgerRepository
+from .base import TenantRepository
 
 
-class SqlFinancialTransactionRepository(
-    TenantLedgerRepository[FinancialTransaction, FinancialTransactionModel]
-):
-    model = FinancialTransactionModel
+class SqlFinancialTransactionRepository(TenantRepository):
+    """Append and read. No ``update``: a cancellation books the negated
+    entry (§4.3 rule 3), it does not edit the original."""
 
     def _to_model(self, entity: FinancialTransaction) -> FinancialTransactionModel:
         return FinancialTransactionModel(
@@ -56,11 +55,14 @@ class SqlFinancialTransactionRepository(
             note=row.note,
         )
 
+    async def add(self, entity: FinancialTransaction) -> None:
+        await self._insert(self._to_model(entity))
+
     async def list_for_document(
         self, document_type: DocumentType, document_id: UUID
     ) -> list[FinancialTransaction]:
         """Everything one document booked — what a cancellation reverses."""
-        return await self._find_many(
+        return await self._many(
             select(FinancialTransactionModel)
             .where(
                 FinancialTransactionModel.document_type == document_type.value,
@@ -74,7 +76,7 @@ class SqlFinancialTransactionRepository(
         self, product_id: UUID, location_id: UUID
     ) -> list[FinancialTransaction]:
         """What one product cost at one location, in order."""
-        return await self._find_many(
+        return await self._many(
             select(FinancialTransactionModel)
             .where(
                 FinancialTransactionModel.product_id == product_id,

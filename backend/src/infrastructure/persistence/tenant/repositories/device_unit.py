@@ -3,8 +3,10 @@
 Every read joins ``products``: a unit's cost and asking price are bare
 minor units denominated by its catalog row (§4.5 rule 3), so the currency
 is fetched rather than duplicated onto the unit — where it could drift.
+That is also why the entity is rebuilt from a ``Row`` and not from the unit
+row alone, and so why this is not a ``TenantCrudRepository``.
 
-``_apply`` writes ``status``, ``location_id`` and ``asking_price_minor``,
+``update`` writes ``status``, ``location_id`` and ``asking_price_minor``,
 which look like ordinary mutable fields and are not: all three are
 projections kept in step by the ledger posting and the repricer. Nothing
 else may assign them.
@@ -13,19 +15,17 @@ else may assign them.
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Row, Select, select
 
 from domain.entities import DeviceUnit
 from domain.enums import DeviceCondition, DeviceStatus, DocumentType
 from domain.value_objects import IMEI, Currency, Money
 from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel
 
-from .base import TenantJoinedRepository
+from .base import TenantRepository
 
 
-class SqlDeviceUnitRepository(TenantJoinedRepository[DeviceUnit, UUID, DeviceUnitModel]):
-    model = DeviceUnitModel
-
+class SqlDeviceUnitRepository(TenantRepository):
     def _to_model(self, entity: DeviceUnit) -> DeviceUnitModel:
         return DeviceUnitModel(
             id=entity.id,
@@ -51,7 +51,51 @@ class SqlDeviceUnitRepository(TenantJoinedRepository[DeviceUnit, UUID, DeviceUni
             created_at=entity.created_at,
         )
 
-    def _apply(self, row: DeviceUnitModel, entity: DeviceUnit) -> None:
+    def _to_entity(self, row: Row[tuple[DeviceUnitModel, str]]) -> DeviceUnit:
+        unit, currency_code = row._tuple()
+        currency = Currency(currency_code)
+        return DeviceUnit(
+            id=unit.id,
+            imei=IMEI(unit.imei),
+            imei2=IMEI(unit.imei2) if unit.imei2 else None,
+            serial_number=unit.serial_number,
+            product_id=unit.product_id,
+            status=DeviceStatus(unit.status),
+            location_id=unit.location_id,
+            acquisition_cost=Money(unit.acquisition_cost_minor, currency),
+            asking_price=(
+                Money(unit.asking_price_minor, currency)
+                if unit.asking_price_minor is not None
+                else None
+            ),
+            condition=DeviceCondition(unit.condition),
+            cash_paid_minor=unit.cash_paid_minor,
+            # The one amount on the row that is *not* in the product's currency,
+            # which is the entire reason it is recorded separately (§4.5b).
+            cash_paid_currency=(
+                Currency(unit.cash_paid_currency) if unit.cash_paid_currency else None
+            ),
+            source_document_type=(
+                DocumentType(unit.source_document_type)
+                if unit.source_document_type
+                else None
+            ),
+            source_document_id=unit.source_document_id,
+            created_at=unit.created_at,
+        )
+
+    async def get(self, key: UUID) -> DeviceUnit | None:
+        return await self._one_row(
+            self._joined().where(DeviceUnitModel.id == key), self._to_entity
+        )
+
+    async def add(self, entity: DeviceUnit) -> None:
+        await self._insert(self._to_model(entity))
+
+    async def update(self, entity: DeviceUnit) -> None:
+        row = await self._row(DeviceUnitModel, entity.id)
+        if row is None:
+            raise LookupError(f"DeviceUnitModel {entity.id} not persisted")
         # The IMEI, the product, the cost and the acquisition provenance are
         # absent on purpose: none of them can change about a handset that has
         # already been received. A wrong one is corrected by cancelling the
@@ -63,12 +107,11 @@ class SqlDeviceUnitRepository(TenantJoinedRepository[DeviceUnit, UUID, DeviceUni
         )
         row.condition = entity.condition.value
 
-    async def get(self, key: UUID) -> DeviceUnit | None:
-        return await self._one(self._joined().where(DeviceUnitModel.id == key))
-
     async def get_by_imei(self, imei: str) -> DeviceUnit | None:
         """FR-3.5/FR-7.1: the scanner's question, answered by one index hit."""
-        return await self._one(self._joined().where(DeviceUnitModel.imei == imei))
+        return await self._one_row(
+            self._joined().where(DeviceUnitModel.imei == imei), self._to_entity
+        )
 
     async def list_by_ids(self, ids: Sequence[UUID]) -> list[DeviceUnit]:
         """The bulk repricing's read (FR-2.21), in one round trip.
@@ -78,7 +121,9 @@ class SqlDeviceUnitRepository(TenantJoinedRepository[DeviceUnit, UUID, DeviceUni
         """
         if not ids:
             return []
-        return await self._many(self._joined().where(DeviceUnitModel.id.in_(ids)))
+        return await self._many_rows(
+            self._joined().where(DeviceUnitModel.id.in_(ids)), self._to_entity
+        )
 
     async def list_on_hand(self, location_id: UUID | None = None) -> list[DeviceUnit]:
         """Everything the store still physically holds (§4.6, FR-9.1).
@@ -91,47 +136,11 @@ class SqlDeviceUnitRepository(TenantJoinedRepository[DeviceUnit, UUID, DeviceUni
         )
         if location_id is not None:
             stmt = stmt.where(DeviceUnitModel.location_id == location_id)
-        return await self._many(stmt.order_by(DeviceUnitModel.created_at))
+        return await self._many_rows(
+            stmt.order_by(DeviceUnitModel.created_at), self._to_entity
+        )
 
     def _joined(self) -> Select[tuple[DeviceUnitModel, str]]:
         return select(DeviceUnitModel, ProductModel.currency).join(
             ProductModel, ProductModel.id == DeviceUnitModel.product_id
         )
-
-    async def _one(self, stmt: Select[tuple[DeviceUnitModel, str]]) -> DeviceUnit | None:
-        found = (await self._session.execute(stmt)).first()
-        return None if found is None else _hydrate(found[0], Currency(found[1]))
-
-    async def _many(self, stmt: Select[tuple[DeviceUnitModel, str]]) -> list[DeviceUnit]:
-        rows = await self._session.execute(stmt)
-        return [_hydrate(row, Currency(currency)) for row, currency in rows]
-
-
-def _hydrate(row: DeviceUnitModel, currency: Currency) -> DeviceUnit:
-    return DeviceUnit(
-        id=row.id,
-        imei=IMEI(row.imei),
-        imei2=IMEI(row.imei2) if row.imei2 else None,
-        serial_number=row.serial_number,
-        product_id=row.product_id,
-        status=DeviceStatus(row.status),
-        location_id=row.location_id,
-        acquisition_cost=Money(row.acquisition_cost_minor, currency),
-        asking_price=(
-            Money(row.asking_price_minor, currency)
-            if row.asking_price_minor is not None
-            else None
-        ),
-        condition=DeviceCondition(row.condition),
-        cash_paid_minor=row.cash_paid_minor,
-        # The one amount on the row that is *not* in the product's currency,
-        # which is the entire reason it is recorded separately (§4.5b).
-        cash_paid_currency=(
-            Currency(row.cash_paid_currency) if row.cash_paid_currency else None
-        ),
-        source_document_type=(
-            DocumentType(row.source_document_type) if row.source_document_type else None
-        ),
-        source_document_id=row.source_document_id,
-        created_at=row.created_at,
-    )

@@ -1,17 +1,19 @@
-"""Singleton-row accessor — not aggregate CRUD, so no ``TenantCrudRepository``."""
+"""The singleton settings row seeded at provisioning.
+
+One row, two accessors, no identity to look it up by — so ``TenantRepository``
+rather than ``TenantCrudRepository``, which is what that base is for.
+"""
 
 from sqlalchemy import select
 
 from infrastructure.persistence.tenant.models import TenantSettingsModel
-from infrastructure.types import TenantSession
+
+from .base import TenantRepository
 
 SETTINGS_ROW_ID = 1
 
 
-class SqlTenantSettingsRepository:
-    def __init__(self, session: TenantSession) -> None:
-        self._session = session
-
+class SqlTenantSettingsRepository(TenantRepository):
     async def get_timezone(self) -> str:
         timezone = await self._session.scalar(
             select(TenantSettingsModel.timezone).where(
@@ -23,7 +25,7 @@ class SqlTenantSettingsRepository:
         return timezone
 
     async def set_timezone(self, timezone: str) -> None:
-        row = await self._session.get(TenantSettingsModel, SETTINGS_ROW_ID)
+        row = await self._row(TenantSettingsModel, SETTINGS_ROW_ID)
         if row is None:
             raise LookupError("tenant_settings row missing — provisioning seed failed")
         row.timezone = timezone

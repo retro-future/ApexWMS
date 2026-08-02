@@ -46,6 +46,30 @@ class TestACleanFleetPasses:
         assert await _verify(settings, "verify-projections", None) == 0
         assert await _verify(settings, "verify-financials", None) == 0
 
+    async def test_a_repriced_handset_reconciles_against_its_latest_cut(
+        self, client, settings, owner, capsys
+    ):
+        """The regression the ``latest_for_*`` reads existed to serve.
+
+        With one log row the oldest row *is* the latest, so every other
+        test here passes whichever end of the history the query returns.
+        Three cuts is the smallest case that tells them apart: the unit's
+        asking price is the projection of the **last** row (§4.5b), and a
+        query that hands back the first reports a mismatch that is not real.
+        """
+        unit_id, _, _ = await receive_phone(client, settings, owner)
+        for price in ("420", "390", "360"):
+            resp = await client.patch(
+                f"/api/v1/device-units/{unit_id}/price",
+                headers=owner.auth,
+                json={"askingPrice": price},
+            )
+            assert resp.status_code == 200, resp.text
+
+        exit_code = await _verify(settings, "verify-projections", None)
+
+        assert exit_code == 0, capsys.readouterr().out
+
     async def test_no_tenants_at_all_is_not_an_error(self, settings, capsys):
         assert await _verify(settings, "verify-projections", None) == 0
         assert "no tenant databases found" in capsys.readouterr().out

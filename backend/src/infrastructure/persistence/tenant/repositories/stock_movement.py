@@ -13,11 +13,13 @@ from domain.entities import StockMovement
 from domain.enums import DocumentType, MovementType
 from infrastructure.persistence.tenant.models import StockMovementModel
 
-from .base import TenantLedgerRepository
+from .base import TenantRepository
 
 
-class SqlStockMovementRepository(TenantLedgerRepository[StockMovement, StockMovementModel]):
-    model = StockMovementModel
+class SqlStockMovementRepository(TenantRepository):
+    """Append and read. There is no ``update`` — a mistake is corrected by
+    appending its compensation (§4.3 rule 2), which is why the method is
+    absent from ``AppendOnlyRepository``, the port handlers depend on."""
 
     def _to_model(self, entity: StockMovement) -> StockMovementModel:
         return StockMovementModel(
@@ -49,6 +51,9 @@ class SqlStockMovementRepository(TenantLedgerRepository[StockMovement, StockMove
             note=row.note,
         )
 
+    async def add(self, entity: StockMovement) -> None:
+        await self._insert(self._to_model(entity))
+
     async def list_for_document(
         self, document_type: DocumentType, document_id: UUID
     ) -> list[StockMovement]:
@@ -58,7 +63,7 @@ class SqlStockMovementRepository(TenantLedgerRepository[StockMovement, StockMove
         original, which keeps a document's timeline readable rather than
         interleaved.
         """
-        return await self._find_many(
+        return await self._many(
             select(StockMovementModel)
             .where(
                 StockMovementModel.document_type == document_type.value,
@@ -74,7 +79,7 @@ class SqlStockMovementRepository(TenantLedgerRepository[StockMovement, StockMove
         *"How did this IMEI end up here, and who touched it?"* is one table
         ordered by time, which is the entire payoff of §4.3.
         """
-        return await self._find_many(
+        return await self._many(
             select(StockMovementModel)
             .where(StockMovementModel.device_unit_id == device_unit_id)
             .order_by(StockMovementModel.occurred_at, StockMovementModel.id),
@@ -102,7 +107,7 @@ class SqlStockMovementRepository(TenantLedgerRepository[StockMovement, StockMove
         self, product_id: UUID, location_id: UUID
     ) -> list[StockMovement]:
         """One quantity product's movements at one location, in order."""
-        return await self._find_many(
+        return await self._many(
             select(StockMovementModel)
             .where(
                 StockMovementModel.product_id == product_id,

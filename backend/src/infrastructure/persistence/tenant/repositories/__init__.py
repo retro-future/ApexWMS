@@ -4,12 +4,7 @@ No query here filters by tenant: the session these are bound to *is* the
 tenant, so there is no filter to forget.
 """
 
-from .base import (
-    TenantCrudRepository,
-    TenantJoinedRepository,
-    TenantLedgerRepository,
-    TenantRowRepository,
-)
+from .base import TenantCrudRepository, TenantRepository
 from .customer import SqlCustomerRepository
 from .device_unit import SqlDeviceUnitRepository
 from .device_unit_price_change import SqlDeviceUnitPriceChangeRepository
@@ -38,7 +33,5 @@ __all__ = [
     "SqlSupplierRepository",
     "SqlTenantSettingsRepository",
     "TenantCrudRepository",
-    "TenantJoinedRepository",
-    "TenantLedgerRepository",
-    "TenantRowRepository",
+    "TenantRepository",
 ]

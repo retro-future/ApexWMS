@@ -4,23 +4,24 @@ Every read joins ``products``. The log stores bare minor units, because a
 product's currency is a property of the product and immutable once it has
 history (§4.5 rule 3) — so the currency is fetched rather than duplicated,
 and a row physically cannot disagree with the catalog entry it belongs to.
+
+That join is why the entity is rebuilt from a ``Row`` rather than from the
+log row alone, and why this is not a ``TenantCrudRepository``.
 """
 
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Row, Select, select
 
 from domain.entities import ProductPriceChange
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import ProductModel, ProductPriceChangeModel
 
-from .base import TenantLedgerRepository
+from .base import TenantRepository
 
 
-class SqlProductPriceChangeRepository(
-    TenantLedgerRepository[ProductPriceChange, ProductPriceChangeModel]
-):
-    model = ProductPriceChangeModel
+class SqlProductPriceChangeRepository(TenantRepository):
+    """Append and read; never update — the port says so (§4.5b)."""
 
     def _to_model(self, entity: ProductPriceChange) -> ProductPriceChangeModel:
         return ProductPriceChangeModel(
@@ -33,32 +34,45 @@ class SqlProductPriceChangeRepository(
             user_id=entity.user_id,
         )
 
-    def _to_entity(self, row: ProductPriceChangeModel, currency: Currency) -> ProductPriceChange:
+    def _to_entity(
+        self, row: Row[tuple[ProductPriceChangeModel, str]]
+    ) -> ProductPriceChange:
+        change, currency_code = row._tuple()
+        currency = Currency(currency_code)
         return ProductPriceChange(
-            id=row.id,
-            product_id=row.product_id,
-            occurred_at=row.occurred_at,
+            id=change.id,
+            product_id=change.product_id,
+            occurred_at=change.occurred_at,
             old_price=(
-                Money(row.old_price_minor, currency) if row.old_price_minor is not None else None
+                Money(change.old_price_minor, currency)
+                if change.old_price_minor is not None
+                else None
             ),
-            new_price=Money(row.new_price_minor, currency),
-            reason=row.reason,
-            user_id=row.user_id,
+            new_price=Money(change.new_price_minor, currency),
+            reason=change.reason,
+            user_id=change.user_id,
         )
+
+    async def add(self, entity: ProductPriceChange) -> None:
+        await self._insert(self._to_model(entity))
 
     async def list_for_product(self, product_id: UUID) -> list[ProductPriceChange]:
-        rows = await self._session.execute(self._priced(product_id))
-        return [self._to_entity(row, Currency(currency)) for row, currency in rows]
+        return await self._many_rows(self._priced(product_id), self._to_entity)
 
     async def latest_for_product(self, product_id: UUID) -> ProductPriceChange | None:
-        stmt = self._priced(product_id).order_by(
-            ProductPriceChangeModel.occurred_at.desc(), ProductPriceChangeModel.id.desc()
+        # ``order_by(None)`` first: SQLAlchemy *appends* to an existing
+        # ORDER BY, so without the reset the ascending clauses `_priced`
+        # already carries would win and LIMIT 1 would return the oldest.
+        stmt = (
+            self._priced(product_id)
+            .order_by(None)
+            .order_by(
+                ProductPriceChangeModel.occurred_at.desc(),
+                ProductPriceChangeModel.id.desc(),
+            )
+            .limit(1)
         )
-        found = (await self._session.execute(stmt.limit(1))).first()
-        if found is None:
-            return None
-        row, currency = found
-        return self._to_entity(row, Currency(currency))
+        return await self._one_row(stmt, self._to_entity)
 
     def _priced(self, product_id: UUID) -> Select[tuple[ProductPriceChangeModel, str]]:
         """History rows for *product_id*, oldest first, each with its currency.
