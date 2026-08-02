@@ -17,18 +17,22 @@ mirroring the fan-out idempotency of ``apexwms migrate --all-tenants``.
 """
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from application.commands.create_customer import CreateCustomerCommand, CreateCustomerHandler
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
 from application.commands.create_supplier import CreateSupplierCommand, CreateSupplierHandler
+from application.dtos import CurrentUser
 from application.errors import ApplicationError
-from application.services import SalePriceParser
-from domain.enums import TrackingType
+from application.services import ProductRepricer, SalePriceParser
+from domain.enums import TenantRole, TrackingType
 from infrastructure.clock import SystemClock
 from infrastructure.persistence.tenant.repositories import (
     SqlCustomerRepository,
+    SqlEmployeeRepository,
+    SqlProductPriceChangeRepository,
     SqlProductRepository,
     SqlSupplierRepository,
 )
@@ -88,11 +92,21 @@ async def seed_catalog(
             clock = SystemClock()
             uow = SqlTenantUnitOfWork(tenant_session)
 
+            # Seeded prices are logged like any other (FR-2.19), and the
+            # log's author is a real foreign key into ``employees`` — so the
+            # seeder acts as the store's Owner rather than inventing a UUID
+            # that would fail the constraint.
+            owner = await _owner_of(SqlEmployeeRepository(tenant_session))
             product_handler = CreateProductHandler(
                 products=SqlProductRepository(tenant_session),
                 clock=clock,
                 uow=uow,
                 sale_price=SalePriceParser(),
+                repricer=ProductRepricer(
+                    SqlProductPriceChangeRepository(tenant_session),
+                    clock,
+                    CurrentUser(user_id=owner, permissions=frozenset()),
+                ),
             )
             customer_handler = CreateCustomerHandler(
                 customers=SqlCustomerRepository(tenant_session), clock=clock, uow=uow
@@ -112,6 +126,20 @@ async def seed_catalog(
         customers_created=created_customers,
         suppliers_created=created_suppliers,
     )
+
+
+async def _owner_of(employees: SqlEmployeeRepository) -> UUID:
+    """The store's Owner, seeded at provisioning (PRD §3.4).
+
+    There is always one — provisioning writes it before the tenant is
+    usable — so an empty result means the database was not provisioned,
+    which is worth failing loudly rather than seeding around.
+    """
+    staff = await employees.list_all()
+    owner = next((e for e in staff if e.role is TenantRole.OWNER), None)
+    if owner is None:
+        raise ApplicationError("this tenant database has no Owner — is it provisioned?")
+    return owner.id
 
 
 async def _seed_products(handler: CreateProductHandler, fake, count: int) -> int:

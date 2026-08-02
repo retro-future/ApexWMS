@@ -9,6 +9,8 @@
     apexwms suspend-tenant <uuid> | apexwms activate-tenant <uuid>
     apexwms retry-provisioning <uuid> [--timezone tz]
     apexwms seed-tenant <uuid> [--products N] [--customers N] [--suppliers N]
+    apexwms verify-projections --all-tenants | --tenant <uuid>
+    apexwms verify-financials  --all-tenants | --tenant <uuid>
 
 There is no HTTP admin API in the MVP: shell access to the server plus the
 MasterDB URL *is* the SuperAdmin credential. The admin portal, and the
@@ -41,7 +43,7 @@ from infrastructure import migrations
 from infrastructure.config import Settings
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
 from infrastructure.tenancy import tenant_db_url
-from infrastructure.types import MasterSession
+from infrastructure.types import MasterSession, TenantSession
 
 DEFAULT_TIMEZONE = "Asia/Tashkent"
 
@@ -95,6 +97,17 @@ def main(argv: list[str] | None = None) -> int:
     seed.add_argument("--suppliers", type=int, default=5)
     seed.add_argument("--seed", type=int, default=None, help="random seed, for reproducible data")
 
+    # The two audits (PRD §11, FR-10.7). Same target flags as ``migrate``,
+    # because they answer the same shape of question about the same fleet.
+    for name, help_text in (
+        ("verify-projections", "recompute stock projections from the ledger"),
+        ("verify-financials", "reconcile inventory value against the money ledger"),
+    ):
+        verify = sub.add_parser(name, help=help_text)
+        scope = verify.add_mutually_exclusive_group(required=True)
+        scope.add_argument("--all-tenants", action="store_true")
+        scope.add_argument("--tenant", type=UUID, metavar="TENANT_ID")
+
     args = parser.parse_args(argv)
     settings = Settings()
 
@@ -119,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_retry_provisioning(settings, args.tenant_id, args.timezone))
     if args.command == "seed-tenant":
         return asyncio.run(_seed_tenant(settings, args))
+    if args.command in ("verify-projections", "verify-financials"):
+        tenant_id = None if args.all_tenants else args.tenant
+        return asyncio.run(_verify(settings, args.command, tenant_id))
     return 2
 
 
@@ -265,16 +281,7 @@ async def _set_status(settings: Settings, tenant_id: UUID, status: TenantStatus)
 
 
 async def _migrate_tenants(settings: Settings, tenant_id: UUID | None) -> int:
-    engine = create_async_engine(settings.master_db_url)
-    try:
-        async with async_sessionmaker(engine)() as session:
-            query = select(TenantDatabaseModel)
-            if tenant_id is not None:
-                query = query.where(TenantDatabaseModel.tenant_id == tenant_id)
-            rows = (await session.scalars(query)).all()
-    finally:
-        await engine.dispose()
-
+    rows = await _tenant_databases(settings, tenant_id)
     if not rows:
         print("no tenant databases found")
         return 0
@@ -300,6 +307,110 @@ async def _migrate_tenants(settings: Settings, tenant_id: UUID | None) -> int:
         print(f"\n{len(failures)} failure(s) — re-run to resume; the operation is idempotent.")
         return 1
     return 0
+
+
+async def _verify(settings: Settings, command: str, tenant_id: UUID | None) -> int:
+    """Fan the two audits out over the fleet (PRD §11, FR-10.7).
+
+    Same shape as the migration fan-out: continue past a tenant that
+    cannot be reached, report everything at the end, exit non-zero if
+    anything is wrong. **A discrepancy is reported, never repaired** — the
+    ledger is the source of truth, and a sweep that quietly rewrote
+    projections would destroy the evidence of whatever wrote them wrong.
+    """
+    rows = await _tenant_databases(settings, tenant_id)
+    if not rows:
+        print("no tenant databases found")
+        return 0
+
+    total_findings = 0
+    unreachable: list[tuple[UUID, str]] = []
+    for row in rows:
+        url = tenant_db_url(settings.master_db_url, row.db_name)
+        try:
+            findings = await _verify_one(url, command)
+        except Exception as exc:  # noqa: BLE001 - fan-out must continue past failures
+            unreachable.append((row.tenant_id, str(exc)))
+            print(f"  FAILED  {row.tenant_id}: {exc}")
+            continue
+
+        if findings:
+            total_findings += len(findings)
+            print(f"  MISMATCH {row.tenant_id}: {len(findings)} discrepancy(ies)")
+            for finding in findings:
+                print(f"      {finding}")
+        else:
+            print(f"  ok      {row.tenant_id}")
+
+    print(f"\n{len(rows)} tenant database(s) checked")
+    if total_findings or unreachable:
+        print(f"{total_findings} discrepancy(ies), {len(unreachable)} unreachable")
+        return 1
+    print("everything reconciles")
+    return 0
+
+
+async def _verify_one(url: str, command: str) -> list[str]:
+    """Run one audit against one store's database.
+
+    Hand-wired rather than resolved from the container: the CLI has no
+    request, so there is no ``REQUEST`` scope to resolve these in — the
+    same reason ``create-tenant`` builds its handler by hand. The
+    ``TenantSession`` wrapper is not cosmetic; it is what stops a master
+    session reaching a tenant repository (``infrastructure/types.py``).
+    """
+    from application.services import LedgerReconciler, ProjectionVerifier
+    from infrastructure.persistence.tenant.repositories import (
+        SqlDeviceUnitPriceChangeRepository,
+        SqlDeviceUnitRepository,
+        SqlFinancialTransactionRepository,
+        SqlProductPriceChangeRepository,
+        SqlProductRepository,
+        SqlStockLevelRepository,
+        SqlStockMovementRepository,
+    )
+
+    engine = create_async_engine(url)
+    try:
+        async with async_sessionmaker(engine)() as raw:
+            session = TenantSession(raw)
+            units = SqlDeviceUnitRepository(session)
+            movements = SqlStockMovementRepository(session)
+            products = SqlProductRepository(session)
+            if command == "verify-financials":
+                checker = LedgerReconciler(
+                    units,
+                    SqlFinancialTransactionRepository(session),
+                    movements,
+                    products,
+                )
+                return [str(finding) for finding in await checker.reconcile()]
+
+            verifier = ProjectionVerifier(
+                movements,
+                SqlStockLevelRepository(session),
+                units,
+                SqlDeviceUnitPriceChangeRepository(session),
+                products,
+                SqlProductPriceChangeRepository(session),
+            )
+            return [str(finding) for finding in await verifier.verify()]
+    finally:
+        await engine.dispose()
+
+
+async def _tenant_databases(
+    settings: Settings, tenant_id: UUID | None
+) -> list[TenantDatabaseModel]:
+    engine = create_async_engine(settings.master_db_url)
+    try:
+        async with async_sessionmaker(engine)() as session:
+            query = select(TenantDatabaseModel)
+            if tenant_id is not None:
+                query = query.where(TenantDatabaseModel.tenant_id == tenant_id)
+            return list((await session.scalars(query)).all())
+    finally:
+        await engine.dispose()
 
 
 async def _safe_revision(url: str) -> str:
