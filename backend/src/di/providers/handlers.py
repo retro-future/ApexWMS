@@ -17,6 +17,9 @@ has no HTTP surface in the MVP (PRD §3.4, §3.5).
 from dishka import Provider, Scope, provide_all
 
 from application.commands.accept_invite import AcceptInviteHandler
+from application.commands.change_device_unit_condition import (
+    ChangeDeviceUnitConditionHandler,
+)
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.create_customer import CreateCustomerHandler
@@ -26,15 +29,22 @@ from application.commands.create_supplier import CreateSupplierHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
+from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
+from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
 from application.commands.update_product import UpdateProductHandler
 from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
 from application.queries.get_customer import GetCustomerHandler
+from application.queries.get_device_unit import GetDeviceUnitHandler
+from application.queries.get_device_unit_price_history import (
+    GetDeviceUnitPriceHistoryHandler,
+)
 from application.queries.get_location import GetLocationHandler
 from application.queries.get_me import GetMeHandler
 from application.queries.get_product import GetProductHandler
+from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.list_customers import ListCustomersHandler
@@ -62,6 +72,7 @@ class HandlersProvider(Provider):
         CreateProductHandler,
         UpdateProductHandler,
         GetProductHandler,
+        GetProductPriceHistoryHandler,
         ListProductsHandler,
         CreateLocationHandler,
         UpdateLocationHandler,
@@ -75,4 +86,10 @@ class HandlersProvider(Provider):
         UpdateCustomerHandler,
         GetCustomerHandler,
         ListCustomersHandler,
+        # --- M3 stock & unit pricing ---
+        GetDeviceUnitHandler,
+        GetDeviceUnitPriceHistoryHandler,
+        RepriceDeviceUnitHandler,
+        RepriceDeviceUnitsHandler,
+        ChangeDeviceUnitConditionHandler,
     )

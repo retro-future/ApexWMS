@@ -16,9 +16,15 @@ from dishka import Provider, Scope, provide
 
 from application.ports import (
     CustomerRepository,
+    DeviceUnitPriceChangeRepository,
+    DeviceUnitRepository,
     EmployeeRepository,
+    FinancialTransactionRepository,
     LocationRepository,
+    ProductPriceChangeRepository,
     ProductRepository,
+    StockLevelRepository,
+    StockMovementRepository,
     SupplierRepository,
     TenantScope,
     TenantSettingsRepository,
@@ -27,9 +33,15 @@ from application.ports import (
 from infrastructure.config import Settings
 from infrastructure.persistence.tenant.repositories import (
     SqlCustomerRepository,
+    SqlDeviceUnitPriceChangeRepository,
+    SqlDeviceUnitRepository,
     SqlEmployeeRepository,
+    SqlFinancialTransactionRepository,
     SqlLocationRepository,
+    SqlProductPriceChangeRepository,
     SqlProductRepository,
+    SqlStockLevelRepository,
+    SqlStockMovementRepository,
     SqlSupplierRepository,
     SqlTenantSettingsRepository,
 )
@@ -55,6 +67,10 @@ class TenantRepositoriesProvider(Provider):
         return SqlProductRepository(session)
 
     @provide
+    def product_price_changes(self, session: TenantSession) -> ProductPriceChangeRepository:
+        return SqlProductPriceChangeRepository(session)
+
+    @provide
     def locations(self, session: TenantSession) -> LocationRepository:
         return SqlLocationRepository(session)
 
@@ -65,6 +81,32 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def customers(self, session: TenantSession) -> CustomerRepository:
         return SqlCustomerRepository(session)
+
+    # --- M3 ledgers and their projections ------------------------------
+
+    @provide
+    def device_units(self, session: TenantSession) -> DeviceUnitRepository:
+        return SqlDeviceUnitRepository(session)
+
+    @provide
+    def device_unit_price_changes(
+        self, session: TenantSession
+    ) -> DeviceUnitPriceChangeRepository:
+        return SqlDeviceUnitPriceChangeRepository(session)
+
+    @provide
+    def stock_movements(self, session: TenantSession) -> StockMovementRepository:
+        return SqlStockMovementRepository(session)
+
+    @provide
+    def financial_transactions(
+        self, session: TenantSession
+    ) -> FinancialTransactionRepository:
+        return SqlFinancialTransactionRepository(session)
+
+    @provide
+    def stock_levels(self, session: TenantSession) -> StockLevelRepository:
+        return SqlStockLevelRepository(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:
