@@ -11,6 +11,7 @@ from presentation.errors import register_error_handlers
 from presentation.routers import (
     auth,
     customers,
+    device_units,
     health,
     locations,
     products,
@@ -48,4 +49,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(locations.router, prefix=API_PREFIX)
     app.include_router(suppliers.router, prefix=API_PREFIX)
     app.include_router(customers.router, prefix=API_PREFIX)
+    app.include_router(device_units.router, prefix=API_PREFIX)
     return app

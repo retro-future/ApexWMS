@@ -19,7 +19,12 @@ from application.commands.update_product import UpdateProductCommand, UpdateProd
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
 from application.queries.get_product import GetProductHandler, GetProductQuery, ProductData
+from application.queries.get_product_price_history import (
+    GetProductPriceHistoryHandler,
+    GetProductPriceHistoryQuery,
+)
 from application.queries.list_products import ListProductsHandler, ListProductsQuery
+from application.queries.price_history import PriceChangeData
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 
@@ -48,6 +53,8 @@ async def create_product(
     handler: FromDishka[CreateProductHandler],
 ) -> ResultWithData[ProductData]:
     require(current, Permission.CATALOG_MANAGE)
+    if body.default_sale_price is not None:
+        require(current, Permission.PRICING_SET)
     return await handler.handle(body)
 
 
@@ -61,6 +68,19 @@ async def get_product(
     return await handler.handle(GetProductQuery(product_id=product_id))
 
 
+@router.get("/{product_id}/price-history")
+async def get_product_price_history(
+    product_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetProductPriceHistoryHandler],
+) -> ResultWithData[list[PriceChangeData]]:
+    # What a model has cost over time is margin-adjacent: §2.1 keeps a
+    # Storekeeper and a Seller out of pricing history for the same reason
+    # it keeps them out of cost.
+    require(current, Permission.PRICING_SET)
+    return await handler.handle(GetProductPriceHistoryQuery(product_id=product_id))
+
+
 @router.patch("/{product_id}")
 async def update_product(
     product_id: UUID,
@@ -69,4 +89,8 @@ async def update_product(
     handler: FromDishka[UpdateProductHandler],
 ) -> ResultWithData[ProductData]:
     require(current, Permission.CATALOG_MANAGE)
+    # A price change is its own act under its own permission (FR-2.19),
+    # separable from renaming a product or deactivating it.
+    if "default_sale_price" in body.model_fields_set:
+        require(current, Permission.PRICING_SET)
     return await handler.handle(body.model_copy(update={"product_id": product_id}))
