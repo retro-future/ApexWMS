@@ -12,6 +12,9 @@ nothing in this system hard-deletes.
 Partial semantics come from ``model_fields_set``: a nullable field is
 cleared only when the caller *sent* ``null``, so omitting ``barcode``
 leaves it alone while sending ``"barcode": null`` removes it.
+``default_sale_price`` is the one exception — see ``ProductRepricer``: a
+price that has been set cannot be sent back to ``null``, because the log
+it projects from has no row shape meaning "no longer priced".
 """
 
 from uuid import UUID
@@ -22,7 +25,7 @@ from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, NotFoundError
 from application.ports import ProductRepository, TenantUnitOfWork
 from application.queries.get_product import ProductData
-from application.services import SalePriceParser
+from application.services import ProductRepricer, SalePriceParser
 from domain.entities import Product
 from domain.value_objects import Barcode
 
@@ -33,6 +36,9 @@ class UpdateProductCommand(Command[ResultWithData[ProductData]]):
     model: str | None = None
     barcode: str | None = None
     default_sale_price: str | int | None = None
+    # Free text, never mandatory: FR-2.19 records *that* a price moved and
+    # who moved it. Making the store justify each change was not asked for.
+    price_reason: str | None = None
     is_active: bool | None = None
     # A URL path segment, merged in by the router — see routers/products.py.
     product_id: UUID | None = Field(default=None, exclude=True)
@@ -46,10 +52,12 @@ class UpdateProductHandler(
         products: ProductRepository,
         uow: TenantUnitOfWork,
         sale_price: SalePriceParser,
+        repricer: ProductRepricer,
     ) -> None:
         self._products = products
         self._uow = uow
         self._sale_price = sale_price
+        self._repricer = repricer
 
     async def handle(self, request: UpdateProductCommand) -> ResultWithData[ProductData]:
         assert request.product_id is not None
@@ -69,8 +77,12 @@ class UpdateProductHandler(
         if "barcode" in sent:
             product.barcode = await self._resolved_barcode(request.barcode, product)
         if "default_sale_price" in sent:
-            product.default_sale_price = self._sale_price.parse(
-                request.default_sale_price, product.currency
+            # Through the repricer, never by assignment: the price is the
+            # projection of its log (FR-2.19), so the two move as one.
+            await self._repricer.set_price(
+                product,
+                self._sale_price.parse(request.default_sale_price, product.currency),
+                request.price_reason,
             )
 
         # Re-run the entity's own invariants over the mutated state: a

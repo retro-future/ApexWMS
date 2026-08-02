@@ -1,0 +1,73 @@
+"""Change a handset's condition — FR-2.18.
+
+``condition`` is **a pricing input, not a description**, which is why this
+is Owner/Manager and not something a Storekeeper edits alongside a serial
+number. It is the single field that decides whether a unit may inherit its
+model's catalog price (FR-2.14).
+
+The consequence is stated rather than discovered: flipping a ``NEW`` unit
+that holds no asking price to ``USED`` makes it **unsellable** — it stops
+resolving to a price, rather than silently continuing to quote the new
+price of the model. That is the intended behaviour, and the unit then
+surfaces on the needs-pricing worklist (FR-9.6).
+"""
+
+from uuid import UUID
+
+from pydantic import Field
+
+from application.core import Command, IRequestHandler, ResultWithData
+from application.dtos import CurrentUser
+from application.ports import DeviceUnitRepository, ProductRepository, TenantUnitOfWork
+from application.queries.get_device_unit import DeviceUnitData, load_unit_with_product
+from domain.enums import DeviceCondition
+from domain.errors import UnitNotRepriceableError
+from domain.permissions import Permission
+
+
+class ChangeDeviceUnitConditionCommand(Command[ResultWithData[DeviceUnitData]]):
+    condition: DeviceCondition
+    # A URL path segment, merged in by the router.
+    device_unit_id: UUID | None = Field(default=None, exclude=True)
+
+
+class ChangeDeviceUnitConditionHandler(
+    IRequestHandler[ResultWithData[DeviceUnitData], ChangeDeviceUnitConditionCommand]
+):
+    def __init__(
+        self,
+        units: DeviceUnitRepository,
+        products: ProductRepository,
+        uow: TenantUnitOfWork,
+        current: CurrentUser,
+    ) -> None:
+        self._units = units
+        self._products = products
+        self._uow = uow
+        self._current = current
+
+    async def handle(
+        self, request: ChangeDeviceUnitConditionCommand
+    ) -> ResultWithData[DeviceUnitData]:
+        assert request.device_unit_id is not None
+        unit, product = await load_unit_with_product(
+            self._units, self._products, request.device_unit_id
+        )
+
+        # Same constraint as repricing, for the same reason: condition
+        # governs price, and re-grading a handset that has already been
+        # sold could only make its history disagree with what it fetched.
+        if not unit.status.is_on_hand:
+            raise UnitNotRepriceableError(
+                f"IMEI {unit.imei} is {unit.status.value} — its condition is settled"
+            )
+
+        unit.condition = request.condition
+        await self._units.update(unit)
+        await self._uow.commit()
+
+        return ResultWithData[DeviceUnitData].succeed_with_data(
+            DeviceUnitData.from_unit(
+                unit, product, show_cost=Permission.COST_VIEW in self._current.permissions
+            )
+        )
