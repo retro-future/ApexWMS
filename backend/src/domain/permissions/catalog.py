@@ -40,6 +40,12 @@ class Permission(StrEnum):
     RECEIVING_MANAGE = "Permission.Receiving.Manage"
     SALES_VIEW = "Permission.Sales.View"
     SALES_MANAGE = "Permission.Sales.Manage"
+    # Two distinct acts, deliberately not one permission (§2.1): *setting* a
+    # price is stating what the store asks for a model or a handset
+    # (FR-2.15, FR-2.19); *overriding* one is a negotiation on a single
+    # invoice line (FR-4.5). Today both are Owner/Manager, but they are not
+    # the same decision and a future role could hold one without the other.
+    PRICING_SET = "Permission.Pricing.Set"
     PRICING_OVERRIDE = "Permission.Pricing.Override"
     CREDIT_SALE_CREATE = "Permission.CreditSale.Create"
     CREDIT_COMPANY_VIEW = "Permission.CreditCompany.View"

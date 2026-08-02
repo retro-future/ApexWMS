@@ -85,6 +85,7 @@ class TenantRolePermissionProvider:
                     Permission.SUPPLIER_RETURN_VIEW,
                     Permission.SUPPLIER_RETURN_MANAGE,
                     Permission.COST_VIEW,
+                    Permission.PRICING_SET,
                     Permission.PRICING_OVERRIDE,
                     Permission.WRITE_OFF_MANAGE,
                     Permission.REPORTING_VIEW,

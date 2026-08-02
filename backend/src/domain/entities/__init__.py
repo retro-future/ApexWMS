@@ -7,11 +7,17 @@ M3 — and its ``Employee`` rows: what a person may do *there*.
 """
 
 from domain.entities.customer import Customer
+from domain.entities.device_unit import DeviceUnit
+from domain.entities.device_unit_price_change import DeviceUnitPriceChange
 from domain.entities.employee import Employee
+from domain.entities.financial_transaction import FinancialTransaction
 from domain.entities.invitation import Invitation, InvitationKind
 from domain.entities.location import Location
 from domain.entities.product import Product
+from domain.entities.product_price_change import ProductPriceChange
 from domain.entities.refresh_token import RefreshTokenRecord
+from domain.entities.stock_level import StockLevel
+from domain.entities.stock_movement import StockMovement
 from domain.entities.supplier import Supplier
 from domain.entities.tenant import Tenant
 from domain.entities.user import User
@@ -20,12 +26,18 @@ from domain.entities.user_tenant_access import UserTenantAccess
 
 __all__ = [
     "Customer",
+    "DeviceUnit",
+    "DeviceUnitPriceChange",
     "Employee",
+    "FinancialTransaction",
     "Invitation",
     "InvitationKind",
     "Location",
     "Product",
+    "ProductPriceChange",
     "RefreshTokenRecord",
+    "StockLevel",
+    "StockMovement",
     "Supplier",
     "Tenant",
     "User",
