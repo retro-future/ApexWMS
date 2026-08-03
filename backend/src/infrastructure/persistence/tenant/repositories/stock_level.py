@@ -5,7 +5,7 @@ writes it only when a movement says to. ``get_for`` is keyed on the pair
 rather than on an id because that pair is what the caller has in hand — a
 movement — and it is what the unique constraint makes single-valued.
 
-Not a ``TenantCrudRepository``: a level is not an ``ActivatableRow`` and is
+Not a ``TenantCrudRepository``: a level is not a ``TenantActivatableRow`` and is
 never browsed — nothing deactivates a quantity, and the pair, not a page,
 is how it is looked up. So it writes the three CRUD methods itself rather
 than acquiring a base class of its own.

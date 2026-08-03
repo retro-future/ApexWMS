@@ -1,10 +1,10 @@
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import ActivatableRow, TenantBase
+from .base import TenantActivatableRow
 
 
-class LocationModel(TenantBase, ActivatableRow):
+class LocationModel(TenantActivatableRow):
     """A store, a stockroom, a warehouse (PRD §4.2).
 
     Names are unique within the store: provisioning already seeds one, and

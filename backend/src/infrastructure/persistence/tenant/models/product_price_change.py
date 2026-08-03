@@ -10,7 +10,7 @@ from .base import TenantBase
 class ProductPriceChangeModel(TenantBase):
     """The catalog-price log (PRD §4.5b, FR-2.19).
 
-    Not an ``ActivatableRow``: an append-only row is never deactivated and
+    Not a ``TenantActivatableRow``: an append-only row is never deactivated and
     is ordered by when the change *happened*, not by when it was inserted,
     so it carries ``occurred_at`` instead of ``is_active``/``created_at``.
 

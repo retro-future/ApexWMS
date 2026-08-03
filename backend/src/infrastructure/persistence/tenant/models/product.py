@@ -1,10 +1,10 @@
 from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import ActivatableRow, TenantBase
+from .base import TenantActivatableRow
 
 
-class ProductModel(TenantBase, ActivatableRow):
+class ProductModel(TenantActivatableRow):
     """A catalog entry (PRD §4.2).
 
     One ``currency`` column, not one per amount: currency is a property of

@@ -6,13 +6,15 @@ failing at runtime.
 """
 
 from abc import ABC
+from uuid import UUID
 
 from domain.core import Entity
+from infrastructure.persistence.master.models.base import MasterBase
 from infrastructure.persistence.repository import CrudRepository
 from infrastructure.types import MasterSession
 
 
-class MasterCrudRepository[EntityT: Entity, KeyT, ModelT](
+class MasterCrudRepository[EntityT: Entity, KeyT: UUID, ModelT: MasterBase](
     CrudRepository[EntityT, KeyT, ModelT], ABC
 ):
     def __init__(self, session: MasterSession) -> None:

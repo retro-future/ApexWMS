@@ -44,8 +44,8 @@ class TestOneBasePerDatabase:
             bases = [base for base in TENANT_BASES if issubclass(repository, base)]
             assert len(bases) == 1, (
                 f"{repository.__name__} inherits {bases or 'no tenant base'}; it must "
-                "inherit exactly one of TenantCrudRepository (a one-row ActivatableRow "
-                "aggregate) or TenantRepository (everything else)"
+                "inherit exactly one of TenantCrudRepository (a one-row "
+                "TenantActivatableRow aggregate) or TenantRepository (everything else)"
             )
 
     def test_every_master_repository_uses_the_master_base(self):

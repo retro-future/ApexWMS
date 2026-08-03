@@ -1,10 +1,10 @@
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import ActivatableRow, TenantBase
+from .base import TenantActivatableRow
 
 
-class SupplierModel(TenantBase, ActivatableRow):
+class SupplierModel(TenantActivatableRow):
     """Who this store buys from (PRD §4.2).
 
     No currency column — currency belongs to the product (§4.5 rule 3), so

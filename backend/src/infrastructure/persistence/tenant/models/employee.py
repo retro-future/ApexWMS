@@ -1,10 +1,10 @@
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import ActivatableRow, TenantBase
+from .base import TenantActivatableRow
 
 
-class EmployeeModel(TenantBase, ActivatableRow):
+class EmployeeModel(TenantActivatableRow):
     """A person's presence at this store.
 
     ``id`` is the master ``users.id``, not a fresh identifier — no foreign

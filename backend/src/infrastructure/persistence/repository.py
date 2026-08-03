@@ -19,9 +19,11 @@ subclasses (``master/repositories/base.py``, ``tenant/repositories/base.py``).
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from uuid import UUID
 
 from sqlalchemy import ColumnExpressionArgument, Row, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import DeclarativeBase
 
 from domain.core import Entity
 
@@ -39,7 +41,7 @@ class SqlRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def _insert(self, row: object) -> None:
+    async def _insert(self, row: DeclarativeBase) -> None:
         self._session.add(row)
         # The models declare no relationship(), so the session has no mapper
         # dependency to order INSERTs by and would emit a row before the one
@@ -47,11 +49,11 @@ class SqlRepository:
         # committing stays with the UnitOfWork.
         await self._session.flush()
 
-    async def _row[ModelT](self, model: type[ModelT], key: object) -> ModelT | None:
+    async def _row[ModelT](self, model: type[ModelT], key: UUID | int) -> ModelT | None:
         """The persisted row itself, for the callers that must mutate it."""
         return await self._session.get(model, key)
 
-    async def _require_row[ModelT](self, model: type[ModelT], key: object) -> ModelT:
+    async def _require_row[ModelT](self, model: type[ModelT], key: UUID | int) -> ModelT:
         """As ``_row``, for an update: absent is a programming error.
 
         Every ``update`` here loads the row to copy fields onto, so every
@@ -118,12 +120,24 @@ class SqlRepository:
         return items, total or 0
 
 
-# The bound is the unsubscripted ``Entity``, not ``Entity[KeyT]``: a bound
-# may not reference another type parameter ("TypeVar constraint type cannot
-# be generic"). Binding to the base class is enough to give ``update`` an
-# ``id`` to look the row up by; ``KeyT`` still pins what that id is at
-# each subclass.
-class CrudRepository[EntityT: Entity, KeyT, ModelT](SqlRepository, ABC):
+# The bound on EntityT is the unsubscripted ``Entity``, not ``Entity[KeyT]``:
+# a bound may not reference another type parameter ("TypeVar constraint
+# type cannot be generic"). Binding to the base class is enough to give
+# ``update`` an ``id`` to look the row up by; ``KeyT`` still pins what that
+# id is at each subclass.
+#
+# The bound on KeyT is ``UUID`` — every aggregate here is UUID-keyed — so
+# that ``get``'s call to ``_row`` type-checks: ``_row``/``_require_row``
+# accept ``UUID | int`` (the wider type covers the one non-CRUD, int-keyed
+# singleton, ``tenant_settings``, which never goes through this class).
+#
+# The bound on ModelT is ``DeclarativeBase`` — every SQLAlchemy model,
+# nothing narrower — so ``add``'s call to ``_insert`` type-checks: without
+# it, ``ModelT`` would be provably nothing at all, and ``_insert`` could not
+# demand more than ``object``. The master/tenant subclasses only ever
+# narrow this further (``MasterCrudRepository`` to ``MasterBase``,
+# ``TenantCrudRepository`` to ``TenantActivatableRow``), never relax it.
+class CrudRepository[EntityT: Entity, KeyT: UUID, ModelT: DeclarativeBase](SqlRepository, ABC):
     """The CRUD template for an aggregate whose persisted state is one row.
 
     ``ModelT`` is a single model on purpose, and that is exactly the limit

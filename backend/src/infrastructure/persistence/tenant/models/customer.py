@@ -1,10 +1,10 @@
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import ActivatableRow, TenantBase
+from .base import TenantActivatableRow
 
 
-class CustomerModel(TenantBase, ActivatableRow):
+class CustomerModel(TenantActivatableRow):
     """Who this store sells to (PRD §4.2).
 
     ``full_name`` is indexed but *not* unique: two people share a name, and

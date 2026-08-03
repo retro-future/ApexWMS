@@ -10,7 +10,7 @@ from .base import TenantBase
 class DeviceUnitModel(TenantBase):
     """One physical handset (PRD §4.2).
 
-    Not an ``ActivatableRow``: a phone does not get deactivated, it gets
+    Not a ``TenantActivatableRow``: a phone does not get deactivated, it gets
     ``SOLD`` or ``WRITTEN_OFF``, and ``status`` says so with more
     precision than a boolean could. ``created_at`` is here anyway because
     the ageing report (FR-9.4) orders by how long a unit has sat.

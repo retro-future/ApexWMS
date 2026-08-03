@@ -8,8 +8,8 @@ it — a ``NewType`` is an identity function at runtime — which is why a red
 type check is a broken build.
 
 - ``TenantCrudRepository`` — for an aggregate whose whole persisted state
-  is one ``ActivatableRow``: the identity records and the M2 catalog, all
-  browsable through the same paging shape.
+  is one ``TenantActivatableRow``: the identity records and the M2 catalog,
+  all browsable through the same paging shape.
 - ``TenantRepository`` — for everything else: the two ledgers, the two
   price logs, ``device_units``, the settings row, and the documents M4
   brings. It carries no hooks and no ``get``/``add``/``update``, so a
@@ -26,13 +26,14 @@ what handlers actually depend on — not in a base class.
 """
 
 from abc import ABC
+from uuid import UUID
 
 from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import InstrumentedAttribute
 
 from domain.core import Entity
 from infrastructure.persistence.repository import CrudRepository, SqlRepository
-from infrastructure.persistence.tenant.models.base import ActivatableRow
+from infrastructure.persistence.tenant.models.base import TenantActivatableRow
 from infrastructure.types import TenantSession
 
 
@@ -43,7 +44,7 @@ class TenantRepository(SqlRepository):
         super().__init__(session)
 
 
-class TenantCrudRepository[EntityT: Entity, KeyT, ModelT: ActivatableRow](
+class TenantCrudRepository[EntityT: Entity, KeyT: UUID, ModelT: TenantActivatableRow](
     CrudRepository[EntityT, KeyT, ModelT], ABC
 ):
     """A one-row tenant record that also carries ``is_active``/``created_at``,
@@ -65,7 +66,8 @@ class TenantCrudRepository[EntityT: Entity, KeyT, ModelT: ActivatableRow](
 
         A case-insensitive substring match over *search_columns*, an
         optional active/inactive filter, oldest first — the ordering and
-        filter columns come from the ``ActivatableRow`` bound on ``ModelT``.
+        filter columns come from the ``TenantActivatableRow`` bound on
+        ``ModelT``.
 
         The tie-break on ``id`` is what makes the order *total*: rows
         created inside the same clock tick (a seeding run, a coarse
