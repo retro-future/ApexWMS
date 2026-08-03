@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +17,5 @@ class CustomerModel(TenantBase, ActivatableRow):
 
     __tablename__ = "customers"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     full_name: Mapped[str] = mapped_column(String(200), index=True)
     phone: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)

@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,7 +19,6 @@ class ProductModel(TenantBase, ActivatableRow):
 
     __tablename__ = "products"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     sku: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)

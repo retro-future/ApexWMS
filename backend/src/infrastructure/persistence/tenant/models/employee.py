@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,7 +14,6 @@ class EmployeeModel(TenantBase, ActivatableRow):
 
     __tablename__ = "employees"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     # Copied from the master user so staff lists and, from M3, ledger joins
     # never need a cross-database read.
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)

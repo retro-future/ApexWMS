@@ -64,8 +64,14 @@ class TenantCrudRepository[EntityT: Entity, KeyT, ModelT: ActivatableRow](
         """The browse shape every catalog list endpoint shares (FR-2.x).
 
         A case-insensitive substring match over *search_columns*, an
-        optional active/inactive filter, oldest first — the latter two
-        columns come from the ``ActivatableRow`` bound on ``ModelT``.
+        optional active/inactive filter, oldest first — the ordering and
+        filter columns come from the ``ActivatableRow`` bound on ``ModelT``.
+
+        The tie-break on ``id`` is what makes the order *total*: rows
+        created inside the same clock tick (a seeding run, a coarse
+        platform clock) would otherwise sort arbitrarily, and two
+        arbitrary sorts of the same table can show one row on both pages
+        and another on neither.
 
         Aggregate-specific filters go on *stmt* before the call — that
         keeps "which columns does search cover" declarative here while
@@ -78,5 +84,8 @@ class TenantCrudRepository[EntityT: Entity, KeyT, ModelT: ActivatableRow](
         if is_active is not None:
             stmt = stmt.where(self.model.is_active.is_(is_active))
         return await self._page(
-            stmt.order_by(self.model.created_at), page, page_size, self._to_entity
+            stmt.order_by(self.model.created_at, self.model.id),
+            page,
+            page_size,
+            self._to_entity,
         )

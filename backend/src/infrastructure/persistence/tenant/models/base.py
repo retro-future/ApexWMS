@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime
@@ -9,12 +10,13 @@ class TenantBase(DeclarativeBase):
 
 
 class ActivatableRow:
-    """The two columns every tenant-side record carries.
+    """The three columns every browsable tenant-side record carries.
 
     ``is_active`` because nothing in this system hard-deletes (FR-2.4) —
     a record leaves circulation by being deactivated, so its history keeps
     resolving. ``created_at`` because "oldest first" is the default order
-    every list endpoint pages by.
+    every list endpoint pages by, and ``id`` because that order needs a
+    unique tie-break to page stably.
 
     Declared once here rather than per model so ``TenantCrudRepository``
     can *require* them: it is the upper bound on the repository's model
@@ -22,5 +24,6 @@ class ActivatableRow:
     without each subclass re-supplying its own columns.
     """
 
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
