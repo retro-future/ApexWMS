@@ -93,9 +93,7 @@ class SqlDeviceUnitRepository(TenantRepository):
         await self._insert(self._to_model(entity))
 
     async def update(self, entity: DeviceUnit) -> None:
-        row = await self._row(DeviceUnitModel, entity.id)
-        if row is None:
-            raise LookupError(f"DeviceUnitModel {entity.id} not persisted")
+        row = await self._require_row(DeviceUnitModel, entity.id)
         # The IMEI, the product, the cost and the acquisition provenance are
         # absent on purpose: none of them can change about a handset that has
         # already been received. A wrong one is corrected by cancelling the

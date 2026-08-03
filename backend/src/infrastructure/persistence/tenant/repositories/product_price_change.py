@@ -57,33 +57,39 @@ class SqlProductPriceChangeRepository(TenantRepository):
         await self._insert(self._to_model(entity))
 
     async def list_for_product(self, product_id: UUID) -> list[ProductPriceChange]:
-        return await self._many_rows(self._priced(product_id), self._to_entity)
+        return await self._many_rows(
+            self._priced(product_id).order_by(
+                ProductPriceChangeModel.occurred_at, ProductPriceChangeModel.id
+            ),
+            self._to_entity,
+        )
 
     async def latest_for_product(self, product_id: UUID) -> ProductPriceChange | None:
-        # ``order_by(None)`` first: SQLAlchemy *appends* to an existing
-        # ORDER BY, so without the reset the ascending clauses `_priced`
-        # already carries would win and LIMIT 1 would return the oldest.
-        stmt = (
+        return await self._one_row(
             self._priced(product_id)
-            .order_by(None)
             .order_by(
                 ProductPriceChangeModel.occurred_at.desc(),
                 ProductPriceChangeModel.id.desc(),
             )
-            .limit(1)
+            .limit(1),
+            self._to_entity,
         )
-        return await self._one_row(stmt, self._to_entity)
 
     def _priced(self, product_id: UUID) -> Select[tuple[ProductPriceChangeModel, str]]:
-        """History rows for *product_id*, oldest first, each with its currency.
+        """History rows for *product_id*, each with its currency — unordered.
 
-        The tie-break on ``id`` is not cosmetic: two changes made inside the
-        same clock tick would otherwise order arbitrarily, and "which was
-        the latest price" is exactly the question the projection asks.
+        Ordering is left to the caller because SQLAlchemy *appends* to an
+        existing ``ORDER BY``: a helper that sorted ascending here would
+        silently outrank the descending sort ``latest_for_product`` needs,
+        and hand it the oldest row.
+
+        Both callers tie-break on ``id``, which is not cosmetic: two
+        changes made inside the same clock tick would otherwise order
+        arbitrarily, and "which was the latest price" is exactly the
+        question the projection asks.
         """
         return (
             select(ProductPriceChangeModel, ProductModel.currency)
             .join(ProductModel, ProductModel.id == ProductPriceChangeModel.product_id)
             .where(ProductPriceChangeModel.product_id == product_id)
-            .order_by(ProductPriceChangeModel.occurred_at, ProductPriceChangeModel.id)
         )

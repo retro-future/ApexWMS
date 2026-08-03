@@ -51,6 +51,19 @@ class SqlRepository:
         """The persisted row itself, for the callers that must mutate it."""
         return await self._session.get(model, key)
 
+    async def _require_row[ModelT](self, model: type[ModelT], key: object) -> ModelT:
+        """As ``_row``, for an update: absent is a programming error.
+
+        Every ``update`` here loads the row to copy fields onto, so every
+        one of them needs the same "and if it is not there?" answer. Asked
+        once, the answer cannot drift into three wordings of the same
+        failure.
+        """
+        row = await self._row(model, key)
+        if row is None:
+            raise LookupError(f"{model.__name__} {key} not persisted")
+        return row
+
     async def _one[ModelT, EntityT](
         self, stmt: Select[tuple[ModelT]], hydrate: Callable[[ModelT], EntityT]
     ) -> EntityT | None:
@@ -107,8 +120,9 @@ class SqlRepository:
 
 # The bound is the unsubscripted ``Entity``, not ``Entity[KeyT]``: a bound
 # may not reference another type parameter ("TypeVar constraint type cannot
-# be generic"). Binding to the base class is enough to give ``_key`` an
-# ``id`` to return; ``KeyT`` still pins what that id is at each subclass.
+# be generic"). Binding to the base class is enough to give ``update`` an
+# ``id`` to look the row up by; ``KeyT`` still pins what that id is at
+# each subclass.
 class CrudRepository[EntityT: Entity, KeyT, ModelT](SqlRepository, ABC):
     """The CRUD template for an aggregate whose persisted state is one row.
 
@@ -119,10 +133,6 @@ class CrudRepository[EntityT: Entity, KeyT, ModelT](SqlRepository, ABC):
     """
 
     model: type[ModelT]
-
-    def _key(self, entity: EntityT) -> KeyT:
-        """The identity the aggregate declares in domain (``Entity[TKey].id``)."""
-        return entity.id
 
     @abstractmethod
     def _to_entity(self, row: ModelT) -> EntityT: ...
@@ -142,10 +152,7 @@ class CrudRepository[EntityT: Entity, KeyT, ModelT](SqlRepository, ABC):
         await self._insert(self._to_model(entity))
 
     async def update(self, entity: EntityT) -> None:
-        key = self._key(entity)
-        row = await self._row(self.model, key)
-        if row is None:
-            raise LookupError(f"{self.model.__name__} {key} not persisted")
+        row = await self._require_row(self.model, entity.id)
         self._apply(row, entity)
 
     async def _find_one(self, *criteria: ColumnExpressionArgument[bool]) -> EntityT | None:

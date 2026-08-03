@@ -133,6 +133,8 @@ class SqlStockMovementRepository(TenantRepository):
             .group_by(StockMovementModel.device_unit_id)
             .having(func.sum(StockMovementModel.quantity_delta) > 0)
         )
+        # The WHERE already excludes NULLs; the filter is what narrows the
+        # column's ``UUID | None`` to ``UUID`` for the type checker.
         return [unit_id for unit_id in rows if unit_id is not None]
 
     async def list_moved_pairs(self) -> list[tuple[UUID, UUID]]:

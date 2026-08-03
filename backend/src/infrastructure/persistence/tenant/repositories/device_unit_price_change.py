@@ -59,23 +59,24 @@ class SqlDeviceUnitPriceChangeRepository(TenantRepository):
 
     async def list_for_unit(self, device_unit_id: UUID) -> list[DeviceUnitPriceChange]:
         """One handset's whole pricing timeline, oldest first (FR-9.2)."""
-        return await self._many_rows(self._priced(device_unit_id), self._to_entity)
+        return await self._many_rows(
+            self._priced(device_unit_id).order_by(
+                DeviceUnitPriceChangeModel.occurred_at, DeviceUnitPriceChangeModel.id
+            ),
+            self._to_entity,
+        )
 
     async def latest_for_unit(self, device_unit_id: UUID) -> DeviceUnitPriceChange | None:
         """The row ``DeviceUnit.asking_price`` is the projection of."""
-        # ``order_by(None)`` first: SQLAlchemy *appends* to an existing
-        # ORDER BY, so without the reset the ascending clauses `_priced`
-        # already carries would win and LIMIT 1 would return the oldest.
-        stmt = (
+        return await self._one_row(
             self._priced(device_unit_id)
-            .order_by(None)
             .order_by(
                 DeviceUnitPriceChangeModel.occurred_at.desc(),
                 DeviceUnitPriceChangeModel.id.desc(),
             )
-            .limit(1)
+            .limit(1),
+            self._to_entity,
         )
-        return await self._one_row(stmt, self._to_entity)
 
     async def count_for_unit(self, device_unit_id: UUID) -> int:
         """How many times this handset has been marked down (FR-9.4).
@@ -92,11 +93,17 @@ class SqlDeviceUnitPriceChangeRepository(TenantRepository):
         return count or 0
 
     def _priced(self, device_unit_id: UUID) -> Select[tuple[DeviceUnitPriceChangeModel, str]]:
-        """Rows for one unit, oldest first, each with its currency.
+        """Rows for one unit, each with its currency — unordered.
 
-        The tie-break on ``id`` is not cosmetic: two markdowns inside the
-        same clock tick would otherwise order arbitrarily, and "which was
-        the latest price" is exactly the question the projection asks.
+        Ordering is left to the caller because SQLAlchemy *appends* to an
+        existing ``ORDER BY``: a helper that sorted ascending here would
+        silently outrank the descending sort ``latest_for_unit`` needs, and
+        hand it the oldest row.
+
+        Both callers tie-break on ``id``, which is not cosmetic: two
+        markdowns inside the same clock tick would otherwise order
+        arbitrarily, and "which was the latest price" is exactly the
+        question the projection asks.
         """
         return (
             select(DeviceUnitPriceChangeModel, ProductModel.currency)
@@ -106,7 +113,4 @@ class SqlDeviceUnitPriceChangeRepository(TenantRepository):
             )
             .join(ProductModel, ProductModel.id == DeviceUnitModel.product_id)
             .where(DeviceUnitPriceChangeModel.device_unit_id == device_unit_id)
-            .order_by(
-                DeviceUnitPriceChangeModel.occurred_at, DeviceUnitPriceChangeModel.id
-            )
         )

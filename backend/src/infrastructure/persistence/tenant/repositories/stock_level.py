@@ -40,15 +40,13 @@ class SqlStockLevelRepository(TenantRepository):
 
     async def get(self, key: UUID) -> StockLevel | None:
         row = await self._row(StockLevelModel, key)
-        return None if row is None else self._to_entity(row)
+        return self._to_entity(row) if row is not None else None
 
     async def add(self, entity: StockLevel) -> None:
         await self._insert(self._to_model(entity))
 
     async def update(self, entity: StockLevel) -> None:
-        row = await self._row(StockLevelModel, entity.id)
-        if row is None:
-            raise LookupError(f"StockLevelModel {entity.id} not persisted")
+        row = await self._require_row(StockLevelModel, entity.id)
         # Only the quantity moves: the pair is the row's identity, and
         # changing it would silently transfer stock between locations
         # without a movement to say so.
