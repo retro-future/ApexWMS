@@ -11,11 +11,11 @@ access-token lifetime after it is made.
 """
 
 import hmac
-from uuid import UUID
 
-from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import RequestedTenant
 from application.errors import InvalidTokenError
+from application.models import AuthTokensData
 from application.ports import (
     Clock,
     MasterUnitOfWork,
@@ -25,12 +25,6 @@ from application.ports import (
 )
 from application.services.claims import ClaimsFactory
 from application.services.token_issuer import TokenIssuer
-
-
-class AuthTokensData(CamelModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
 
 
 class RefreshTokensCommand(Command[ResultWithData[AuthTokensData]]):
@@ -63,7 +57,10 @@ class RefreshTokensHandler(
     async def handle(
         self, request: RefreshTokensCommand
     ) -> ResultWithData[AuthTokensData]:
-        jti, secret = _parse(request.refresh_token)
+        parsed = self._tokens.parse_opaque(request.refresh_token)
+        if parsed is None:
+            raise InvalidTokenError()
+        jti, secret = parsed
         record = await self._refresh_tokens.get(jti)
         if record is None or not hmac.compare_digest(
             record.token_hash, self._tokens.hash_opaque(secret)
@@ -89,15 +86,5 @@ class RefreshTokensHandler(
         await self._refresh_tokens.update(record)
         await self._uow.commit()
         return ResultWithData[AuthTokensData].succeed_with_data(
-            AuthTokensData(access_token=pair.access_token, refresh_token=pair.refresh_token)
+            AuthTokensData.from_entity(pair)
         )
-
-
-def _parse(refresh_token: str) -> tuple[UUID, str]:
-    jti_part, sep, secret = refresh_token.partition(".")
-    if not sep or not secret:
-        raise InvalidTokenError()
-    try:
-        return UUID(jti_part), secret
-    except ValueError:
-        raise InvalidTokenError() from None

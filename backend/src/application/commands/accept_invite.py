@@ -20,12 +20,13 @@ loudly rather than silently creating a second person.
 
 import hmac
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import Field
 
-from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import AlreadyMemberError, InvitationError
+from application.models import AcceptInviteData
 from application.ports import (
     Clock,
     InvitationRepository,
@@ -45,11 +46,6 @@ from domain.entities import (
     UserAppRole,
     UserTenantAccess,
 )
-
-
-class AcceptInviteData(CamelModel):
-    user_id: UUID
-    tenant_id: UUID | None
 
 
 class AcceptInviteCommand(Command[ResultWithData[AcceptInviteData]]):
@@ -114,7 +110,7 @@ class AcceptInviteHandler(
         await self._invitations.update(invitation)
         await self._uow.commit()
         return ResultWithData[AcceptInviteData].succeed_with_data(
-            AcceptInviteData(user_id=user.id, tenant_id=invitation.tenant_id)
+            AcceptInviteData.from_entity(user, invitation)
         )
 
     async def _grant_app_role(self, invitation: Invitation, user: User) -> None:
@@ -164,7 +160,10 @@ class AcceptInviteHandler(
             await workspace.uow.commit()
 
     async def _validate(self, token: str) -> Invitation:
-        invitation_id, secret = _parse(token)
+        parsed = self._tokens.parse_opaque(token)
+        if parsed is None:
+            raise InvitationError("malformed invitation token")
+        invitation_id, secret = parsed
         invitation = await self._invitations.get(invitation_id)
         if invitation is None or not hmac.compare_digest(
             invitation.token_hash, self._tokens.hash_opaque(secret)
@@ -175,13 +174,3 @@ class AcceptInviteHandler(
         if invitation.is_expired(self._clock.now()):
             raise InvitationError("invitation expired")
         return invitation
-
-
-def _parse(token: str) -> tuple[UUID, str]:
-    id_part, sep, secret = token.partition(".")
-    if not sep or not secret:
-        raise InvitationError("malformed invitation token")
-    try:
-        return UUID(id_part), secret
-    except ValueError:
-        raise InvitationError("malformed invitation token") from None

@@ -89,3 +89,12 @@ class JwtTokenService:
 
     def hash_opaque(self, secret: str) -> str:
         return hashlib.sha256(secret.encode()).hexdigest()
+
+    def parse_opaque(self, token: str) -> tuple[UUID, str] | None:
+        id_part, sep, secret = token.partition(".")
+        if not sep or not secret:
+            return None
+        try:
+            return UUID(id_part), secret
+        except ValueError:
+            return None

@@ -9,29 +9,15 @@ the user actually has access to — it lets someone with accounts at several
 stores land directly in one, and is ignored when absent.
 """
 
-from uuid import UUID
-
 from pydantic import EmailStr
 
-from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import RequestedTenant
 from application.errors import InvalidCredentialsError
+from application.models import LoginData
 from application.ports import MasterUnitOfWork, PasswordHasher, UserRepository
 from application.services.claims import ClaimsFactory
 from application.services.token_issuer import TokenIssuer
-from domain.enums import AppRole, TenantRole
-
-
-class LoginData(CamelModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    # None for a platform operator, whose token carries no tenant claim.
-    tenant_id: UUID | None = None
-    role: TenantRole | None = None
-    app_roles: list[AppRole] = []
-    # True for someone still on a provisioned temporary password.
-    must_change_password: bool = False
 
 
 class LoginCommand(Command[ResultWithData[LoginData]]):
@@ -74,12 +60,5 @@ class LoginHandler(IRequestHandler[ResultWithData[LoginData], LoginCommand]):
         tokens, _ = await self._issuer.issue(user.id, claims)
         await self._uow.commit()
         return ResultWithData[LoginData].succeed_with_data(
-            LoginData(
-                access_token=tokens.access_token,
-                refresh_token=tokens.refresh_token,
-                must_change_password=user.must_change_password,
-                tenant_id=claims.tenant_id,
-                role=claims.tenant_role,
-                app_roles=list(claims.app_roles),
-            )
+            LoginData.from_entity(tokens, user, claims)
         )

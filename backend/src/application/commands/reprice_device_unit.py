@@ -15,13 +15,9 @@ from pydantic import Field
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
-from application.ports import (
-    DeviceUnitRepository,
-    ProductRepository,
-    TenantUnitOfWork,
-)
-from application.queries.get_device_unit import DeviceUnitData, load_unit_with_product
-from application.services import DeviceUnitRepricer, SalePriceParser
+from application.models import DeviceUnitData
+from application.ports import DeviceUnitRepository, TenantUnitOfWork
+from application.services import DeviceUnitLoader, DeviceUnitRepricer, SalePriceParser
 from domain.permissions import Permission
 
 
@@ -41,14 +37,14 @@ class RepriceDeviceUnitHandler(
     def __init__(
         self,
         units: DeviceUnitRepository,
-        products: ProductRepository,
+        loader: DeviceUnitLoader,
         repricer: DeviceUnitRepricer,
         sale_price: SalePriceParser,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._units = units
-        self._products = products
+        self._loader = loader
         self._repricer = repricer
         self._sale_price = sale_price
         self._uow = uow
@@ -58,9 +54,7 @@ class RepriceDeviceUnitHandler(
         self, request: RepriceDeviceUnitCommand
     ) -> ResultWithData[DeviceUnitData]:
         assert request.device_unit_id is not None
-        unit, product = await load_unit_with_product(
-            self._units, self._products, request.device_unit_id
-        )
+        unit, product = await self._loader.load(request.device_unit_id)
 
         # The currency is the product's, never the caller's: a unit cannot
         # be denominated differently from its catalog row (§4.5 rule 3).
@@ -72,7 +66,7 @@ class RepriceDeviceUnitHandler(
         await self._uow.commit()
 
         return ResultWithData[DeviceUnitData].succeed_with_data(
-            DeviceUnitData.from_unit(
+            DeviceUnitData.from_entity(
                 unit, product, show_cost=Permission.COST_VIEW in self._current.permissions
             )
         )

@@ -9,10 +9,11 @@ Invoked by the CLI only: there is no HTTP surface that creates one, and
 having the MasterDB URL is the credential that authorizes it.
 """
 
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import AlreadyMemberError
+from application.models import CreateSuperAdminData
 from application.ports import (
     Clock,
     MasterUnitOfWork,
@@ -23,14 +24,6 @@ from application.ports import (
 )
 from domain.entities import User, UserAppRole
 from domain.enums import AppRole
-
-
-class CreateSuperAdminData(CamelModel):
-    """The temporary password exists only here."""
-
-    user_id: UUID
-    email: str
-    temporary_password: str
 
 
 class CreateSuperAdminCommand(Command[ResultWithData[CreateSuperAdminData]]):
@@ -83,7 +76,5 @@ class CreateSuperAdminHandler(
         )
         await self._uow.commit()
         return ResultWithData[CreateSuperAdminData].succeed_with_data(
-            CreateSuperAdminData(
-                user_id=user.id, email=email, temporary_password=temporary_password
-            )
+            CreateSuperAdminData.from_entity(user, temporary_password)
         )

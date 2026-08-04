@@ -1,8 +1,8 @@
 """Owner updates tenant settings (timezone for now — FR-10.8 depends on it)."""
 
 from application.core import Command, IRequestHandler, ResultWithData
+from application.models import TenantSettingsData
 from application.ports import TenantSettingsRepository, TenantUnitOfWork
-from application.queries.get_tenant_settings import TenantSettingsData
 from application.services import TimezoneValidator
 
 
@@ -30,5 +30,5 @@ class UpdateTenantSettingsHandler(
         await self._settings.set_timezone(request.timezone)
         await self._uow.commit()
         return ResultWithData[TenantSettingsData].succeed_with_data(
-            TenantSettingsData(timezone=request.timezone)
+            TenantSettingsData.from_entity(request.timezone)
         )

@@ -54,6 +54,7 @@ from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.services import (
     ClaimsFactory,
+    DeviceUnitLoader,
     DeviceUnitRepricer,
     LedgerPoster,
     ProductRepricer,
@@ -271,6 +272,9 @@ class World:
             CurrentUser(user_id=actor or uuid4(), permissions=frozenset()),
         )
 
+    def device_unit_loader(self) -> DeviceUnitLoader:
+        return DeviceUnitLoader(self.units, self.products)
+
     def _as(self, actor: UUID | None, *permissions: Permission) -> CurrentUser:
         """The acting identity a unit handler shapes its response for
         (FR-1.7) — pass ``Permission.COST_VIEW`` to see cost."""
@@ -279,7 +283,7 @@ class World:
     def get_device_unit(
         self, actor: UUID | None = None, *permissions: Permission
     ) -> GetDeviceUnitHandler:
-        return GetDeviceUnitHandler(self.units, self.products, self._as(actor, *permissions))
+        return GetDeviceUnitHandler(self.device_unit_loader(), self._as(actor, *permissions))
 
     def get_device_unit_price_history(self) -> GetDeviceUnitPriceHistoryHandler:
         return GetDeviceUnitPriceHistoryHandler(self.units, self.unit_price_changes)
@@ -289,7 +293,7 @@ class World:
     ) -> RepriceDeviceUnitHandler:
         return RepriceDeviceUnitHandler(
             self.units,
-            self.products,
+            self.device_unit_loader(),
             self.unit_repricer(actor),
             SalePriceParser(),
             self.uow,
@@ -309,7 +313,7 @@ class World:
         self, actor: UUID | None = None, *permissions: Permission
     ) -> ChangeDeviceUnitConditionHandler:
         return ChangeDeviceUnitConditionHandler(
-            self.units, self.products, self.uow, self._as(actor, *permissions)
+            self.units, self.device_unit_loader(), self.uow, self._as(actor, *permissions)
         )
 
     def poster(self, actor: UUID | None = None) -> LedgerPoster:

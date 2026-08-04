@@ -10,8 +10,8 @@ from pydantic import Field
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import NotFoundError
+from application.models import CustomerData
 from application.ports import CustomerRepository, TenantUnitOfWork
-from application.queries.get_customer import CustomerData
 
 
 class UpdateCustomerCommand(Command[ResultWithData[CustomerData]]):
@@ -44,5 +44,5 @@ class UpdateCustomerHandler(
         await self._customers.update(customer)
         await self._uow.commit()
         return ResultWithData[CustomerData].succeed_with_data(
-            CustomerData.from_customer(customer)
+            CustomerData.from_entity(customer)
         )

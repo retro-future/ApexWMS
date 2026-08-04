@@ -23,8 +23,8 @@ from pydantic import Field
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, NotFoundError
+from application.models import ProductData
 from application.ports import ProductRepository, TenantUnitOfWork
-from application.queries.get_product import ProductData
 from application.services import ProductRepricer, SalePriceParser
 from domain.entities import Product
 from domain.value_objects import Barcode
@@ -92,7 +92,7 @@ class UpdateProductHandler(
 
         await self._products.update(product)
         await self._uow.commit()
-        return ResultWithData[ProductData].succeed_with_data(ProductData.from_product(product))
+        return ResultWithData[ProductData].succeed_with_data(ProductData.from_entity(product))
 
     async def _resolved_barcode(self, raw: str | None, product: Product) -> Barcode | None:
         if raw is None:

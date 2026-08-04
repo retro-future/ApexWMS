@@ -1,12 +1,16 @@
 """Application-internal DTOs — frozen dataclasses that never cross an HTTP
 boundary: DI-context values (``CurrentUser``, ``RequestedTenant``) and
 carriers passed between collaborator services (``ClaimsFactory``,
-``TokenIssuer``). CQRS messages — commands, queries, and their result
-payloads — are Pydantic models instead, defined alongside their handler in
-``application/commands/``/``application/queries/`` (see ``application/core/``
-for the shared base classes). The split is by role, not by layer: does this
-object cross a message boundary that needs structural validation and JSON
-shape, or does it just carry context through the DI graph?
+``TokenIssuer``). CQRS messages are Pydantic models instead (see
+``application/core/`` for the shared base classes): a ``Command``/``Query``
+request shape is defined alongside its handler in
+``application/commands/``/``application/queries/``, while its *response*
+payload (a ``Result``/``PagedResult``'s ``TData``) lives in
+``application/models/`` — see that package's docstring and
+``.claude/rules/backend/cqrs-response-models.md``. The split from this
+package is by role, not by layer: does this object cross a message boundary
+that needs structural validation and JSON shape, or does it just carry
+context through the DI graph?
 """
 
 from application.dtos.auth_tokens import AuthTokens

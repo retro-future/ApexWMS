@@ -6,14 +6,11 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends
 
 from application.commands.change_user_role import ChangeUserRoleCommand, ChangeUserRoleHandler
-from application.commands.invite_user import (
-    InviteEmployeeCommand,
-    InviteResultData,
-    InviteUserHandler,
-)
+from application.commands.invite_user import InviteEmployeeCommand, InviteUserHandler
 from application.core import ResultWithData
 from application.dtos import CurrentUser
-from application.queries.list_users import EmployeeListItem, ListUsersHandler, ListUsersQuery
+from application.models import EmployeeListItem, InviteResultData
+from application.queries.list_users import ListUsersHandler, ListUsersQuery
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 

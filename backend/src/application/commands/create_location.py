@@ -9,8 +9,8 @@ from uuid import uuid4
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError
+from application.models import LocationData
 from application.ports import Clock, LocationRepository, TenantUnitOfWork
-from application.queries.get_location import LocationData
 from domain.entities import Location
 
 
@@ -39,5 +39,5 @@ class CreateLocationHandler(
         await self._locations.add(location)
         await self._uow.commit()
         return ResultWithData[LocationData].succeed_with_data(
-            LocationData.from_location(location)
+            LocationData.from_entity(location)
         )

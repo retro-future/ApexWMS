@@ -10,8 +10,8 @@ from pydantic import EmailStr
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError
+from application.models import SupplierData
 from application.ports import Clock, SupplierRepository, TenantUnitOfWork
-from application.queries.get_supplier import SupplierData
 from domain.entities import Supplier
 
 
@@ -49,5 +49,5 @@ class CreateSupplierHandler(
         await self._suppliers.add(supplier)
         await self._uow.commit()
         return ResultWithData[SupplierData].succeed_with_data(
-            SupplierData.from_supplier(supplier)
+            SupplierData.from_entity(supplier)
         )

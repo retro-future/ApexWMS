@@ -41,3 +41,12 @@ class TokenService(Protocol):
     def hash_opaque(self, secret: str) -> str:
         """Deterministic hash for storing/looking up opaque secrets."""
         ...
+
+    def parse_opaque(self, token: str) -> tuple[UUID, str] | None:
+        """Split an opaque ``"{id}.{secret}"`` token; ``None`` if malformed.
+
+        Callers decide which application error a malformed token means —
+        a bad refresh token and a bad invitation token are different
+        failures even though they share this wire format.
+        """
+        ...

@@ -1,8 +1,8 @@
 """Who this store buys from."""
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
+from application.models import SupplierData
 from application.ports import SupplierRepository
-from application.queries.get_supplier import SupplierData
 
 
 class ListSuppliersQuery(PagedQuery[PagedResult[SupplierData]]):
@@ -22,7 +22,7 @@ class ListSuppliersHandler(IRequestHandler[PagedResult[SupplierData], ListSuppli
             is_active=request.is_active,
         )
         return PagedResult[SupplierData].succeed_with_data(
-            data=[SupplierData.from_supplier(s) for s in suppliers],
+            data=[SupplierData.from_entity(s) for s in suppliers],
             page_index=request.page,
             page_size=request.page_size,
             items_count=total,

@@ -12,14 +12,14 @@ M1 decision: the invite token is returned in the response for the Owner
 to deliver; no email is sent.
 """
 
-from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import EmailStr
 
-from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import AlreadyMemberError
+from application.models import InviteResultData
 from application.ports import (
     Clock,
     EmployeeRepository,
@@ -30,12 +30,6 @@ from application.ports import (
 from application.types import InviteTtl, ResolvedTenantId
 from domain.entities import Invitation, InvitationKind
 from domain.enums import TenantRole
-
-
-class InviteResultData(CamelModel):
-    invitation_id: UUID
-    token: str
-    expires_at: datetime
 
 
 class InviteEmployeeCommand(Command[ResultWithData[InviteResultData]]):
@@ -89,9 +83,5 @@ class InviteUserHandler(
         await self._invitations.add(invitation)
         await self._uow.commit()
         return ResultWithData[InviteResultData].succeed_with_data(
-            InviteResultData(
-                invitation_id=invitation.id,
-                token=f"{invitation.id}.{secret}",
-                expires_at=invitation.expires_at,
-            )
+            InviteResultData.from_entity(invitation, secret)
         )

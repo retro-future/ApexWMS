@@ -9,11 +9,12 @@ foreign keys depend on from M3.
 CLI-only: there is no HTTP surface that creates a tenant (PRD §3.4).
 """
 
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import OwnerSeed
 from application.errors import AlreadyMemberError, SlugAlreadyTakenError
+from application.models import CreateTenantData
 from application.ports import (
     Clock,
     MasterUnitOfWork,
@@ -26,16 +27,6 @@ from application.ports import (
 from application.services import SlugNormalizer, TimezoneValidator
 from domain.entities import Tenant, User
 from domain.enums import TenantStatus
-
-
-class CreateTenantData(CamelModel):
-    """The temporary password exists only here — it is never stored in plaintext."""
-
-    tenant_id: UUID
-    slug: str
-    owner_email: str
-    owner_user_id: UUID
-    temporary_password: str
 
 
 class CreateTenantCommand(Command[ResultWithData[CreateTenantData]]):
@@ -118,11 +109,5 @@ class CreateTenantHandler(
         )
 
         return ResultWithData[CreateTenantData].succeed_with_data(
-            CreateTenantData(
-                tenant_id=tenant.id,
-                slug=slug,
-                owner_email=owner_email,
-                owner_user_id=owner.id,
-                temporary_password=temporary_password,
-            )
+            CreateTenantData.from_entity(tenant, owner, temporary_password)
         )

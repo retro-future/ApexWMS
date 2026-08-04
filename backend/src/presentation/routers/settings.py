@@ -9,10 +9,10 @@ from application.commands.update_tenant_settings import (
 )
 from application.core import ResultWithData
 from application.dtos import CurrentUser
+from application.models import TenantSettingsData
 from application.queries.get_tenant_settings import (
     GetTenantSettingsHandler,
     GetTenantSettingsQuery,
-    TenantSettingsData,
 )
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require

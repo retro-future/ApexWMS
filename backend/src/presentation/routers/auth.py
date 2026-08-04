@@ -12,23 +12,16 @@ here and only matters for someone who works at more than one store.
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends
 
-from application.commands.accept_invite import (
-    AcceptInviteCommand,
-    AcceptInviteData,
-    AcceptInviteHandler,
-)
+from application.commands.accept_invite import AcceptInviteCommand, AcceptInviteHandler
 from application.commands.change_password import (
     ChangePasswordCommand,
     ChangePasswordHandler,
 )
-from application.commands.login import LoginCommand, LoginData, LoginHandler
-from application.commands.refresh_tokens import (
-    AuthTokensData,
-    RefreshTokensCommand,
-    RefreshTokensHandler,
-)
+from application.commands.login import LoginCommand, LoginHandler
+from application.commands.refresh_tokens import RefreshTokensCommand, RefreshTokensHandler
 from application.core import ResultWithData
-from application.queries.get_me import GetMeHandler, GetMeQuery, MeData
+from application.models import AcceptInviteData, AuthTokensData, LoginData, MeData
+from application.queries.get_me import GetMeHandler, GetMeQuery
 from presentation.security import bearer_scheme
 
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=DishkaRoute)

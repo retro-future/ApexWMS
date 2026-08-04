@@ -2,8 +2,8 @@
 a seller has the phone number, not the id."""
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
+from application.models import CustomerData
 from application.ports import CustomerRepository
-from application.queries.get_customer import CustomerData
 
 
 class ListCustomersQuery(PagedQuery[PagedResult[CustomerData]]):
@@ -23,7 +23,7 @@ class ListCustomersHandler(IRequestHandler[PagedResult[CustomerData], ListCustom
             is_active=request.is_active,
         )
         return PagedResult[CustomerData].succeed_with_data(
-            data=[CustomerData.from_customer(c) for c in customers],
+            data=[CustomerData.from_entity(c) for c in customers],
             page_index=request.page,
             page_size=request.page_size,
             items_count=total,

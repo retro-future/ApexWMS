@@ -2,8 +2,8 @@
 "Main Store" (PRD §3.4) is always the first row."""
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
+from application.models import LocationData
 from application.ports import LocationRepository
-from application.queries.get_location import LocationData
 
 
 class ListLocationsQuery(PagedQuery[PagedResult[LocationData]]):
@@ -23,7 +23,7 @@ class ListLocationsHandler(IRequestHandler[PagedResult[LocationData], ListLocati
             is_active=request.is_active,
         )
         return PagedResult[LocationData].succeed_with_data(
-            data=[LocationData.from_location(loc) for loc in locations],
+            data=[LocationData.from_entity(loc) for loc in locations],
             page_index=request.page,
             page_size=request.page_size,
             items_count=total,

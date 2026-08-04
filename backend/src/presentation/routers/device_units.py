@@ -36,16 +36,12 @@ from application.commands.reprice_device_units import (
 )
 from application.core import ResultWithData
 from application.dtos import CurrentUser
-from application.queries.get_device_unit import (
-    DeviceUnitData,
-    GetDeviceUnitHandler,
-    GetDeviceUnitQuery,
-)
+from application.models import DeviceUnitData, PriceChangeData
+from application.queries.get_device_unit import GetDeviceUnitHandler, GetDeviceUnitQuery
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
     GetDeviceUnitPriceHistoryQuery,
 )
-from application.queries.price_history import PriceChangeData
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 

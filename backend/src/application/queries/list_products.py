@@ -6,8 +6,8 @@ catalog on every keystroke of a search box.
 """
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
+from application.models import ProductData
 from application.ports import ProductRepository
-from application.queries.get_product import ProductData
 from domain.enums import TrackingType
 
 
@@ -32,7 +32,7 @@ class ListProductsHandler(
             tracking_type=request.tracking_type,
         )
         return PagedResult[ProductData].succeed_with_data(
-            data=[ProductData.from_product(p) for p in products],
+            data=[ProductData.from_entity(p) for p in products],
             page_index=request.page,
             page_size=request.page_size,
             items_count=total,

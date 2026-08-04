@@ -11,11 +11,8 @@ from application.commands.create_location import CreateLocationCommand, CreateLo
 from application.commands.update_location import UpdateLocationCommand, UpdateLocationHandler
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
-from application.queries.get_location import (
-    GetLocationHandler,
-    GetLocationQuery,
-    LocationData,
-)
+from application.models import LocationData
+from application.queries.get_location import GetLocationHandler, GetLocationQuery
 from application.queries.list_locations import ListLocationsHandler, ListLocationsQuery
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require

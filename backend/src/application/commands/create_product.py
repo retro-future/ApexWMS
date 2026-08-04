@@ -21,8 +21,8 @@ from uuid import uuid4
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, DuplicateSkuError
+from application.models import ProductData
 from application.ports import Clock, ProductRepository, TenantUnitOfWork
-from application.queries.get_product import ProductData
 from application.services import ProductRepricer, SalePriceParser
 from domain.entities import Product
 from domain.enums import TrackingType
@@ -94,4 +94,4 @@ class CreateProductHandler(
             await self._products.update(product)
 
         await self._uow.commit()
-        return ResultWithData[ProductData].succeed_with_data(ProductData.from_product(product))
+        return ResultWithData[ProductData].succeed_with_data(ProductData.from_entity(product))

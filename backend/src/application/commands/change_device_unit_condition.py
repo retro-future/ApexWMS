@@ -18,8 +18,9 @@ from pydantic import Field
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
-from application.ports import DeviceUnitRepository, ProductRepository, TenantUnitOfWork
-from application.queries.get_device_unit import DeviceUnitData, load_unit_with_product
+from application.models import DeviceUnitData
+from application.ports import DeviceUnitRepository, TenantUnitOfWork
+from application.services import DeviceUnitLoader
 from domain.enums import DeviceCondition
 from domain.errors import UnitNotRepriceableError
 from domain.permissions import Permission
@@ -37,12 +38,12 @@ class ChangeDeviceUnitConditionHandler(
     def __init__(
         self,
         units: DeviceUnitRepository,
-        products: ProductRepository,
+        loader: DeviceUnitLoader,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._units = units
-        self._products = products
+        self._loader = loader
         self._uow = uow
         self._current = current
 
@@ -50,9 +51,7 @@ class ChangeDeviceUnitConditionHandler(
         self, request: ChangeDeviceUnitConditionCommand
     ) -> ResultWithData[DeviceUnitData]:
         assert request.device_unit_id is not None
-        unit, product = await load_unit_with_product(
-            self._units, self._products, request.device_unit_id
-        )
+        unit, product = await self._loader.load(request.device_unit_id)
 
         # Same constraint as repricing, for the same reason: condition
         # governs price, and re-grading a handset that has already been
@@ -67,7 +66,7 @@ class ChangeDeviceUnitConditionHandler(
         await self._uow.commit()
 
         return ResultWithData[DeviceUnitData].succeed_with_data(
-            DeviceUnitData.from_unit(
+            DeviceUnitData.from_entity(
                 unit, product, show_cost=Permission.COST_VIEW in self._current.permissions
             )
         )

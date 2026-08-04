@@ -9,6 +9,7 @@ and ``ProductRepricer`` by the product handlers;
 """
 
 from application.services.claims import ClaimsFactory
+from application.services.device_unit_loader import DeviceUnitLoader
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.ledger import LedgerPoster
 from application.services.product_repricer import ProductRepricer
@@ -24,6 +25,7 @@ from application.services.verification import (
 
 __all__ = [
     "ClaimsFactory",
+    "DeviceUnitLoader",
     "DeviceUnitRepricer",
     "Discrepancy",
     "LedgerPoster",

@@ -17,11 +17,8 @@ from application.commands.create_supplier import CreateSupplierCommand, CreateSu
 from application.commands.update_supplier import UpdateSupplierCommand, UpdateSupplierHandler
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
-from application.queries.get_supplier import (
-    GetSupplierHandler,
-    GetSupplierQuery,
-    SupplierData,
-)
+from application.models import SupplierData
+from application.queries.get_supplier import GetSupplierHandler, GetSupplierQuery
 from application.queries.list_suppliers import ListSuppliersHandler, ListSuppliersQuery
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require

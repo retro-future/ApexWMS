@@ -15,11 +15,8 @@ from application.commands.create_customer import CreateCustomerCommand, CreateCu
 from application.commands.update_customer import UpdateCustomerCommand, UpdateCustomerHandler
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
-from application.queries.get_customer import (
-    CustomerData,
-    GetCustomerHandler,
-    GetCustomerQuery,
-)
+from application.models import CustomerData
+from application.queries.get_customer import GetCustomerHandler, GetCustomerQuery
 from application.queries.list_customers import ListCustomersHandler, ListCustomersQuery
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require

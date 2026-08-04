@@ -18,13 +18,13 @@ from application.commands.create_product import CreateProductCommand, CreateProd
 from application.commands.update_product import UpdateProductCommand, UpdateProductHandler
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
-from application.queries.get_product import GetProductHandler, GetProductQuery, ProductData
+from application.models import PriceChangeData, ProductData
+from application.queries.get_product import GetProductHandler, GetProductQuery
 from application.queries.get_product_price_history import (
     GetProductPriceHistoryHandler,
     GetProductPriceHistoryQuery,
 )
 from application.queries.list_products import ListProductsHandler, ListProductsQuery
-from application.queries.price_history import PriceChangeData
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 

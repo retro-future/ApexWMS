@@ -12,6 +12,7 @@ from dishka import Provider, Scope, provide_all
 
 from application.services import (
     ClaimsFactory,
+    DeviceUnitLoader,
     DeviceUnitRepricer,
     LedgerPoster,
     ProductRepricer,
@@ -29,6 +30,7 @@ class ApplicationServicesProvider(Provider):
         ClaimsFactory,
         TokenIssuer,
         LedgerPoster,
+        DeviceUnitLoader,
         DeviceUnitRepricer,
         ProductRepricer,
         SalePriceParser,

@@ -7,8 +7,8 @@ from pydantic import EmailStr, Field
 
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError, NotFoundError
+from application.models import SupplierData
 from application.ports import SupplierRepository, TenantUnitOfWork
-from application.queries.get_supplier import SupplierData
 
 
 class UpdateSupplierCommand(Command[ResultWithData[SupplierData]]):
@@ -52,5 +52,5 @@ class UpdateSupplierHandler(
         await self._suppliers.update(supplier)
         await self._uow.commit()
         return ResultWithData[SupplierData].succeed_with_data(
-            SupplierData.from_supplier(supplier)
+            SupplierData.from_entity(supplier)
         )

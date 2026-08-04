@@ -12,8 +12,8 @@ from uuid import UUID
 
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
+from application.models import PriceChangeData
 from application.ports import DeviceUnitPriceChangeRepository, DeviceUnitRepository
-from application.queries.price_history import PriceChangeData
 
 
 class GetDeviceUnitPriceHistoryQuery(Query[ResultWithData[list[PriceChangeData]]]):
@@ -41,5 +41,5 @@ class GetDeviceUnitPriceHistoryHandler(
 
         changes = await self._changes.list_for_unit(request.device_unit_id)
         return ResultWithData[list[PriceChangeData]].succeed_with_data(
-            [PriceChangeData.from_change(change) for change in changes]
+            [PriceChangeData.from_entity(change) for change in changes]
         )

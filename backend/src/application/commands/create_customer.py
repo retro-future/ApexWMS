@@ -7,8 +7,8 @@ the second one at the till would be absurd.
 from uuid import uuid4
 
 from application.core import Command, IRequestHandler, ResultWithData
+from application.models import CustomerData
 from application.ports import Clock, CustomerRepository, TenantUnitOfWork
-from application.queries.get_customer import CustomerData
 from domain.entities import Customer
 
 
@@ -38,5 +38,5 @@ class CreateCustomerHandler(
         await self._customers.add(customer)
         await self._uow.commit()
         return ResultWithData[CustomerData].succeed_with_data(
-            CustomerData.from_customer(customer)
+            CustomerData.from_entity(customer)
         )

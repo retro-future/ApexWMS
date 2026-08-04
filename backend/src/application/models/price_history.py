@@ -10,6 +10,8 @@ Prices are exact major-unit ``Decimal``s — pydantic serializes those as
 JSON strings, so no float ever carries an amount (PRD §4.5).
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -32,7 +34,7 @@ class PriceChangeData(CamelModel):
     user_id: UUID
 
     @classmethod
-    def from_change(
+    def from_entity(
         cls, change: ProductPriceChange | DeviceUnitPriceChange
     ) -> PriceChangeData:
         old = change.old_price

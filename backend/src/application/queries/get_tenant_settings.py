@@ -1,11 +1,8 @@
 """Read tenant settings (TenantDB): the timezone, letterhead later (M7)."""
 
-from application.core import CamelModel, IRequestHandler, Query, ResultWithData
+from application.core import IRequestHandler, Query, ResultWithData
+from application.models import TenantSettingsData
 from application.ports import TenantSettingsRepository
-
-
-class TenantSettingsData(CamelModel):
-    timezone: str
 
 
 class GetTenantSettingsQuery(Query[ResultWithData[TenantSettingsData]]):
@@ -23,5 +20,5 @@ class GetTenantSettingsHandler(
     ) -> ResultWithData[TenantSettingsData]:
         timezone = await self._settings.get_timezone()
         return ResultWithData[TenantSettingsData].succeed_with_data(
-            TenantSettingsData(timezone=timezone)
+            TenantSettingsData.from_entity(timezone)
         )
