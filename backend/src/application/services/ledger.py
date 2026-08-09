@@ -41,7 +41,7 @@ from application.ports import (
 from domain.entities import FinancialTransaction, StockLevel, StockMovement
 from domain.enums import DocumentType
 from domain.errors import InvalidMovementError
-from domain.services import project_unit_state
+from domain.services import UnitProjector
 
 
 class LedgerPoster:
@@ -53,6 +53,7 @@ class LedgerPoster:
         units: DeviceUnitRepository,
         clock: Clock,
         current: CurrentUser,
+        projector: UnitProjector,
     ) -> None:
         self._movements = movements
         self._transactions = transactions
@@ -60,6 +61,7 @@ class LedgerPoster:
         self._units = units
         self._clock = clock
         self._current = current
+        self._projector = projector
 
     async def post(self, posting: Posting) -> None:
         """Record everything one confirmed document did.
@@ -205,7 +207,9 @@ class LedgerPoster:
         if unit is None:
             return
 
-        status, location_id = project_unit_state(await self._movements.list_for_unit(unit_id))
+        status, location_id = self._projector.project(
+            await self._movements.list_for_unit(unit_id)
+        )
         unit.status = status
         unit.location_id = location_id
         unit.__post_init__()

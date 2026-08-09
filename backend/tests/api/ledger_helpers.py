@@ -22,6 +22,7 @@ from domain.enums import (
     MovementType,
     TransactionType,
 )
+from domain.services import UnitProjector
 from domain.value_objects import IMEI, Currency, Money
 from infrastructure.clock import SystemClock
 from infrastructure.persistence.master.models import TenantDatabaseModel
@@ -104,6 +105,7 @@ async def receive_phone(client, settings, owner, *, cost="380", condition="used"
                 units,
                 SystemClock(),
                 CurrentUser(user_id=UUID(owner.user_id), permissions=frozenset()),
+                UnitProjector(),
             )
             await poster.post(
                 Posting(

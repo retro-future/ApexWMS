@@ -37,48 +37,60 @@ from domain.errors import PriceNotSetError
 from domain.value_objects import Money
 
 
-def resolve_sale_price(unit: DeviceUnit | None, product: Product) -> Money:
-    """The price *unit* sells at, or ``PriceNotSetError``.
+class PriceResolver:
+    """Resolves what a line costs the customer, per the rule above.
 
-    *unit* is ``None`` for a QUANTITY line: an accessory has no per-unit
-    identity to hang a price on (§4.1), so it has no step 1 and resolves
-    to the catalog price or is refused one step earlier. A QUANTITY
-    product with no catalog price is therefore not sellable at all —
-    there is nowhere else a price could come from.
+    Stateless: both methods are pure functions of *unit* and *product*,
+    grouped under one name for a consistent call site
+    (``PriceResolver.resolve(...)``). Not DI-registered — its one real
+    caller, ``DeviceUnitData.from_entity``, is a response-model classmethod
+    rather than a constructor-injected collaborator, so there is no seam
+    for a container to fill.
     """
-    price = resolve_sale_price_or_none(unit, product)
-    if price is None:
-        raise PriceNotSetError(_why_unpriced(unit, product))
-    return price
 
+    @staticmethod
+    def resolve(unit: DeviceUnit | None, product: Product) -> Money:
+        """The price *unit* sells at, or ``PriceNotSetError``.
 
-def resolve_sale_price_or_none(unit: DeviceUnit | None, product: Product) -> Money | None:
-    """The same rule, for callers that need to *ask* rather than insist —
-    the scan-lookup screen (FR-7.2) and the needs-pricing worklist
-    (FR-9.6), which exist to show that a price is missing."""
-    if unit is not None and unit.asking_price is not None:
-        return unit.asking_price
-    if unit is None or unit.condition is DeviceCondition.NEW:
-        return product.default_sale_price
-    return None
+        *unit* is ``None`` for a QUANTITY line: an accessory has no
+        per-unit identity to hang a price on (§4.1), so it has no step 1
+        and resolves to the catalog price or is refused one step earlier.
+        A QUANTITY product with no catalog price is therefore not sellable
+        at all — there is nowhere else a price could come from.
+        """
+        price = PriceResolver.resolve_or_none(unit, product)
+        if price is None:
+            raise PriceNotSetError(PriceResolver._why_unpriced(unit, product))
+        return price
 
+    @staticmethod
+    def resolve_or_none(unit: DeviceUnit | None, product: Product) -> Money | None:
+        """The same rule, for callers that need to *ask* rather than
+        insist — the scan-lookup screen (FR-7.2) and the needs-pricing
+        worklist (FR-9.6), which exist to show that a price is missing."""
+        if unit is not None and unit.asking_price is not None:
+            return unit.asking_price
+        if unit is None or unit.condition is DeviceCondition.NEW:
+            return product.default_sale_price
+        return None
 
-def _why_unpriced(unit: DeviceUnit | None, product: Product) -> str:
-    """The message matters: the Seller who hits this cannot fix it —
-    pricing is Owner/Manager (§2.1) — so it has to say what is wrong and
-    who can act on it (FR-4.2b)."""
-    if unit is None:
+    @staticmethod
+    def _why_unpriced(unit: DeviceUnit | None, product: Product) -> str:
+        """The message matters: the Seller who hits this cannot fix it —
+        pricing is Owner/Manager (§2.1) — so it has to say what is wrong
+        and who can act on it (FR-4.2b)."""
+        if unit is None:
+            return (
+                f"{product.sku} has no catalog price, and an accessory has no per-unit "
+                "price to fall back on — an Owner or Manager must price it"
+            )
+        if unit.condition is not DeviceCondition.NEW:
+            return (
+                f"IMEI {unit.imei} is {unit.condition.value} and has no price of its own. "
+                f"A unit that is not new never inherits the catalog price of {product.sku} — "
+                "an Owner or Manager must price this handset"
+            )
         return (
-            f"{product.sku} has no catalog price, and an accessory has no per-unit "
-            "price to fall back on — an Owner or Manager must price it"
+            f"IMEI {unit.imei} has no price of its own and {product.sku} has no catalog "
+            "price — an Owner or Manager must set one"
         )
-    if unit.condition is not DeviceCondition.NEW:
-        return (
-            f"IMEI {unit.imei} is {unit.condition.value} and has no price of its own. "
-            f"A unit that is not new never inherits the catalog price of {product.sku} — "
-            "an Owner or Manager must price this handset"
-        )
-    return (
-        f"IMEI {unit.imei} has no price of its own and {product.sku} has no catalog "
-        "price — an Owner or Manager must set one"
-    )

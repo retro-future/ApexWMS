@@ -66,6 +66,7 @@ from application.services import (
 from domain.entities import Employee, Tenant, User, UserTenantAccess
 from domain.enums import TenantRole, TenantStatus
 from domain.permissions import Permission
+from domain.services import UnitProjector
 from tests.application.fakes import (
     FakeClock,
     FakeCustomerRepository,
@@ -326,6 +327,7 @@ class World:
             self.units,
             self.clock,
             CurrentUser(user_id=actor or uuid4(), permissions=frozenset()),
+            UnitProjector(),
         )
 
     def list_products(self) -> ListProductsHandler:

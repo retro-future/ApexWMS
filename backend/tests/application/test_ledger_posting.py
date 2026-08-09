@@ -24,7 +24,7 @@ from domain.enums import (
     TransactionType,
 )
 from domain.errors import InvalidMovementError
-from domain.services import net_quantity
+from domain.services import UnitProjector
 from domain.value_objects import IMEI, Currency, Money
 from tests.application.builders import make_world
 
@@ -242,7 +242,7 @@ class TestProjectionsFollowTheLedger:
             )
 
         level = await world.levels.get_for(product, location)
-        assert level.quantity == net_quantity(world.movements.rows)
+        assert level.quantity == UnitProjector.net_quantity(world.movements.rows)
 
     async def test_issuing_more_than_is_held_is_refused(self):
         """FR-4.7: no partial fulfilment, and never a negative level."""
@@ -290,7 +290,7 @@ class TestCancellationCompensates:
 
         await poster.reverse(DocumentType.SALES_INVOICE, document)
 
-        assert net_quantity(world.movements.rows) == 0
+        assert UnitProjector.net_quantity(world.movements.rows) == 0
         for currency in (Currency.USD,):
             booked = [t.amount for t in world.transactions.rows if t.currency is currency]
             assert sum(booked[1:], booked[0]) == Money.zero(currency)

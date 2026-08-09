@@ -34,7 +34,8 @@ two places is exactly how the two ledgers drift apart.
 from dataclasses import dataclass
 
 from domain.errors import InvalidMovementError
-from domain.value_objects import Currency, Money
+from domain.value_objects.currency import Currency
+from domain.value_objects.money import Money
 
 
 def _round_half_up(numerator: int, denominator: int) -> int:

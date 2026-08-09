@@ -14,7 +14,7 @@ import pytest
 from domain.entities import FinancialTransaction, StockLevel, StockMovement
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
 from domain.errors import InvalidMoneyError, InvalidMovementError
-from domain.services import project_unit_state
+from domain.services import UnitProjector
 from domain.value_objects import Currency, Money
 
 NOW = datetime(2026, 3, 1, tzinfo=UTC)
@@ -172,7 +172,7 @@ class TestProjectingAHandsetsStateFromItsTimeline:
         warehouse = uuid4()
         unit = uuid4()
 
-        state = project_unit_state(
+        state = UnitProjector.project(
             [
                 movement(
                     movement_type=MovementType.RECEIPT,
@@ -188,7 +188,7 @@ class TestProjectingAHandsetsStateFromItsTimeline:
     def test_a_sold_handset_is_sold_and_nowhere(self):
         unit, location = uuid4(), uuid4()
 
-        state = project_unit_state(
+        state = UnitProjector.project(
             [
                 movement(
                     movement_type=MovementType.RECEIPT,
@@ -219,7 +219,7 @@ class TestProjectingAHandsetsStateFromItsTimeline:
     def test_how_a_unit_left_decides_where_it_ended_up(self, gone_by, status):
         unit, location = uuid4(), uuid4()
 
-        state = project_unit_state(
+        state = UnitProjector.project(
             [
                 movement(
                     movement_type=MovementType.RECEIPT,
@@ -249,7 +249,7 @@ class TestProjectingAHandsetsStateFromItsTimeline:
             location_id=location,
         )
 
-        state = project_unit_state(
+        state = UnitProjector.project(
             [
                 movement(
                     movement_type=MovementType.RECEIPT,
@@ -266,7 +266,7 @@ class TestProjectingAHandsetsStateFromItsTimeline:
 
     def test_a_handset_with_no_history_has_no_state_to_project(self):
         with pytest.raises(ValueError):
-            project_unit_state([])
+            UnitProjector.project([])
 
 
 class TestStockLevelIsAProjection:

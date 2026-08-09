@@ -2,7 +2,8 @@
 
 Scopes:
     APP     — settings, MasterDB engine, tenant engine registry, security
-              services, the tenant provisioner; later the PDF renderer.
+              services, the tenant provisioner, stateless domain
+              collaborators (e.g. ``UnitProjector``); later the PDF renderer.
     REQUEST — the authenticated user, MasterDB/TenantDB sessions, UoWs,
               repositories, and command/query handlers.
 
@@ -13,6 +14,7 @@ and registers them in ``di.container.create_container``.
 from di.providers.auth import AuthProvider
 from di.providers.authorization import AuthorizationProvider
 from di.providers.config import ConfigProvider
+from di.providers.domain_services import DomainServicesProvider
 from di.providers.handlers import HandlersProvider
 from di.providers.master_db import MasterDbProvider
 from di.providers.master_repositories import MasterRepositoriesProvider
@@ -26,6 +28,7 @@ __all__ = [
     "AuthProvider",
     "AuthorizationProvider",
     "ConfigProvider",
+    "DomainServicesProvider",
     "HandlersProvider",
     "MasterDbProvider",
     "MasterRepositoriesProvider",

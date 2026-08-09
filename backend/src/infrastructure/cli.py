@@ -360,6 +360,7 @@ async def _verify_one(url: str, command: str) -> list[str]:
     session reaching a tenant repository (``infrastructure/types.py``).
     """
     from application.services import LedgerReconciler, ProjectionVerifier
+    from domain.services import UnitProjector
     from infrastructure.persistence.tenant.repositories import (
         SqlDeviceUnitPriceChangeRepository,
         SqlDeviceUnitRepository,
@@ -393,6 +394,7 @@ async def _verify_one(url: str, command: str) -> list[str]:
                 SqlDeviceUnitPriceChangeRepository(session),
                 products,
                 SqlProductPriceChangeRepository(session),
+                UnitProjector(),
             )
             return [str(finding) for finding in await verifier.verify()]
     finally:

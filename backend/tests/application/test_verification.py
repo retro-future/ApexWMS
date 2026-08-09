@@ -23,6 +23,7 @@ from domain.enums import (
     TrackingType,
     TransactionType,
 )
+from domain.services import UnitProjector
 from domain.value_objects import IMEI, SKU, Currency, Money
 from tests.application.builders import make_world
 
@@ -46,6 +47,7 @@ def verifier(world) -> ProjectionVerifier:
         world.unit_price_changes,
         world.products,
         world.price_changes,
+        UnitProjector(),
     )
 
 

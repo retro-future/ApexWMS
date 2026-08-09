@@ -21,7 +21,7 @@ from uuid import UUID
 from application.core import CamelModel
 from domain.entities import DeviceUnit, Product
 from domain.enums import DeviceCondition, DeviceStatus
-from domain.services import resolve_sale_price_or_none
+from domain.services import PriceResolver
 from domain.value_objects import Currency
 
 
@@ -55,7 +55,7 @@ class DeviceUnitData(CamelModel):
     def from_entity(
         cls, unit: DeviceUnit, product: Product, *, show_cost: bool
     ) -> DeviceUnitData:
-        resolved = resolve_sale_price_or_none(unit, product)
+        resolved = PriceResolver.resolve_or_none(unit, product)
         data = cls(
             id=unit.id,
             imei=str(unit.imei),

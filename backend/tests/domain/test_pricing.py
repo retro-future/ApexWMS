@@ -18,7 +18,7 @@ import pytest
 from domain.entities import DeviceUnit, Product
 from domain.enums import DeviceCondition, DeviceStatus, TrackingType
 from domain.errors import PriceNotSetError
-from domain.services import resolve_sale_price, resolve_sale_price_or_none
+from domain.services import PriceResolver
 from domain.value_objects import IMEI, SKU, Currency, Money
 
 NOW = datetime(2026, 3, 1, tzinfo=UTC)
@@ -66,19 +66,19 @@ class TestTheUnitPriceAlwaysWins:
     def test_step_one_beats_the_catalog_for_every_condition(self, condition):
         """Which is also how a *new* unit gets discounted individually — an
         opened box, a display model — with no separate mechanism."""
-        assert resolve_sale_price(unit(condition, asking="520"), product("900")) == usd("520")
+        assert PriceResolver.resolve(unit(condition, asking="520"), product("900")) == usd("520")
 
     def test_a_unit_price_works_with_no_catalog_price_at_all(self):
         """A model the store only ever trades used is just a catalog row
         with no price. No "used-only product" flag is needed."""
-        assert resolve_sale_price(unit(DeviceCondition.USED, asking="400"), product()) == usd(
+        assert PriceResolver.resolve(unit(DeviceCondition.USED, asking="400"), product()) == usd(
             "400"
         )
 
 
 class TestTheCatalogPriceIsInheritedOnlyByNewStock:
     def test_a_new_unit_with_no_price_of_its_own_takes_the_catalog_price(self):
-        assert resolve_sale_price(unit(DeviceCondition.NEW), product("900")) == usd("900")
+        assert PriceResolver.resolve(unit(DeviceCondition.NEW), product("900")) == usd("900")
 
     @pytest.mark.parametrize(
         "condition", [DeviceCondition.USED, DeviceCondition.REFURBISHED]
@@ -91,12 +91,12 @@ class TestTheCatalogPriceIsInheritedOnlyByNewStock:
         is a refusal — not $900, and not $0.
         """
         with pytest.raises(PriceNotSetError):
-            resolve_sale_price(unit(condition), product("900"))
+            PriceResolver.resolve(unit(condition), product("900"))
 
     def test_pricing_the_used_unit_then_makes_it_sellable(self):
         """FR-2.14's stated test, second half: price it at $500 and the
         line takes $500."""
-        assert resolve_sale_price(
+        assert PriceResolver.resolve(
             unit(DeviceCondition.USED, asking="500"), product("900")
         ) == usd("500")
 
@@ -104,7 +104,7 @@ class TestTheCatalogPriceIsInheritedOnlyByNewStock:
         """FR-4.2b: the Seller who hits this cannot price it themselves
         (§2.1), so the message has to say who can."""
         with pytest.raises(PriceNotSetError) as raised:
-            resolve_sale_price(unit(DeviceCondition.USED), product("900"))
+            PriceResolver.resolve(unit(DeviceCondition.USED), product("900"))
 
         message = str(raised.value)
         assert IMEI_A in message
@@ -124,13 +124,13 @@ class TestQuantityLinesHaveNoUnitStep:
             created_at=NOW,
         )
 
-        assert resolve_sale_price(None, case) == Money.from_major("50000", Currency.UZS)
+        assert PriceResolver.resolve(None, case) == Money.from_major("50000", Currency.UZS)
 
     def test_an_accessory_without_a_catalog_price_cannot_be_sold_at_all(self):
         """FR-2.12: there is nowhere else a price could come from, so this
         is refused one step earlier than a serialized line would be."""
         with pytest.raises(PriceNotSetError) as raised:
-            resolve_sale_price(None, product(tracking=TrackingType.QUANTITY))
+            PriceResolver.resolve(None, product(tracking=TrackingType.QUANTITY))
 
         assert "no per-unit price" in str(raised.value)
 
@@ -141,11 +141,11 @@ class TestAskingWithoutInsisting:
     exception."""
 
     def test_an_unresolvable_price_is_none_rather_than_a_raise(self):
-        assert resolve_sale_price_or_none(unit(DeviceCondition.USED), product("900")) is None
+        assert PriceResolver.resolve_or_none(unit(DeviceCondition.USED), product("900")) is None
 
     def test_a_resolvable_price_is_the_same_answer_either_way(self):
         priced = unit(DeviceCondition.USED, asking="400")
 
-        assert resolve_sale_price_or_none(priced, product("900")) == resolve_sale_price(
+        assert PriceResolver.resolve_or_none(priced, product("900")) == PriceResolver.resolve(
             priced, product("900")
         )

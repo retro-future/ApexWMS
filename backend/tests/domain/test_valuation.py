@@ -10,8 +10,7 @@ after the rounding that caused it.
 import pytest
 
 from domain.errors import CurrencyMismatchError, InvalidMovementError
-from domain.services import CostPool
-from domain.value_objects import Currency, Money
+from domain.value_objects import CostPool, Currency, Money
 
 
 def som(major: str | int) -> Money:

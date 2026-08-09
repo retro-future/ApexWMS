@@ -37,8 +37,8 @@ from application.ports import (
 )
 from domain.entities import DeviceUnit
 from domain.enums import TransactionType
-from domain.services import CostPool, project_unit_state
-from domain.value_objects import Currency, Money
+from domain.services import UnitProjector
+from domain.value_objects import CostPool, Currency, Money
 
 # How many catalog rows a sweep pulls at a time.
 _PAGE_SIZE = 200
@@ -67,6 +67,7 @@ class ProjectionVerifier:
         unit_prices: DeviceUnitPriceChangeRepository,
         products: ProductRepository,
         product_prices: ProductPriceChangeRepository,
+        projector: UnitProjector,
     ) -> None:
         self._movements = movements
         self._levels = levels
@@ -74,6 +75,7 @@ class ProjectionVerifier:
         self._unit_prices = unit_prices
         self._products = products
         self._product_prices = product_prices
+        self._projector = projector
 
     async def verify(self) -> list[Discrepancy]:
         return [
@@ -146,7 +148,7 @@ class ProjectionVerifier:
                     )
                 )
                 continue
-            status, location_id = project_unit_state(history)
+            status, location_id = self._projector.project(history)
             if (status, location_id) != (unit.status, unit.location_id):
                 found.append(
                     Discrepancy(
