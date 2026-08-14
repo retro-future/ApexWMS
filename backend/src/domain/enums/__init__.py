@@ -6,9 +6,11 @@ Value objects with enum-backed behavior (``Currency``, in
 properly modularized in their own packages, not loose top-level modules.
 """
 
+from domain.enums.acquisition_source import AcquisitionSource
 from domain.enums.app_role import APP_PREFIX, AppRole
 from domain.enums.device_condition import DeviceCondition
 from domain.enums.device_status import DeviceStatus
+from domain.enums.document_status import DocumentStatus
 from domain.enums.document_type import DocumentType
 from domain.enums.invitation_kind import InvitationKind
 from domain.enums.movement_type import MovementType
@@ -19,9 +21,11 @@ from domain.enums.transaction_type import TransactionType
 
 __all__ = [
     "APP_PREFIX",
+    "AcquisitionSource",
     "AppRole",
     "DeviceCondition",
     "DeviceStatus",
+    "DocumentStatus",
     "DocumentType",
     "InvitationKind",
     "MovementType",

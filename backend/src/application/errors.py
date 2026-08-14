@@ -78,5 +78,17 @@ class DuplicateNameError(ApplicationError):
     """Another location or supplier in this store already owns that name."""
 
 
+class DuplicateImeiError(ApplicationError):
+    """This store already holds a handset with that IMEI (FR-3.5).
+
+    An application error rather than a domain one because answering it
+    needs a query: the receipt being scanned onto cannot see the rest of
+    the store's stock. Never silently accepted — a duplicate IMEI is either
+    a scanning mistake or a stolen-goods red flag, and the message names
+    the existing unit's status and location so the operator can tell which
+    while the phone is still in their hand.
+    """
+
+
 class ProvisioningFailedError(ApplicationError):
     """Tenant provisioning failed; the tenant row is left FAILED and retryable."""

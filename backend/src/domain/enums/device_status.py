@@ -20,6 +20,12 @@ class DeviceStatus(StrEnum):
     SOLD = "sold"
     RETURNED_TO_SUPPLIER = "returned_to_supplier"
     WRITTEN_OFF = "written_off"
+    # Where a handset lands when the Goods Receipt that brought it in is
+    # cancelled (§4.4). It was not destroyed and it was not sent back under
+    # a supplier return, so neither of those is true of it — and calling it
+    # WRITTEN_OFF would make the write-off report count a loss the store
+    # never took.
+    RECEIPT_CANCELLED = "receipt_cancelled"
 
     @property
     def is_on_hand(self) -> bool:

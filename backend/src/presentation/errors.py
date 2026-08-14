@@ -13,6 +13,7 @@ from application.errors import (
     AuthenticationError,
     AuthorizationError,
     DuplicateBarcodeError,
+    DuplicateImeiError,
     DuplicateNameError,
     DuplicateSkuError,
     InvalidSlugError,
@@ -26,7 +27,13 @@ from application.errors import (
     TenantNotActiveError,
     TenantNotFoundError,
 )
-from domain.errors import DomainError
+from domain.errors import (
+    DocumentNotConfirmedError,
+    DocumentNotDraftError,
+    DomainError,
+    DuplicateScanError,
+    OverReceiptError,
+)
 
 _STATUS: list[tuple[type[Exception], int]] = [
     # Order matters: subclasses before their bases.
@@ -41,6 +48,13 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (DuplicateSkuError, 409),
     (DuplicateBarcodeError, 409),
     (DuplicateNameError, 409),
+    (DuplicateImeiError, 409),
+    # A document in the wrong state is a conflict, not bad input: the
+    # same request would have succeeded a moment earlier (§4.4).
+    (DocumentNotDraftError, 409),
+    (DocumentNotConfirmedError, 409),
+    (OverReceiptError, 409),
+    (DuplicateScanError, 409),
     (MissingTenantError, 400),
     (InvitationError, 400),
     (InvalidTimezoneError, 422),

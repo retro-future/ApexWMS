@@ -9,12 +9,15 @@ M3 — and its ``Employee`` rows: what a person may do *there*.
 from domain.entities.customer import Customer
 from domain.entities.device_unit import DeviceUnit
 from domain.entities.device_unit_price_change import DeviceUnitPriceChange
+from domain.entities.document import Document
 from domain.entities.employee import Employee
 from domain.entities.financial_transaction import FinancialTransaction
+from domain.entities.goods_receipt import GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.entities.invitation import Invitation, InvitationKind
 from domain.entities.location import Location
 from domain.entities.product import Product
 from domain.entities.product_price_change import ProductPriceChange
+from domain.entities.purchase_order import PurchaseOrder, PurchaseOrderLine
 from domain.entities.refresh_token import RefreshTokenRecord
 from domain.entities.stock_level import StockLevel
 from domain.entities.stock_movement import StockMovement
@@ -28,13 +31,19 @@ __all__ = [
     "Customer",
     "DeviceUnit",
     "DeviceUnitPriceChange",
+    "Document",
     "Employee",
     "FinancialTransaction",
+    "GoodsReceipt",
+    "GoodsReceiptLine",
     "Invitation",
     "InvitationKind",
     "Location",
     "Product",
     "ProductPriceChange",
+    "PurchaseOrder",
+    "PurchaseOrderLine",
+    "ReceivedUnit",
     "RefreshTokenRecord",
     "StockLevel",
     "StockMovement",

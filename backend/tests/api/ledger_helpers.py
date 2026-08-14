@@ -1,10 +1,20 @@
 """Putting stock into a real tenant database, for the M3 API suites.
 
-M4's Goods Receipt has no HTTP surface yet, so a test that needs a handset
-on the shelf posts the receipt M4 will post — through ``LedgerPoster``,
-against the same migrated Postgres the API serves from. That is deliberate
-rather than a shortcut: writing the rows directly would skip the very
-machinery these suites exist to prove.
+M4 gave the Goods Receipt an HTTP surface, and ``test_receiving_api.py``
+drives it. This helper stays anyway, because what it produces is a state
+that surface deliberately refuses: **a used handset in stock with no
+asking price**. FR-3.10 will not confirm a receipt containing one, so
+these suites cannot reach it through ``POST /receipts`` — and it is not a
+fiction, it is what FR-9.6's needs-pricing worklist exists for and what a
+stock count's unexpected list creates (FR-6.4b).
+
+Two M3 tests rest on it directly: FR-2.15's *"cut it twice, get three
+rows"* needs a unit whose price log starts empty, and FR-2.14's refusal
+needs a used handset nobody has priced. Receiving through M4 would seed a
+fourth row and a price into both.
+
+It still goes through ``LedgerPoster`` rather than writing rows, so the
+machinery these suites exist to prove is never skipped.
 """
 
 from uuid import UUID, uuid4

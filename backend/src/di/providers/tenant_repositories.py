@@ -18,11 +18,14 @@ from application.ports import (
     CustomerRepository,
     DeviceUnitPriceChangeRepository,
     DeviceUnitRepository,
+    DocumentNumberRepository,
     EmployeeRepository,
     FinancialTransactionRepository,
+    GoodsReceiptRepository,
     LocationRepository,
     ProductPriceChangeRepository,
     ProductRepository,
+    PurchaseOrderRepository,
     StockLevelRepository,
     StockMovementRepository,
     SupplierRepository,
@@ -35,11 +38,14 @@ from infrastructure.persistence.tenant.repositories import (
     SqlCustomerRepository,
     SqlDeviceUnitPriceChangeRepository,
     SqlDeviceUnitRepository,
+    SqlDocumentNumberRepository,
     SqlEmployeeRepository,
     SqlFinancialTransactionRepository,
+    SqlGoodsReceiptRepository,
     SqlLocationRepository,
     SqlProductPriceChangeRepository,
     SqlProductRepository,
+    SqlPurchaseOrderRepository,
     SqlStockLevelRepository,
     SqlStockMovementRepository,
     SqlSupplierRepository,
@@ -107,6 +113,20 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def stock_levels(self, session: TenantSession) -> StockLevelRepository:
         return SqlStockLevelRepository(session)
+
+    # --- M4 inbound documents (PRD §4.4, §5.3) -------------------------
+
+    @provide
+    def document_numbers(self, session: TenantSession) -> DocumentNumberRepository:
+        return SqlDocumentNumberRepository(session)
+
+    @provide
+    def purchase_orders(self, session: TenantSession) -> PurchaseOrderRepository:
+        return SqlPurchaseOrderRepository(session)
+
+    @provide
+    def goods_receipts(self, session: TenantSession) -> GoodsReceiptRepository:
+        return SqlGoodsReceiptRepository(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:

@@ -21,10 +21,14 @@ from domain.entities import (
     DeviceUnitPriceChange,
     Employee,
     FinancialTransaction,
+    GoodsReceipt,
     Invitation,
     Location,
     Product,
     ProductPriceChange,
+    PurchaseOrder,
+    PurchaseOrderLine,
+    ReceivedUnit,
     RefreshTokenRecord,
     StockLevel,
     StockMovement,
@@ -35,7 +39,9 @@ from domain.entities import (
     UserTenantAccess,
 )
 from domain.enums import (
+    AcquisitionSource,
     AppRole,
+    DocumentStatus,
     DocumentType,
     TenantRole,
     TenantStatus,
@@ -520,3 +526,88 @@ class FakeProvisioner:
                 created_at=self._clock.now(),
             )
         tenant.status = TenantStatus.ACTIVE
+
+
+# --- M4 inbound documents (PRD §4.4, §5.3) -------------------------------
+
+
+class FakeDocumentNumberRepository:
+    """One counter per (document type, year), as the locked row is."""
+
+    def __init__(self) -> None:
+        self.counters: dict[tuple[DocumentType, int], int] = {}
+
+    async def next_number(self, document_type: DocumentType, year: int) -> int:
+        key = (document_type, year)
+        self.counters[key] = self.counters.get(key, 0) + 1
+        return self.counters[key]
+
+
+class FakePurchaseOrderRepository(FakeRepository[PurchaseOrder]):
+    async def update_line(self, line: PurchaseOrderLine) -> None:
+        return None
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        supplier_id: UUID | None = None,
+    ) -> tuple[list[PurchaseOrder], int]:
+        found = [
+            order
+            for order in self.by_id.values()
+            if _matches(search, order.number)
+            and (status is None or order.status is status)
+            and (supplier_id is None or order.supplier_id == supplier_id)
+        ]
+        return _page(sorted(found, key=lambda o: o.created_at, reverse=True), page, page_size)
+
+
+class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
+    """The scan methods write through the aggregate the handler already
+    holds, exactly as the SQL repository writes one row rather than
+    rewriting a fifty-line receipt per beep."""
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        acquisition_source: AcquisitionSource | None = None,
+    ) -> tuple[list[GoodsReceipt], int]:
+        found = [
+            receipt
+            for receipt in self.by_id.values()
+            if _matches(search, receipt.number)
+            and (status is None or receipt.status is status)
+            and (
+                acquisition_source is None
+                or receipt.acquisition_source is acquisition_source
+            )
+        ]
+        return _page(sorted(found, key=lambda r: r.created_at, reverse=True), page, page_size)
+
+    async def add_unit(self, unit: ReceivedUnit) -> None:
+        return None
+
+    async def update_unit(self, unit: ReceivedUnit) -> None:
+        return None
+
+    async def remove_unit(self, unit_id: UUID) -> None:
+        return None
+
+    async def received_quantities(self, purchase_order_id: UUID) -> dict[UUID, int]:
+        """Confirmed receipts only — a draft has received nothing (FR-3.9)."""
+        received: dict[UUID, int] = {}
+        for receipt in self.by_id.values():
+            if (
+                receipt.purchase_order_id != purchase_order_id
+                or receipt.status is not DocumentStatus.CONFIRMED
+            ):
+                continue
+            for product_id, quantity in receipt.received_quantities().items():
+                received[product_id] = received.get(product_id, 0) + quantity
+        return received

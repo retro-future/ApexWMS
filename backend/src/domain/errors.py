@@ -68,6 +68,76 @@ class InvalidMovementError(DomainError):
     """
 
 
+class DocumentNotDraftError(DomainError):
+    """An edit or a confirm aimed at a document that is no longer a draft (§4.4).
+
+    There is no "small correction" path on a confirmed document: it has
+    already written rows into two append-only ledgers, and editing it would
+    leave those ledgers describing something that no longer exists. The
+    correction is a cancellation and a re-entry.
+    """
+
+
+class DocumentNotConfirmedError(DomainError):
+    """A cancellation aimed at a document that was never confirmed (§4.4).
+
+    Also what stops a document being reversed twice. ``LedgerPoster.reverse``
+    deliberately has no such guard of its own — reversing a reversal would
+    re-apply the original — so the document's own state is the one place
+    that says a cancellation has already happened.
+    """
+
+
+class ReceiptSourceError(DomainError):
+    """A Goods Receipt whose source and its parties disagree (FR-3.3b).
+
+    ``SUPPLIER`` requires a supplier; ``TRADE_IN`` names none, and cannot
+    be linked to a Purchase Order — there is no order for a phone that
+    walked in the door.
+    """
+
+
+class ReceiptIncompleteError(DomainError):
+    """A serial line confirmed with fewer scanned IMEIs than it declares (FR-3.8)."""
+
+
+class DuplicateScanError(DomainError):
+    """The same IMEI scanned twice onto one document (FR-3.5).
+
+    Distinct from an IMEI that already exists elsewhere in the store, which
+    needs a query and so is an application-level rule.
+    """
+
+
+class UnpricedUnitError(DomainError):
+    """A receipt confirmed while a unit still lacks a cost or an asking price.
+
+    Names **every** offending IMEI in one message (FR-3.10), so the gap is
+    closed in one pass rather than discovered one handset at a time. Unpriced
+    used stock never reaches the shelf: the second guard, at the invoice
+    line, exists because a unit can enter stock without a receipt at all.
+    """
+
+
+class UnpricedOrderLineError(DomainError):
+    """A Purchase Order confirmed while a line still lacks a unit cost.
+
+    Confirming a PO is the moment the deal with the supplier is final, so
+    the price has to exist by then. A Goods Receipt can only be raised
+    against a ``CONFIRMED`` order, which is what keeps an unpriced line from
+    ever reaching a receipt.
+    """
+
+
+class OverReceiptError(DomainError):
+    """A receipt would take a Purchase Order past what it ordered (FR-3.9).
+
+    ``received_quantities`` only ever grows (a receipt, once confirmed, is
+    never edited), so this is checked once at the point a new receipt is
+    raised rather than re-derived at confirm time.
+    """
+
+
 class PriceCannotBeUnsetError(DomainError):
     """An attempt to clear a price that has already been set (FR-2.19, §4.5b).
 

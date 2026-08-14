@@ -14,22 +14,34 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 from application.commands.accept_invite import AcceptInviteHandler
+from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
+from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
 from application.commands.change_device_unit_condition import (
     ChangeDeviceUnitConditionHandler,
 )
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
+from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
+from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
 from application.commands.create_customer import CreateCustomerHandler
+from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
 from application.commands.create_location import CreateLocationHandler
 from application.commands.create_product import CreateProductHandler
+from application.commands.create_purchase_order import CreatePurchaseOrderHandler
 from application.commands.create_superadmin import CreateSuperAdminHandler
 from application.commands.create_supplier import CreateSupplierHandler
 from application.commands.create_tenant import CreateTenantHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
+from application.commands.price_purchase_order_line import (
+    PricePurchaseOrderLineHandler,
+)
+from application.commands.price_receipt_unit import PriceReceiptUnitHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
 from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
 from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
+from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
+from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
 from application.commands.update_product import UpdateProductHandler
@@ -41,23 +53,31 @@ from application.queries.get_device_unit import GetDeviceUnitHandler
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
 )
+from application.queries.get_goods_receipt import GetGoodsReceiptHandler
 from application.queries.get_location import GetLocationHandler
 from application.queries.get_me import GetMeHandler
 from application.queries.get_product import GetProductHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
+from application.queries.get_purchase_order import GetPurchaseOrderHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.list_customers import ListCustomersHandler
+from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
+from application.queries.list_purchase_orders import ListPurchaseOrdersHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.services import (
     ClaimsFactory,
     DeviceUnitLoader,
     DeviceUnitRepricer,
+    DocumentLineBuilder,
+    DocumentLoader,
+    DocumentNumberer,
     LedgerPoster,
     ProductRepricer,
+    ReceiptPoster,
     SalePriceParser,
     SlugNormalizer,
     TimezoneValidator,
@@ -72,14 +92,17 @@ from tests.application.fakes import (
     FakeCustomerRepository,
     FakeDeviceUnitPriceChangeRepository,
     FakeDeviceUnitRepository,
+    FakeDocumentNumberRepository,
     FakeEmployeeRepository,
     FakeFinancialTransactionRepository,
+    FakeGoodsReceiptRepository,
     FakeHasher,
     FakeInvitationRepository,
     FakeLocationRepository,
     FakeProductPriceChangeRepository,
     FakeProductRepository,
     FakeProvisioner,
+    FakePurchaseOrderRepository,
     FakeRefreshTokenRepository,
     FakeStockLevelRepository,
     FakeStockMovementRepository,
@@ -122,6 +145,9 @@ class World:
     movements: FakeStockMovementRepository
     transactions: FakeFinancialTransactionRepository
     levels: FakeStockLevelRepository
+    orders: FakePurchaseOrderRepository
+    receipts: FakeGoodsReceiptRepository
+    document_numbers: FakeDocumentNumberRepository
     scope: FakeTenantScope
     uow: FakeUnitOfWork
     provisioner: FakeProvisioner
@@ -330,6 +356,137 @@ class World:
             UnitProjector(),
         )
 
+    # --- M4 purchasing & receiving ---
+
+    def numberer(self) -> DocumentNumberer:
+        return DocumentNumberer(self.document_numbers, self.clock)
+
+    def line_builder(self) -> DocumentLineBuilder:
+        return DocumentLineBuilder(self.products)
+
+    def document_loader(self) -> DocumentLoader:
+        return DocumentLoader(self.orders, self.receipts)
+
+    def receipt_poster(self, actor: UUID | None = None) -> ReceiptPoster:
+        return ReceiptPoster(
+            self.units, self.unit_repricer(actor), self.poster(actor), self.clock
+        )
+
+    def create_purchase_order(self, actor: UUID | None = None) -> CreatePurchaseOrderHandler:
+        return CreatePurchaseOrderHandler(
+            self.orders,
+            self.suppliers,
+            self.line_builder(),
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def price_purchase_order_line(
+        self, actor: UUID | None = None
+    ) -> PricePurchaseOrderLineHandler:
+        return PricePurchaseOrderLineHandler(
+            self.orders,
+            self.document_loader(),
+            self.uow,
+            self._as(actor),
+        )
+
+    def confirm_purchase_order(
+        self, actor: UUID | None = None
+    ) -> ConfirmPurchaseOrderHandler:
+        return ConfirmPurchaseOrderHandler(
+            self.orders,
+            self.receipts,
+            self.document_loader(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def cancel_purchase_order(self, actor: UUID | None = None) -> CancelPurchaseOrderHandler:
+        return CancelPurchaseOrderHandler(
+            self.orders,
+            self.receipts,
+            self.document_loader(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def get_purchase_order(self) -> GetPurchaseOrderHandler:
+        return GetPurchaseOrderHandler(self.document_loader(), self.receipts)
+
+    def list_purchase_orders(self) -> ListPurchaseOrdersHandler:
+        return ListPurchaseOrdersHandler(self.orders, self.receipts)
+
+    def create_goods_receipt(self, actor: UUID | None = None) -> CreateGoodsReceiptHandler:
+        return CreateGoodsReceiptHandler(
+            self.receipts,
+            self.orders,
+            self.suppliers,
+            self.customers,
+            self.locations,
+            self.line_builder(),
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def scan_receipt_unit(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> ScanReceiptUnitHandler:
+        return ScanReceiptUnitHandler(
+            self.receipts, self.units, self.document_loader(), self.uow,
+            self._as(actor, *permissions),
+        )
+
+    def price_receipt_unit(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> PriceReceiptUnitHandler:
+        return PriceReceiptUnitHandler(
+            self.receipts, self.document_loader(), self.uow, self._as(actor, *permissions)
+        )
+
+    def unscan_receipt_unit(self) -> UnscanReceiptUnitHandler:
+        return UnscanReceiptUnitHandler(self.receipts, self.document_loader(), self.uow)
+
+    def confirm_goods_receipt(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> ConfirmGoodsReceiptHandler:
+        return ConfirmGoodsReceiptHandler(
+            self.receipts,
+            self.document_loader(),
+            self.receipt_poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor, *permissions),
+        )
+
+    def cancel_goods_receipt(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> CancelGoodsReceiptHandler:
+        return CancelGoodsReceiptHandler(
+            self.receipts,
+            self.document_loader(),
+            self.poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor, *permissions),
+        )
+
+    def get_goods_receipt(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> GetGoodsReceiptHandler:
+        return GetGoodsReceiptHandler(self.document_loader(), self._as(actor, *permissions))
+
+    def list_goods_receipts(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> ListGoodsReceiptsHandler:
+        return ListGoodsReceiptsHandler(self.receipts, self._as(actor, *permissions))
+
     def list_products(self) -> ListProductsHandler:
         return ListProductsHandler(self.products)
 
@@ -467,6 +624,9 @@ def make_world(provisioner_fails: bool = False) -> World:
         price_changes=FakeProductPriceChangeRepository(),
         units=FakeDeviceUnitRepository(),
         unit_price_changes=FakeDeviceUnitPriceChangeRepository(),
+        orders=FakePurchaseOrderRepository(),
+        receipts=FakeGoodsReceiptRepository(),
+        document_numbers=FakeDocumentNumberRepository(),
         movements=FakeStockMovementRepository(),
         transactions=FakeFinancialTransactionRepository(),
         levels=FakeStockLevelRepository(),

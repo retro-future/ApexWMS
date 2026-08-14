@@ -309,3 +309,225 @@ async def test_a_storekeeper_cannot_reach_the_customer_list(client, tenant_with_
 
     assert listed.status_code == 403
     assert created.status_code == 403
+
+
+# --- M4 purchasing & receiving (PRD §2.1, §5.3) --------------------------
+
+
+@pytest.fixture
+async def open_receipt(client, tenant_with_roles):
+    """A draft receipt for one serialized phone, opened by the Owner."""
+    owner, _, _ = tenant_with_roles
+
+    async def post(path: str, body: dict) -> str:
+        response = await client.post(f"/api/v1{path}", headers=owner.auth, json=body)
+        assert response.status_code == 201, response.text
+        return response.json()["data"]["id"]
+
+    supplier_id = await post("/suppliers", {"name": "Tashkent Mobile"})
+    product_id = await post(
+        "/products",
+        {"sku": "IP15P-ROLE", "name": "iPhone 15 Pro", "trackingType": "serial"},
+    )
+    locations = await client.get("/api/v1/locations", headers=owner.auth)
+    receipt_id = await post(
+        "/receipts",
+        {
+            "locationId": locations.json()["data"][0]["id"],
+            "supplierId": supplier_id,
+            "lines": [{"productId": product_id, "quantity": 1}],
+        },
+    )
+    return receipt_id, supplier_id, product_id
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_only_a_manager_can_raise_a_purchase_order(
+    client, tenant_with_roles, open_receipt, role
+):
+    """§2.1: "Create / send Purchase Order" is Owner and Manager only — a
+    Storekeeper receives goods but does not order them.
+
+    The body is well formed on purpose: Pydantic validates it before the
+    route body runs, so a malformed one would come back 422 and prove
+    nothing about the permission.
+    """
+    owner, tokens, _ = tenant_with_roles
+    _, supplier_id, product_id = open_receipt
+
+    denied = await client.post(
+        "/api/v1/purchase-orders",
+        headers=tokens[role],
+        json={
+            "supplierId": supplier_id,
+            "lines": [{"productId": product_id, "quantity": 1, "unitCost": "700.00"}],
+        },
+    )
+    assert denied.status_code == 403
+
+    listed = await client.get("/api/v1/purchase-orders", headers=owner.auth)
+    assert listed.json()["totalItems"] == 0
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_only_a_manager_can_price_an_order_line(
+    client, tenant_with_roles, open_receipt, role
+):
+    """FR-3.1: a line may be raised unpriced; only Owner/Manager fill it in."""
+    owner, tokens, _ = tenant_with_roles
+    _, supplier_id, product_id = open_receipt
+
+    raised = await client.post(
+        "/api/v1/purchase-orders",
+        headers=owner.auth,
+        json={"supplierId": supplier_id, "lines": [{"productId": product_id, "quantity": 1}]},
+    )
+    assert raised.status_code == 201, raised.text
+    order = raised.json()["data"]
+    line_id = order["lines"][0]["id"]
+
+    denied = await client.patch(
+        f"/api/v1/purchase-orders/{order['id']}/lines/{line_id}",
+        headers=tokens[role],
+        json={"unitCost": "700.00"},
+    )
+    assert denied.status_code == 403
+
+    priced = await client.patch(
+        f"/api/v1/purchase-orders/{order['id']}/lines/{line_id}",
+        headers=owner.auth,
+        json={"unitCost": "700.00"},
+    )
+    assert priced.status_code == 200, priced.text
+    assert priced.json()["data"]["lines"][0]["unitCost"] == "700.00"
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_a_storekeeper_cannot_even_read_purchase_orders(
+    client, tenant_with_roles, role
+):
+    _, tokens, _ = tenant_with_roles
+
+    assert (
+        await client.get("/api/v1/purchase-orders", headers=tokens[role])
+    ).status_code == 403
+
+
+async def test_a_seller_cannot_receive_goods(client, tenant_with_roles, open_receipt):
+    """A Seller sells but cannot receive — §2.1's matrix is not a rank."""
+    _, tokens, _ = tenant_with_roles
+    receipt_id, _, _ = open_receipt
+
+    assert (
+        await client.get("/api/v1/receipts", headers=tokens["tenant.seller"])
+    ).status_code == 403
+    assert (
+        await client.post(
+            f"/api/v1/receipts/{receipt_id}/scan",
+            headers=tokens["tenant.seller"],
+            json={"imei": "490154203237518"},
+        )
+    ).status_code == 403
+    assert (
+        await client.post(
+            f"/api/v1/receipts/{receipt_id}/confirm",
+            headers=tokens["tenant.seller"],
+            json={},
+        )
+    ).status_code == 403
+
+
+async def test_a_storekeeper_scans_but_may_not_price(
+    client, tenant_with_roles, open_receipt
+):
+    """FR-3.4b: a Storekeeper scans IMEIs and states condition. Cost and
+    asking price need the pricing permission, and a 403 scans nothing."""
+    owner, tokens, _ = tenant_with_roles
+    receipt_id, _, _ = open_receipt
+    storekeeper = tokens["tenant.storekeeper"]
+
+    priced_scan = await client.post(
+        f"/api/v1/receipts/{receipt_id}/scan",
+        headers=storekeeper,
+        json={"imei": "490154203237518", "acquisitionCost": "700.00"},
+    )
+    assert priced_scan.status_code == 403
+
+    seen = await client.get(f"/api/v1/receipts/{receipt_id}", headers=owner.auth)
+    assert seen.json()["data"]["lines"][0]["scannedCount"] == 0
+
+    plain_scan = await client.post(
+        f"/api/v1/receipts/{receipt_id}/scan",
+        headers=storekeeper,
+        json={"imei": "490154203237518", "condition": "used"},
+    )
+    assert plain_scan.status_code == 200, plain_scan.text
+
+    repriced = await client.patch(
+        f"/api/v1/receipts/{receipt_id}/scan/490154203237518",
+        headers=storekeeper,
+        json={"askingPrice": "520.00"},
+    )
+    assert repriced.status_code == 403
+
+
+async def test_a_storekeeper_reads_the_asking_price_and_never_the_cost(
+    client, tenant_with_roles, open_receipt
+):
+    """FR-1.7: response shaping, not UI hiding. Hiding the cost is what
+    makes a margin uncomputable; the sale price is what the shop needs."""
+    owner, tokens, _ = tenant_with_roles
+    receipt_id, _, _ = open_receipt
+
+    await client.post(
+        f"/api/v1/receipts/{receipt_id}/scan",
+        headers=owner.auth,
+        json={
+            "imei": "490154203237518",
+            "condition": "used",
+            "acquisitionCost": "410.00",
+            "askingPrice": "520.00",
+            "cashPaid": "5000000",
+            "cashPaidCurrency": "UZS",
+        },
+    )
+
+    as_storekeeper = await client.get(
+        f"/api/v1/receipts/{receipt_id}", headers=tokens["tenant.storekeeper"]
+    )
+    assert as_storekeeper.status_code == 200, as_storekeeper.text
+    unit = as_storekeeper.json()["data"]["lines"][0]["units"][0]
+    assert unit["askingPrice"] == "520.00"
+    assert unit["acquisitionCost"] is None
+    assert unit["acquisitionCostMinor"] is None
+    assert unit["cashPaid"] is None
+    assert as_storekeeper.json()["data"]["subtotals"] == []
+
+    as_owner = await client.get(f"/api/v1/receipts/{receipt_id}", headers=owner.auth)
+    owned_unit = as_owner.json()["data"]["lines"][0]["units"][0]
+    assert owned_unit["acquisitionCost"] == "410.00"
+    assert "5 000 000" in owned_unit["cashPaid"]
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_only_a_manager_can_cancel_a_confirmed_document(
+    client, tenant_with_roles, open_receipt, role
+):
+    owner, tokens, _ = tenant_with_roles
+    receipt_id, _, _ = open_receipt
+    await client.post(
+        f"/api/v1/receipts/{receipt_id}/scan",
+        headers=owner.auth,
+        json={"imei": "490154203237518", "acquisitionCost": "700.00"},
+    )
+    await client.post(
+        f"/api/v1/receipts/{receipt_id}/confirm", headers=owner.auth, json={}
+    )
+
+    denied = await client.post(
+        f"/api/v1/receipts/{receipt_id}/cancel", headers=tokens[role], json={}
+    )
+    assert denied.status_code == 403
+
+    still = await client.get(f"/api/v1/receipts/{receipt_id}", headers=owner.auth)
+    assert still.json()["data"]["status"] == "confirmed"

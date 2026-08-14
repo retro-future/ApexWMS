@@ -27,17 +27,16 @@ from domain.enums import DeviceStatus, MovementType
 # books its book value as a loss.
 #
 # ``RECEIPT`` only ever goes negative as the compensation for a cancelled
-# Goods Receipt — a unit that should never have entered stock. There is no
-# "void" status in §4.2's set, and ``WRITTEN_OFF`` is the closest terminal
-# state meaning "not on hand, not sold". **M4 owns receipt cancellation
-# and should revisit this**; M3 records it rather than leaving the
-# projection undefined.
+# Goods Receipt — a unit that should never have entered stock. It gets its
+# own terminal state rather than borrowing ``WRITTEN_OFF``: the store lost
+# nothing, and a write-off report that counted these would be reporting
+# losses that never happened.
 _STATUS_WHEN_GONE: dict[MovementType, DeviceStatus] = {
     MovementType.SALE: DeviceStatus.SOLD,
     MovementType.WRITE_OFF: DeviceStatus.WRITTEN_OFF,
     MovementType.SUPPLIER_RETURN: DeviceStatus.RETURNED_TO_SUPPLIER,
     MovementType.COUNT_ADJUSTMENT: DeviceStatus.WRITTEN_OFF,
-    MovementType.RECEIPT: DeviceStatus.WRITTEN_OFF,
+    MovementType.RECEIPT: DeviceStatus.RECEIPT_CANCELLED,
 }
 
 

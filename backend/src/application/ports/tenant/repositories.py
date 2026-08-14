@@ -22,14 +22,24 @@ from domain.entities import (
     DeviceUnitPriceChange,
     Employee,
     FinancialTransaction,
+    GoodsReceipt,
     Location,
     Product,
     ProductPriceChange,
+    PurchaseOrder,
+    PurchaseOrderLine,
+    ReceivedUnit,
     StockLevel,
     StockMovement,
     Supplier,
 )
-from domain.enums import DocumentType, TrackingType, TransactionType
+from domain.enums import (
+    AcquisitionSource,
+    DocumentStatus,
+    DocumentType,
+    TrackingType,
+    TransactionType,
+)
 from domain.value_objects import Currency, Money
 
 
@@ -248,3 +258,69 @@ class StockLevelRepository(Repository[StockLevel, UUID], Protocol):
     async def get_for(self, product_id: UUID, location_id: UUID) -> StockLevel | None: ...
 
     async def list_all(self) -> list[StockLevel]: ...
+
+
+# --- M4 documents (PRD §4.4, §5.3) ---------------------------------------
+
+
+class DocumentNumberRepository(Protocol):
+    """The per-tenant sequence behind ``PO-2026-0001`` (§4.4).
+
+    Not a repository of entities: one counter per (document type, year),
+    handed out under a row lock so two operators filling in receipts at the
+    same counter cannot be given the same number.
+    """
+
+    async def next_number(self, document_type: DocumentType, year: int) -> int: ...
+
+
+class PurchaseOrderRepository(Repository[PurchaseOrder, UUID], Protocol):
+    """An order and its lines, loaded and saved as one aggregate (§4.4)."""
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        supplier_id: UUID | None = None,
+    ) -> tuple[list[PurchaseOrder], int]:
+        """*search* matches the document number."""
+        ...
+
+    async def update_line(self, line: PurchaseOrderLine) -> None:
+        """Price one line while the order is still a draft (FR-3.1)."""
+        ...
+
+
+class GoodsReceiptRepository(Repository[GoodsReceipt, UUID], Protocol):
+    """A receipt, its lines and every IMEI scanned onto it (§4.4).
+
+    ``add_unit``/``remove_unit`` exist because a scan is one row and
+    rewriting the whole aggregate per beep would not hold §6's 200ms.
+    """
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        acquisition_source: AcquisitionSource | None = None,
+    ) -> tuple[list[GoodsReceipt], int]: ...
+
+    async def add_unit(self, unit: ReceivedUnit) -> None: ...
+
+    async def update_unit(self, unit: ReceivedUnit) -> None:
+        """Price one already-scanned handset (FR-3.4b)."""
+        ...
+
+    async def remove_unit(self, unit_id: UUID) -> None:
+        """Undo a scan while the receipt is still a draft (FR-3.12)."""
+        ...
+
+    async def received_quantities(self, purchase_order_id: UUID) -> dict[UUID, int]:
+        """Product → quantity received against this order, confirmed receipts
+        only. FR-3.9's pending/partial/complete is this against what was
+        ordered; a draft receipt has received nothing."""
+        ...

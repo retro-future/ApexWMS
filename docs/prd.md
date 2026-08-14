@@ -221,7 +221,7 @@ A single flag on `Product` decides which path every stock operation takes. Both 
 - `imei` — unique within the tenant, **validated with the Luhn check digit** at the boundary. A typo'd IMEI is worse than no IMEI.
 - `imei2`, `serial_number` — optional (dual-SIM devices, non-phone serialized goods).
 - `product_id` — what model it is.
-- `status` ∈ `IN_STOCK | RESERVED | SOLD | RETURNED_TO_SUPPLIER | WRITTEN_OFF`.
+- `status` ∈ `IN_STOCK | RESERVED | SOLD | RETURNED_TO_SUPPLIER | WRITTEN_OFF | RECEIPT_CANCELLED`. The last is where a handset lands when the Goods Receipt that brought it in is cancelled (§4.4) — it was neither destroyed nor sent back under a supplier return, and booking it as `WRITTEN_OFF` would make the write-off report count a loss the store never took.
 - `location_id` — where it physically is (null once sold).
 - `acquisition_cost` (Money) — what *this specific unit* cost. Two identical iPhones bought a month apart have different costs; average costing would destroy that.
 - `asking_price` (Money, **nullable**) — what *this specific unit* is offered at. The mirror image of `acquisition_cost`, and for the same reason: two used handsets of the same model are not worth the same money (§4.5b). `NULL` means "no unit price — use the catalog price, if the resolution rule allows it".

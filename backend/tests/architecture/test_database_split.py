@@ -42,6 +42,13 @@ TENANT_TABLES = {
     "stock_movements": entities.StockMovement,
     "financial_transactions": entities.FinancialTransaction,
     "stock_levels": entities.StockLevel,
+    # --- M4 inbound documents ---
+    "purchase_orders": entities.PurchaseOrder,
+    "purchase_order_lines": entities.PurchaseOrderLine,
+    "goods_receipts": entities.GoodsReceipt,
+    "goods_receipt_lines": entities.GoodsReceiptLine,
+    "goods_receipt_units": entities.ReceivedUnit,
+    "document_sequences": None,  # the per-tenant number counter, §4.4
 }
 
 # Append-only tables: every row names its author (PRD §4.3 rule 3, §4.5b).
