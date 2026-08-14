@@ -14,9 +14,7 @@ surfaces on the needs-pricing worklist (FR-9.6).
 
 from uuid import UUID
 
-from pydantic import Field
-
-from application.core import Command, IRequestHandler, ResultWithData
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.models import DeviceUnitData
 from application.ports import DeviceUnitRepository, TenantUnitOfWork
@@ -26,10 +24,15 @@ from domain.errors import UnitNotRepriceableError
 from domain.permissions import Permission
 
 
-class ChangeDeviceUnitConditionCommand(Command[ResultWithData[DeviceUnitData]]):
+class ChangeDeviceUnitConditionCommandPayload(CamelModel):
     condition: DeviceCondition
-    # A URL path segment, merged in by the router.
-    device_unit_id: UUID | None = Field(default=None, exclude=True)
+
+
+class ChangeDeviceUnitConditionCommand(
+    ChangeDeviceUnitConditionCommandPayload, Command[ResultWithData[DeviceUnitData]]
+):
+    # A URL path segment, filled in by the router — never sent by the client.
+    device_unit_id: UUID
 
 
 class ChangeDeviceUnitConditionHandler(
@@ -50,7 +53,6 @@ class ChangeDeviceUnitConditionHandler(
     async def handle(
         self, request: ChangeDeviceUnitConditionCommand
     ) -> ResultWithData[DeviceUnitData]:
-        assert request.device_unit_id is not None
         unit, product = await self._loader.load(request.device_unit_id)
 
         # Same constraint as repricing, for the same reason: condition

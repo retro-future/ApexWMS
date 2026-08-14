@@ -11,9 +11,7 @@ value, even below cost (FR-2.17) — see ``DeviceUnitRepricer``.
 
 from uuid import UUID
 
-from pydantic import Field
-
-from application.core import Command, IRequestHandler, ResultWithData
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.models import DeviceUnitData
 from application.ports import DeviceUnitRepository, TenantUnitOfWork
@@ -21,14 +19,19 @@ from application.services import DeviceUnitLoader, DeviceUnitRepricer, SalePrice
 from domain.permissions import Permission
 
 
-class RepriceDeviceUnitCommand(Command[ResultWithData[DeviceUnitData]]):
+class RepriceDeviceUnitCommandPayload(CamelModel):
     # A string or a whole number, never a JSON float — see
     # application/services/sale_price.py. Required: a price cannot be
     # un-set (§4.5b), so there is no ``None`` to accept here.
     asking_price: str | int
     reason: str | None = None
-    # A URL path segment, merged in by the router.
-    device_unit_id: UUID | None = Field(default=None, exclude=True)
+
+
+class RepriceDeviceUnitCommand(
+    RepriceDeviceUnitCommandPayload, Command[ResultWithData[DeviceUnitData]]
+):
+    # A URL path segment, filled in by the router — never sent by the client.
+    device_unit_id: UUID
 
 
 class RepriceDeviceUnitHandler(
@@ -53,7 +56,6 @@ class RepriceDeviceUnitHandler(
     async def handle(
         self, request: RepriceDeviceUnitCommand
     ) -> ResultWithData[DeviceUnitData]:
-        assert request.device_unit_id is not None
         unit, product = await self._loader.load(request.device_unit_id)
 
         # The currency is the product's, never the caller's: a unit cannot

@@ -5,7 +5,11 @@ from uuid import UUID
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends
 
-from application.commands.change_user_role import ChangeUserRoleCommand, ChangeUserRoleHandler
+from application.commands.change_user_role import (
+    ChangeUserRoleCommand,
+    ChangeUserRoleCommandPayload,
+    ChangeUserRoleHandler,
+)
 from application.commands.invite_user import InviteEmployeeCommand, InviteUserHandler
 from application.core import ResultWithData
 from application.dtos import CurrentUser
@@ -46,9 +50,11 @@ async def invite(
 @router.patch("/{user_id}/role", status_code=204)
 async def change_role(
     user_id: UUID,
-    body: ChangeUserRoleCommand,
+    body: ChangeUserRoleCommandPayload,
     current: FromDishka[CurrentUser],
     handler: FromDishka[ChangeUserRoleHandler],
 ) -> None:
     require(current, Permission.USERS_MANAGE)
-    await handler.handle(body.model_copy(update={"target_user_id": user_id}))
+    await handler.handle(
+        ChangeUserRoleCommand(**body.model_dump(exclude_unset=True), target_user_id=user_id)
+    )

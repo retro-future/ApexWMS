@@ -24,10 +24,12 @@ from fastapi import APIRouter, Depends
 
 from application.commands.change_device_unit_condition import (
     ChangeDeviceUnitConditionCommand,
+    ChangeDeviceUnitConditionCommandPayload,
     ChangeDeviceUnitConditionHandler,
 )
 from application.commands.reprice_device_unit import (
     RepriceDeviceUnitCommand,
+    RepriceDeviceUnitCommandPayload,
     RepriceDeviceUnitHandler,
 )
 from application.commands.reprice_device_units import (
@@ -93,22 +95,30 @@ async def get_device_unit_price_history(
 @router.patch("/{device_unit_id}/price")
 async def reprice_device_unit(
     device_unit_id: UUID,
-    body: RepriceDeviceUnitCommand,
+    body: RepriceDeviceUnitCommandPayload,
     current: FromDishka[CurrentUser],
     handler: FromDishka[RepriceDeviceUnitHandler],
 ) -> ResultWithData[DeviceUnitData]:
     require(current, Permission.PRICING_SET)
-    return await handler.handle(body.model_copy(update={"device_unit_id": device_unit_id}))
+    return await handler.handle(
+        RepriceDeviceUnitCommand(
+            **body.model_dump(exclude_unset=True), device_unit_id=device_unit_id
+        )
+    )
 
 
 @router.patch("/{device_unit_id}/condition")
 async def change_device_unit_condition(
     device_unit_id: UUID,
-    body: ChangeDeviceUnitConditionCommand,
+    body: ChangeDeviceUnitConditionCommandPayload,
     current: FromDishka[CurrentUser],
     handler: FromDishka[ChangeDeviceUnitConditionHandler],
 ) -> ResultWithData[DeviceUnitData]:
     """FR-2.18: condition is a pricing input, so it moves under the
     pricing permission rather than the catalog one."""
     require(current, Permission.PRICING_SET)
-    return await handler.handle(body.model_copy(update={"device_unit_id": device_unit_id}))
+    return await handler.handle(
+        ChangeDeviceUnitConditionCommand(
+            **body.model_dump(exclude_unset=True), device_unit_id=device_unit_id
+        )
+    )

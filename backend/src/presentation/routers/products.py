@@ -15,7 +15,11 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends, Query
 
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
-from application.commands.update_product import UpdateProductCommand, UpdateProductHandler
+from application.commands.update_product import (
+    UpdateProductCommand,
+    UpdateProductCommandPayload,
+    UpdateProductHandler,
+)
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
 from application.models import PriceChangeData, ProductData
@@ -84,7 +88,7 @@ async def get_product_price_history(
 @router.patch("/{product_id}")
 async def update_product(
     product_id: UUID,
-    body: UpdateProductCommand,
+    body: UpdateProductCommandPayload,
     current: FromDishka[CurrentUser],
     handler: FromDishka[UpdateProductHandler],
 ) -> ResultWithData[ProductData]:
@@ -93,4 +97,6 @@ async def update_product(
     # separable from renaming a product or deactivating it.
     if "default_sale_price" in body.model_fields_set:
         require(current, Permission.PRICING_SET)
-    return await handler.handle(body.model_copy(update={"product_id": product_id}))
+    return await handler.handle(
+        UpdateProductCommand(**body.model_dump(exclude_unset=True), product_id=product_id)
+    )

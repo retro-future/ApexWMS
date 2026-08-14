@@ -19,9 +19,7 @@ it projects from has no row shape meaning "no longer priced".
 
 from uuid import UUID
 
-from pydantic import Field
-
-from application.core import Command, IRequestHandler, ResultWithData
+from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, NotFoundError
 from application.models import ProductData
 from application.ports import ProductRepository, TenantUnitOfWork
@@ -30,7 +28,7 @@ from domain.entities import Product
 from domain.value_objects import Barcode
 
 
-class UpdateProductCommand(Command[ResultWithData[ProductData]]):
+class UpdateProductCommandPayload(CamelModel):
     name: str | None = None
     brand: str | None = None
     model: str | None = None
@@ -40,8 +38,11 @@ class UpdateProductCommand(Command[ResultWithData[ProductData]]):
     # who moved it. Making the store justify each change was not asked for.
     price_reason: str | None = None
     is_active: bool | None = None
-    # A URL path segment, merged in by the router — see routers/products.py.
-    product_id: UUID | None = Field(default=None, exclude=True)
+
+
+class UpdateProductCommand(UpdateProductCommandPayload, Command[ResultWithData[ProductData]]):
+    # A URL path segment, filled in by the router — never sent by the client.
+    product_id: UUID
 
 
 class UpdateProductHandler(
@@ -60,7 +61,6 @@ class UpdateProductHandler(
         self._repricer = repricer
 
     async def handle(self, request: UpdateProductCommand) -> ResultWithData[ProductData]:
-        assert request.product_id is not None
         product = await self._products.get(request.product_id)
         if product is None:
             raise NotFoundError("no such product in this store")

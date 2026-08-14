@@ -4,24 +4,25 @@ Operates on the ``Employee`` row: a role is a fact about a person *at one
 store*, so changing it never touches their master login identity.
 
 ``target_user_id`` is a URL path segment, not something a DI-resolvable
-type can supply — it is excluded from the client-facing schema and merged
-in by the router via ``model_copy(update=...)`` before dispatch (see
-``presentation/routers/users.py``).
+type can supply — it is not part of the client-facing body schema at all
+(``ChangeUserRoleCommandPayload``), and is filled in by the router once the
+path is parsed (see ``presentation/routers/users.py``).
 """
 
 from uuid import UUID
 
-from pydantic import Field
-
-from application.core import Command, IRequestHandler, Result
+from application.core import CamelModel, Command, IRequestHandler, Result
 from application.errors import LastOwnerError, NotFoundError
 from application.ports import EmployeeRepository, TenantUnitOfWork
 from domain.enums import TenantRole
 
 
-class ChangeUserRoleCommand(Command[Result]):
+class ChangeUserRoleCommandPayload(CamelModel):
     role: TenantRole
-    target_user_id: UUID | None = Field(default=None, exclude=True)
+
+
+class ChangeUserRoleCommand(ChangeUserRoleCommandPayload, Command[Result]):
+    target_user_id: UUID
 
 
 class ChangeUserRoleHandler(IRequestHandler[Result, ChangeUserRoleCommand]):
@@ -30,7 +31,6 @@ class ChangeUserRoleHandler(IRequestHandler[Result, ChangeUserRoleCommand]):
         self._uow = uow
 
     async def handle(self, request: ChangeUserRoleCommand) -> Result:
-        assert request.target_user_id is not None
         employee = await self._employees.get(request.target_user_id)
         if employee is None:
             raise NotFoundError("no such employee at this store")
