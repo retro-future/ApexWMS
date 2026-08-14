@@ -58,7 +58,7 @@ class TokenService(Protocol):
 `parse_opaque` returns `None` rather than raising, because the two callers
 want *different* exceptions (`InvalidTokenError` vs `InvitationError`) —
 deciding which one is the handler's business rule to own
-(`.claude/rules/backend/exception-handling.md`), not the token service's.
+(`.claude/rules/backend/providers.md`), not the token service's.
 
 By contrast, `AcceptInviteHandler._grant_app_role`/`_join_store` and
 `_validate` stay exactly where they are: each reads and mutates state that

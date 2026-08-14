@@ -8,8 +8,8 @@ paths:
 A `Provider` subclass in `di/providers/` exists to *construct and wire*
 objects for the container. It is composition-root code, not business logic —
 `di/` is "the only package allowed to import from every other layer"
-(CLAUDE.md), which makes it tempting to also let it *do* things from every
-other layer. Don't.
+(`docs/architecture/clean-architecture.md`), which makes it tempting to also
+let it *do* things from every other layer. Don't.
 
 ## Rules
 
@@ -29,9 +29,42 @@ other layer. Don't.
    `infrastructure/`), constructed via DI and injected as a dependency —
    never a `_helper` bolted onto the provider itself.
 4. **Never raise `ApplicationError` (or any domain/application exception)
-   from a provider.** See `exception-handling.md`. Exceptions surface
-   because a *service* raised them while doing its job; the provider that
-   called it just lets the exception propagate.
+   from a provider.** `application/errors.py`'s `ApplicationError` subclasses
+   (`AuthenticationError`, `AuthorizationError`, `TenantNotActiveError`,
+   `MissingTenantError`, `TenantNotFoundError`, ...) represent business/use-case
+   failures. Each one must be raised from the service, use case, or
+   domain-adjacent helper that actually evaluates the rule being violated —
+   never from a `di/providers/*` `@provide` method, and never from DI wiring
+   code in general. A provider's job is to answer "how do I build a `T`",
+   resolved once per scope by the container; putting a `raise` inside that
+   resolution step conflates *object construction* with *business
+   validation*, the same conflation rule 1 forbids for plain logic, just via
+   control flow instead of a branch. It also makes the rule impossible to
+   unit-test without standing up the container, whereas a plain service class
+   (like `CurrentTenantAccessor` or `CurrentUserAccessor`) can be constructed
+   and tested directly with fakes.
+
+   Where these exceptions actually live instead:
+   - **Identity**: `CurrentUserAccessor.get_current_user()`
+     (`infrastructure/security/current_user_accessor.py`) raises
+     `AuthenticationError` for a missing/absent bearer token.
+   - **Tenant resolution**: `CurrentTenantAccessor`
+     (`infrastructure/current_tenant_accessor.py`) raises
+     `MissingTenantError`/`TenantNotFoundError`/`AuthorizationError`/
+     `TenantNotActiveError` — see `docs/architecture/tenant-resolution.md`.
+   - **Reaching a tenant DB mid-request**: `SqlTenantScope._resolve`
+     (`infrastructure/tenant_scope.py`) raises `TenantNotActiveError` for a
+     suspended/missing store, independently of the edge-resolution path above.
+   - **Handler-level rules** (e.g. `LastOwnerError`, `AlreadyMemberError`,
+     `InvitationError`, `SlugAlreadyTakenError`): raised from the
+     `IRequestHandler` in `application/commands/`/`application/queries/` that
+     owns the rule, inside its `__call__`.
+
+   The provider that ultimately depends on one of these services (directly or
+   transitively) does not catch, wrap, or re-raise anything — the exception
+   propagates up through the container resolution and is mapped to an HTTP
+   status by the presentation layer, same as any exception raised inside a
+   handler's `__call__`.
 5. **One provider module per concern**, not one giant provider. When a
    concern needs a dedicated resolution step (e.g. "which tenant is this
    request for"), give it its own service class and inject that service,
@@ -60,8 +93,8 @@ class TenantDbProvider(Provider):
 
 All the resolution logic and every raise lives in
 `infrastructure/current_tenant_accessor.py`'s `CurrentTenantAccessor` — see
-`docs/architecture/tenant-resolution.md`. `di/providers/auth.py`'s `AuthProvider` follows the
-identical shape via `CurrentUserAccessor`
+`docs/architecture/tenant-resolution.md` and rule 4 above. `di/providers/auth.py`'s
+`AuthProvider` follows the identical shape via `CurrentUserAccessor`
 (`infrastructure/security/current_user_accessor.py`).
 
 ## CQRS handlers: prefer `provide_all` over hand-written factories
