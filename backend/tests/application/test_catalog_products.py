@@ -183,9 +183,9 @@ class TestUpdate:
         )
 
         result = await world.update_product().handle(
-            UpdateProductCommand.model_validate(
-                {"barcode": None}
-            ).model_copy(update={"product_id": created.data.id})
+            # Passed explicitly, so ``barcode`` lands in ``model_fields_set``
+            # and the handler clears it rather than leaving it alone.
+            UpdateProductCommand(product_id=created.data.id, barcode=None)
         )
 
         assert result.data.barcode is None
