@@ -3,8 +3,10 @@
 import { Box, NavLink, Stack, Text } from "@mantine/core";
 import {
   IconBuildingWarehouse,
+  IconClipboardList,
   IconLayoutDashboard,
   IconMapPin,
+  IconPackageImport,
   IconSettings,
   IconTruck,
   IconUsers,
@@ -61,6 +63,23 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           label: t("customers"),
           icon: IconUsersGroup,
           permission: Permission.Customer.View,
+        },
+      ],
+    },
+    {
+      title: t("inbound"),
+      items: [
+        {
+          href: "/purchase-orders",
+          label: t("purchaseOrders"),
+          icon: IconClipboardList,
+          permission: Permission.PurchaseOrder.View,
+        },
+        {
+          href: "/receipts",
+          label: t("receipts"),
+          icon: IconPackageImport,
+          permission: Permission.Receiving.View,
         },
       ],
     },

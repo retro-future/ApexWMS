@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ApexWMS is a multi-tenant (database-per-tenant) warehouse management system for phone stores: IMEI-level device tracking, append-only stock & financial ledgers, credit/installment sales. It is also a CRM: customer records, credit/installment relationships, and customer-facing history are first-class alongside the inventory and ledger domain — not a bolted-on afterthought.
 
-The project is a uv workspace with one member so far: `backend/` (FastAPI). A `frontend/` (Next.js) is planned but not started.
+The project is a uv workspace with one member: `backend/` (FastAPI). Alongside it, `frontend/` is a Next.js app (App Router, Mantine, next-intl in en/ru/uz) that talks to the API only through its own BFF proxy at `/api/backend/*` — the browser never holds a token or learns the backend's address.
 
 > **Full spec:** [docs/prd.md](docs/prd.md) (~1140 lines) — read the relevant section before implementing a feature; this file only orients you, it doesn't replace the PRD.
 >
@@ -37,6 +37,15 @@ uv run ty check                            # type check src/ — see below, this
 uv run uvicorn main:app --reload           # dev server → http://localhost:8000/api/v1/health
 ```
 
+Frontend commands run from `frontend/` (pnpm):
+
+```bash
+pnpm dev                                   # dev server → http://localhost:3000
+pnpm typecheck && pnpm lint                # the two gates CI runs
+pnpm test                                  # vitest (jsdom + Testing Library)
+pnpm test src/lib/money.test.ts            # one file
+```
+
 `asyncio_mode = "auto"` is set in `backend/pyproject.toml`, so async test functions need no `@pytest.mark.asyncio` marker.
 
 Settings load from environment variables prefixed `APEXWMS_` (see `backend/.env.example`), or from `backend/.env`.
@@ -50,7 +59,8 @@ Settings load from environment variables prefixed `APEXWMS_` (see `backend/.env.
 - **`domain/value_objects/`** (`Money`, `IMEI`, `CostPool`) are frozen dataclasses that validate themselves in `__post_init__` with no I/O — the pattern for any new value object. Detail: [value-objects.md](docs/architecture/value-objects.md).
 - **Two append-only ledgers** (`stock_movements`, `financial_transactions`) are the source of truth; everything else (`stock_levels.quantity`, `device_units.status`, prices) is a projection written in the same transaction. `LedgerPoster` never commits — the calling handler owns the transaction. Detail, repository-base rules, verification CLI: [ledgers.md](docs/architecture/ledgers.md).
 - **Documents** (`PurchaseOrder`, `GoodsReceipt` so far) share one lifecycle (`DRAFT → CONFIRMED → CANCELLED`) from a common `Document` base; each subclass states its own confirm invariants. Detail: [documents.md](docs/architecture/documents.md).
-- **Current milestone: M4** (purchase orders, goods receipts, IMEI scan-in). M5 (outbound sales) is next. Check [milestones.md](docs/architecture/milestones.md) before assuming a feature belongs in the current milestone.
+- **Frontend gates on permissions, never on role names**, mirroring §2.1's flat matrix (`src/lib/permissions.ts`, `useCan()`). Hiding a control is a courtesy — the server checks every request, and cost figures are *omitted from the payload* for Storekeeper/Seller (FR-1.7) rather than hidden in the UI.
+- **Current milestone: M4** (purchase orders, goods receipts, IMEI scan-in), now with its frontend: `/purchase-orders`, `/receipts` (the wedge-scanner console), `/device-units/[id]`, and the header scan bar over `GET /scan/lookup`. M5 (outbound sales) is next. Check [milestones.md](docs/architecture/milestones.md) before assuming a feature belongs in the current milestone.
 
 ## Code conventions
 

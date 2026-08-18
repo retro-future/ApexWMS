@@ -6,6 +6,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { MeProvider } from "@/components/MeProvider";
 import { LanguageSwitcher } from "@/components/shell/LanguageSwitcher";
 import { NavLinks } from "@/components/shell/NavLinks";
+import { ScanBar } from "@/components/shell/ScanBar";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { UserMenu } from "@/components/shell/UserMenu";
 import type { Me } from "@/lib/types";
@@ -44,6 +45,7 @@ export function AppShellFrame({
               </Text>
             </Group>
             <Group gap="xs" wrap="nowrap">
+              <ScanBar />
               <LanguageSwitcher />
               <ThemeToggle />
               <UserMenu />

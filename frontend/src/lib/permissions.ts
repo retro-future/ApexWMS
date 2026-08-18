@@ -1,6 +1,6 @@
 /**
  * The permission strings this frontend gates on, mirrored from the backend's
- * domain/permissions.py. Only the M2-relevant subset is listed.
+ * domain/permissions/. Only the subset the shipped screens gate on is listed.
  *
  * Gate on permissions, never on role names: PRD §2.1's matrix is not
  * hierarchical, so there is no rank to compare. A Storekeeper can receive
@@ -36,6 +36,23 @@ export const Permission = {
   },
   Cost: {
     View: "Permission.Cost.View",
+  },
+  PurchaseOrder: {
+    View: "Permission.PurchaseOrder.View",
+    Manage: "Permission.PurchaseOrder.Manage",
+  },
+  Receiving: {
+    View: "Permission.Receiving.View",
+    Manage: "Permission.Receiving.Manage",
+  },
+  Pricing: {
+    Set: "Permission.Pricing.Set",
+  },
+  Document: {
+    Cancel: "Permission.Document.Cancel",
+  },
+  Scan: {
+    Lookup: "Permission.Scan.Lookup",
   },
 } as const;
 

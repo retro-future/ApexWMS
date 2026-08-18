@@ -11,7 +11,9 @@ import {
 } from "@mantine/core";
 import {
   IconBuildingWarehouse,
+  IconClipboardList,
   IconMapPin,
+  IconPackageImport,
   IconTruck,
   IconUsersGroup,
 } from "@tabler/icons-react";
@@ -23,15 +25,33 @@ import { useResourceList } from "@/hooks/use-resource";
 import { Permission } from "@/lib/permissions";
 
 /**
- * Deliberately modest. There is no stock and no money in the system yet
- * (ledgers arrive at M3), so the honest thing to show is how much reference
- * data exists and where to go next.
+ * Deliberately modest: counts of what exists and a way into it. Anything
+ * resembling a real figure — stock value, margin, what sold today — is
+ * reporting (M8) and would be guesswork assembled from list endpoints here.
  */
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
   const me = useMe();
   const can = useCan();
+
+  /** Work in progress first: a draft document is something to go and finish. */
+  const inbound = [
+    {
+      resource: "purchase-orders",
+      href: "/purchase-orders?status=draft",
+      label: t("draftOrders"),
+      icon: IconClipboardList,
+      permission: Permission.PurchaseOrder.View,
+    },
+    {
+      resource: "receipts",
+      href: "/receipts?status=draft",
+      label: t("draftReceipts"),
+      icon: IconPackageImport,
+      permission: Permission.Receiving.View,
+    },
+  ].filter((card) => can(card.permission));
 
   const cards = [
     {
@@ -75,6 +95,21 @@ export default function DashboardPage() {
         </Text>
       </Stack>
 
+      {inbound.length > 0 && (
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          {inbound.map((card) => (
+            <CountCard
+              key={card.resource}
+              resource={card.resource}
+              href={card.href}
+              label={card.label}
+              icon={card.icon}
+              filters={{ status: "draft" }}
+            />
+          ))}
+        </SimpleGrid>
+      )}
+
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         {cards.map((card) => (
           <CountCard
@@ -83,6 +118,7 @@ export default function DashboardPage() {
             href={card.href}
             label={card.label}
             icon={card.icon}
+            filters={{ isActive: true }}
           />
         ))}
       </SimpleGrid>
@@ -95,19 +131,20 @@ function CountCard({
   href,
   label,
   icon: Icon,
+  filters,
 }: {
   resource: string;
   href: string;
   label: string;
   icon: React.ElementType;
+  /** Must match what the linked page shows, or the card disagrees with it. */
+  filters: Record<string, string | boolean>;
 }) {
   // pageSize 1: all we want from the list is its `totalItems`.
-  // isActive must match what the list pages show by default, or the card
-  // counts deactivated rows and disagrees with the page it links to.
   const { data, isLoading } = useResourceList<unknown>(resource, {
     page: 1,
     pageSize: 1,
-    isActive: true,
+    ...filters,
   });
 
   return (
