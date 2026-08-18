@@ -88,6 +88,17 @@ dive: [documents.md](../docs/architecture/documents.md).
 - Domain: `domain/entities/document.py` (`Document` base lifecycle),
   `purchase_order.py`, `goods_receipt.py`
 
+## Scanning & lookup
+
+One endpoint resolving a scanned string to a handset or a catalog row
+(PRD §6, FR-7.1) — the only route into a device unit from a UI, since a
+handset is found by its IMEI and never by a UUID anyone could type.
+
+- Queries: `queries/scan_lookup.py`
+- Models: `models/scan_lookup.py` (`ScanKind` + the two existing payloads,
+  so cost shaping comes from `DeviceUnitData` unchanged)
+- Router: `presentation/routers/scan.py`
+
 ## Cross-cutting ports (used by every feature area)
 
 `application/ports/`: `clock.py`, `provisioning.py`, `repository.py`

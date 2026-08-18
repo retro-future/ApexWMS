@@ -32,6 +32,7 @@ from application.models.purchase_order import (
     PurchaseOrderLineData,
 )
 from application.models.received_unit import ReceivedUnitData
+from application.models.scan_lookup import ScanKind, ScanLookupData
 from application.models.scan_result import ScanResultData
 from application.models.supplier import SupplierData
 from application.models.tenant_settings import TenantSettingsData
@@ -57,6 +58,8 @@ __all__ = [
     "PurchaseOrderData",
     "PurchaseOrderLineData",
     "ReceivedUnitData",
+    "ScanKind",
+    "ScanLookupData",
     "ScanResultData",
     "SupplierData",
     "TenantSettingsData",

@@ -17,6 +17,7 @@ from presentation.routers import (
     locations,
     products,
     purchase_orders,
+    scan,
     suppliers,
     users,
 )
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(suppliers.router, prefix=API_PREFIX)
     app.include_router(customers.router, prefix=API_PREFIX)
     app.include_router(device_units.router, prefix=API_PREFIX)
+    app.include_router(scan.router, prefix=API_PREFIX)
     app.include_router(purchase_orders.router, prefix=API_PREFIX)
     app.include_router(goods_receipts.router, prefix=API_PREFIX)
     return app

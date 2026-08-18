@@ -68,6 +68,7 @@ from application.queries.list_products import ListProductsHandler
 from application.queries.list_purchase_orders import ListPurchaseOrdersHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
+from application.queries.scan_lookup import ScanLookupHandler
 
 
 class HandlersProvider(Provider):
@@ -108,6 +109,7 @@ class HandlersProvider(Provider):
         RepriceDeviceUnitHandler,
         RepriceDeviceUnitsHandler,
         ChangeDeviceUnitConditionHandler,
+        ScanLookupHandler,
         # --- M4 purchasing & receiving ---
         CreatePurchaseOrderHandler,
         PricePurchaseOrderLineHandler,
