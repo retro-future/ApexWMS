@@ -18,10 +18,10 @@ import {
   Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
@@ -29,12 +29,19 @@ import { useCan } from "@/components/MeProvider";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useLocationLookup } from "@/hooks/use-lookup";
-import { useResourceItem } from "@/hooks/use-resource";
-import { apiGet } from "@/lib/api";
+import { useResourceItem, useResourceList } from "@/hooks/use-resource";
+import { apiGet, apiSend } from "@/lib/api";
 import { isValidPriceInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
-import type { DeviceCondition, DeviceUnit, PriceChange } from "@/lib/types";
+import type {
+  Customer,
+  DeviceCondition,
+  DeviceUnit,
+  Location,
+  PriceChange,
+  SalesInvoice,
+} from "@/lib/types";
 
 const CONDITIONS: DeviceCondition[] = ["new", "refurbished", "used"];
 
@@ -45,6 +52,7 @@ export default function DeviceUnitPage() {
   const t = useTranslations("deviceUnits");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const tSell = useTranslations("invoices.sell");
   const { id } = useParams<{ id: string }>();
   const can = useCan();
 
@@ -61,6 +69,7 @@ export default function DeviceUnitPage() {
 
   const [repricing, setRepricing] = useState(false);
   const [regrading, setRegrading] = useState(false);
+  const [selling, setSelling] = useState(false);
 
   if (query.isLoading) {
     return (
@@ -109,14 +118,21 @@ export default function DeviceUnitPage() {
           </Text>
         </Stack>
 
-        {canPrice && onHand && (
-          <Group gap="sm">
-            <Button onClick={() => setRepricing(true)}>{t("reprice")}</Button>
-            <Button variant="light" onClick={() => setRegrading(true)}>
-              {t("changeCondition")}
-            </Button>
-          </Group>
-        )}
+        <Group gap="sm">
+          {unit.status === "in_stock" && can(Permission.Sales.Manage) && (
+            <Button onClick={() => setSelling(true)}>{tSell("sellThis")}</Button>
+          )}
+          {canPrice && onHand && (
+            <>
+              <Button variant="light" onClick={() => setRepricing(true)}>
+                {t("reprice")}
+              </Button>
+              <Button variant="light" onClick={() => setRegrading(true)}>
+                {t("changeCondition")}
+              </Button>
+            </>
+          )}
+        </Group>
       </Group>
 
       {/* FR-2.14: the rule refused, so the screen says so rather than
@@ -233,7 +249,121 @@ export default function DeviceUnitPage() {
       {regrading && (
         <ConditionModal unit={unit} onClose={() => setRegrading(false)} />
       )}
+      {selling && <SellUnitModal unit={unit} onClose={() => setSelling(false)} />}
     </Stack>
+  );
+}
+
+/**
+ * The counter's shortcut: open an invoice and put this handset on it
+ * (FR-4.1, FR-4.2), without going back to the invoice list to do it.
+ *
+ * The location defaults to the one holding the unit, because a handset
+ * scanned onto an invoice raised elsewhere is refused (FR-4.4) — offering
+ * any other default would be offering a guaranteed rejection.
+ *
+ * The two calls are not atomic, and deliberately not hidden behind one: if
+ * the scan is refused — the commonest reason being a handset nobody has
+ * priced (FR-4.2b) — the draft invoice still exists and the operator lands
+ * on it, which is where they would want to be anyway.
+ */
+function SellUnitModal({
+  unit,
+  onClose,
+}: {
+  unit: DeviceUnit;
+  onClose: () => void;
+}) {
+  const tSell = useTranslations("invoices.sell");
+  const tInvoices = useTranslations("invoices");
+  const tCommon = useTranslations("common");
+  const router = useRouter();
+
+  const [locationId, setLocationId] = useState<string | null>(unit.locationId);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const locations = useResourceList<Location>("locations", {
+    page: 1,
+    pageSize: 200,
+    isActive: true,
+  });
+  const customers = useResourceList<Customer>("customers", {
+    page: 1,
+    pageSize: 200,
+    isActive: true,
+  });
+
+  const start = useMutation({
+    mutationFn: async () => {
+      const invoice = await apiSend<SalesInvoice>("POST", "/invoices", {
+        locationId,
+        ...(customerId ? { customerId } : {}),
+      });
+      await apiSend("POST", `/invoices/${invoice!.id}/scan`, { code: unit.imei });
+      return invoice!;
+    },
+  });
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (!locationId) return;
+    try {
+      const invoice = await start.mutateAsync();
+      router.push(`/invoices/${invoice.id}`);
+    } catch (thrown) {
+      setError(errorMessage(thrown, tCommon("retry")));
+    }
+  }
+
+  return (
+    <FormModal
+      opened
+      onClose={onClose}
+      title={tSell("sellThisTitle")}
+      onSubmit={submit}
+      busy={start.isPending}
+      error={error}
+      submitLabel={tSell("sellThis")}
+    >
+      <Text size="sm" c="dimmed">
+        {tSell("sellThisBody")}
+      </Text>
+
+      {/* Said before the call, not after: the scan will be refused, and the
+          Seller reading this cannot fix it themselves (FR-4.2b). */}
+      {unit.resolvedPrice === null && (
+        <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>
+          {tSell("sellThisUnpriced")}
+        </Alert>
+      )}
+
+      <Select
+        label={tInvoices("location")}
+        value={locationId}
+        onChange={setLocationId}
+        searchable
+        required
+        data={(locations.data?.items ?? []).map((location) => ({
+          value: location.id,
+          label: location.name,
+        }))}
+        data-autofocus
+      />
+      <Select
+        label={tInvoices("customer")}
+        placeholder={tInvoices("walkIn")}
+        value={customerId}
+        onChange={setCustomerId}
+        searchable
+        clearable
+        data={(customers.data?.items ?? []).map((customer) => ({
+          value: customer.id,
+          label: customer.fullName,
+        }))}
+      />
+    </FormModal>
   );
 }
 

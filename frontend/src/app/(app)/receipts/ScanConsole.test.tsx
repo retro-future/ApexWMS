@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,9 +8,10 @@ import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
 import type { GoodsReceipt, ScanResult } from "@/lib/types";
 
-const { apiSend, apiGetPaged } = vi.hoisted(() => ({
+const { apiSend, apiGetPaged, decodeFromConstraints } = vi.hoisted(() => ({
   apiSend: vi.fn(),
   apiGetPaged: vi.fn(),
+  decodeFromConstraints: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -18,6 +19,12 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   apiSend,
   apiGetPaged,
+}));
+
+vi.mock("@zxing/browser", () => ({
+  BrowserMultiFormatReader: vi.fn().mockImplementation(function BrowserMultiFormatReaderMock() {
+    return { decodeFromConstraints };
+  }),
 }));
 
 const IMEI = "490154203237518";
@@ -310,6 +317,35 @@ describe("ScanConsole", () => {
         lineId: "line-1",
         condition: "new",
         acquisitionCost: "700.00",
+      }),
+    );
+  });
+
+  it("submits a camera-decoded code through the same scan path", async () => {
+    apiSend.mockResolvedValue(scanResult(IMEI));
+    let callback: (result: { getText: () => string }) => void = () => {};
+    decodeFromConstraints.mockImplementation(
+      (_constraints: unknown, _preview: unknown, cb: typeof callback) => {
+        callback = cb;
+        return Promise.resolve({ stop: vi.fn() });
+      },
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ScanConsole receipt={receipt} referenceCosts={new Map()} onScanned={vi.fn()} />,
+      { me: makeMe([Permission.Receiving.Manage]) },
+    );
+
+    await user.click(screen.getByLabelText("Scan with camera"));
+    await waitFor(() => expect(decodeFromConstraints).toHaveBeenCalled());
+    act(() => callback({ getText: () => IMEI }));
+
+    await waitFor(() =>
+      expect(apiSend).toHaveBeenCalledWith("POST", "/receipts/receipt-1/scan", {
+        imei: IMEI,
+        lineId: "line-1",
+        condition: "new",
       }),
     );
   });

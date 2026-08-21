@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   confirmBlockers,
-  isEditable,
   isSerial,
   referenceCosts,
   scanProgress,
@@ -73,14 +72,6 @@ function receipt(lines: GoodsReceiptLine[]): GoodsReceipt {
     subtotals: [],
   };
 }
-
-describe("isEditable", () => {
-  it("allows edits only while the document is a draft (§4.4)", () => {
-    expect(isEditable("draft")).toBe(true);
-    expect(isEditable("confirmed")).toBe(false);
-    expect(isEditable("cancelled")).toBe(false);
-  });
-});
 
 describe("scanProgress", () => {
   it("counts what has been scanned against what was declared", () => {

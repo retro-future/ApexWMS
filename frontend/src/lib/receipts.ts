@@ -15,17 +15,11 @@
 
 import type {
   Currency,
-  DocumentStatus,
   GoodsReceipt,
   GoodsReceiptLine,
   PurchaseOrder,
   ReceivedUnit,
 } from "@/lib/types";
-
-/** A document is freely editable while DRAFT, and immutable after (§4.4). */
-export function isEditable(status: DocumentStatus): boolean {
-  return status === "draft";
-}
 
 export function isSerial(line: GoodsReceiptLine): boolean {
   return line.trackingType === "serial";

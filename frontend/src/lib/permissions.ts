@@ -45,8 +45,17 @@ export const Permission = {
     View: "Permission.Receiving.View",
     Manage: "Permission.Receiving.Manage",
   },
+  Sales: {
+    View: "Permission.Sales.View",
+    Manage: "Permission.Sales.Manage",
+  },
   Pricing: {
     Set: "Permission.Pricing.Set",
+    /** Charging something other than what the system resolved (FR-4.5). */
+    Override: "Permission.Pricing.Override",
+  },
+  Reporting: {
+    View: "Permission.Reporting.View",
   },
   Document: {
     Cancel: "Permission.Document.Cancel",

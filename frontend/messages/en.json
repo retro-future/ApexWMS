@@ -51,7 +51,11 @@
     "toggleTheme": "Toggle colour scheme",
     "inbound": "Inbound",
     "purchaseOrders": "Purchase orders",
-    "receipts": "Receipts"
+    "receipts": "Receipts",
+    "outbound": "Outbound",
+    "invoices": "Sales invoices",
+    "reports": "Reports",
+    "priceDeviations": "Price deviations"
   },
   "auth": {
     "signInTitle": "Sign in",
@@ -232,7 +236,13 @@
     "immutable": "A confirmed document cannot be edited. Correct one by cancelling it and raising it again.",
     "cancelledNotice": "This document was cancelled. Its movements were compensated, not deleted.",
     "priceHintUsd": "Up to two decimals, e.g. 599.00",
-    "priceHintUzs": "Whole so'm only — this currency has no minor unit."
+    "priceHintUzs": "Whole so'm only — this currency has no minor unit.",
+    "resolvedPrice": "Resolved price",
+    "chargedPrice": "Charged",
+    "quote": "Quote",
+    "quoteHint": "A quote, not a total. Every price is resolved again at confirm, so a markdown made now still reaches the customer.",
+    "approvedBy": "Approved by {name}",
+    "openPdf": "Open PDF"
   },
   "purchaseOrders": {
     "title": "Purchase orders",
@@ -311,7 +321,56 @@
       "needsPriceHint": "A used handset never inherits the catalog price. Someone with pricing rights must price it.",
       "readOnly": "This receipt is closed — nothing more can be scanned onto it.",
       "allScanned": "Every line is fully scanned — there is nothing left to scan.",
-      "empty": "Nothing scanned yet."
+      "empty": "Nothing scanned yet.",
+      "cameraTrigger": "Scan with camera"
+    }
+  },
+  "invoices": {
+    "title": "Sales invoices",
+    "subtitle": "What is being sold at the counter. Stock and money move when an invoice is confirmed.",
+    "new": "New invoice",
+    "newTitle": "New sales invoice",
+    "notFound": "This invoice does not exist in this store.",
+    "customer": "Customer",
+    "customerHint": "Optional. Leave blank for a walk-in.",
+    "walkIn": "Walk-in",
+    "location": "Location",
+    "locationHint": "Only handsets held here can be scanned onto this invoice. It cannot be changed afterwards.",
+    "lineCount": "Lines",
+    "searchPlaceholder": "Search by number, IMEI, customer name or phone…",
+    "filterStatus": "Status",
+    "confirmTitle": "Confirm this sale?",
+    "confirmBody": "Every price is resolved again now. The handsets are marked sold and both ledgers are written. It cannot be edited afterwards.",
+    "cancelTitle": "Cancel this invoice?",
+    "cancelBody": "Compensating entries return the handsets to stock at their original asking price. The original rows stay on record.",
+    "blockersTitle": "This invoice cannot be confirmed yet",
+    "blockerEmpty": "Nothing has been scanned yet.",
+    "blockerUnpriced": "{product} resolves to no price — an Owner or Manager must price it.",
+    "approvedBySomeone": "Price overridden",
+    "sell": {
+      "title": "Scan to sell",
+      "placeholder": "Scan or type an IMEI or barcode, then press Enter",
+      "hint": "A handset by its IMEI, an accessory by its barcode. The system works out which you scanned.",
+      "accepted": "Added at {price} · {count} line(s) on this invoice",
+      "lineCount": "{count} line(s)",
+      "empty": "Nothing scanned yet.",
+      "accessory": "Accessory",
+      "needsPrice": "Needs pricing",
+      "remove": "Remove line",
+      "removed": "Line removed",
+      "override": "Override price",
+      "overrideTitle": "Override this line's price",
+      "overridePrice": "Price to charge",
+      "resolvedHint": "The system resolves {price} for this line.",
+      "noResolvedPrice": "No price resolves for this line yet.",
+      "overrideNote": "Note",
+      "overrideNoteHint": "Optional. Kept with the sale, and shown on the price-deviations report.",
+      "clearOverride": "Clear the override",
+      "sellThis": "Sell this handset",
+      "sellThisTitle": "Sell this handset",
+      "sellThisBody": "Opens a new invoice at this location and scans the handset onto it.",
+      "sellThisUnpriced": "This handset resolves to no price, so it cannot be sold until an Owner or Manager prices it.",
+      "cameraTrigger": "Scan with camera"
     }
   },
   "deviceUnits": {
@@ -347,6 +406,33 @@
   },
   "scan": {
     "placeholder": "Scan an IMEI or barcode",
-    "notFound": "Nothing in this store matches {code}."
+    "notFound": "Nothing in this store matches {code}.",
+    "cameraTrigger": "Scan with camera",
+    "button": "Scan"
+  },
+  "camera": {
+    "title": "Scan with camera",
+    "starting": "Starting camera…",
+    "insecure": "Camera scanning needs a secure connection. Use the keyboard scanner instead.",
+    "denied": "Camera access was denied. Allow it in your browser settings, or use the keyboard scanner instead.",
+    "noCamera": "No camera was found on this device.",
+    "unsupported": "This browser does not support camera scanning.",
+    "error": "The camera could not be started. Try again, or use the keyboard scanner instead.",
+    "close": "Close"
+  },
+  "reports": {
+    "priceDeviationsTitle": "Price deviations",
+    "priceDeviationsSubtitle": "Every confirmed line charged something other than the price the system resolved, in both directions. Sort by approver or customer: one manager and one customer, over and over, is the pattern this exists to show.",
+    "date": "Date",
+    "invoice": "Invoice",
+    "handset": "Handset",
+    "difference": "Difference",
+    "approver": "Approved by",
+    "filterApprover": "Approved by",
+    "filterCustomer": "Customer",
+    "from": "From",
+    "to": "To",
+    "note": "Note",
+    "unattributed": "Not recorded"
   }
 }

@@ -1,15 +1,18 @@
 "use client";
 
 import {
+  Button,
   Card,
   Group,
   SimpleGrid,
   Skeleton,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import {
+  IconBarcode,
   IconBuildingWarehouse,
   IconClipboardList,
   IconMapPin,
@@ -19,9 +22,11 @@ import {
 } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useState } from "react";
 
 import { useCan, useMe } from "@/components/MeProvider";
 import { useResourceList } from "@/hooks/use-resource";
+import { useScanLookup } from "@/hooks/use-scan-lookup";
 import { Permission } from "@/lib/permissions";
 
 /**
@@ -95,6 +100,8 @@ export default function DashboardPage() {
         </Text>
       </Stack>
 
+      <MobileScanCard />
+
       {inbound.length > 0 && (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           {inbound.map((card) => (
@@ -123,6 +130,48 @@ export default function DashboardPage() {
         ))}
       </SimpleGrid>
     </Stack>
+  );
+}
+
+/**
+ * The header's ScanBar hides its text field below the `sm` breakpoint and
+ * offers only a camera trigger there (§7). A phone typing off a Bluetooth
+ * wedge or a manually keyed IMEI still needs somewhere to land it, so the
+ * dashboard carries the same lookup as a full-width mobile card.
+ */
+function MobileScanCard() {
+  const t = useTranslations("scan");
+  const can = useCan();
+  const [code, setCode] = useState("");
+  const lookup = useScanLookup();
+
+  if (!can(Permission.Scan.Lookup)) return null;
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const scanned = code.trim();
+    if (scanned) lookup.mutate(scanned, { onSuccess: () => setCode("") });
+  }
+
+  return (
+    <Card hiddenFrom="sm" withBorder radius="md" padding="lg">
+      <form onSubmit={submit}>
+        <Stack gap="sm">
+          <TextInput
+            value={code}
+            onChange={(event) => setCode(event.currentTarget.value)}
+            placeholder={t("placeholder")}
+            aria-label={t("placeholder")}
+            leftSection={<IconBarcode size={18} stroke={1.5} />}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <Button type="submit" fullWidth loading={lookup.isPending}>
+            {t("button")}
+          </Button>
+        </Stack>
+      </form>
+    </Card>
   );
 }
 

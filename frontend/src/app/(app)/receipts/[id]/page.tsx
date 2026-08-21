@@ -37,12 +37,12 @@ import {
   useSupplierLookup,
 } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
+import { isEditable } from "@/lib/documents";
 import { formatMoney, minorToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
 import {
   confirmBlockers,
-  isEditable,
   isSerial,
   referenceCosts,
   type ReferenceCost,

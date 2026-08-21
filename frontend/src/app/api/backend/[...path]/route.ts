@@ -67,17 +67,22 @@ async function handle(
   }
 
   const hasBody = !BODYLESS_STATUSES.has(upstream.status);
-  const payload = hasBody ? await upstream.text() : null;
+  // Bytes, not text: a PDF decoded as UTF-8 and re-encoded is a corrupt
+  // PDF, and `GET /invoices/{id}/pdf` is served straight through here.
+  const payload = hasBody ? await upstream.arrayBuffer() : null;
 
-  const res = new NextResponse(payload, {
-    status: upstream.status,
-    headers: hasBody
-      ? {
-          "Content-Type":
-            upstream.headers.get("content-type") ?? "application/json",
-        }
-      : undefined,
-  });
+  const headers = new Headers();
+  if (hasBody) {
+    headers.set(
+      "Content-Type",
+      upstream.headers.get("content-type") ?? "application/json",
+    );
+    // Carries the filename a browser puts on the tab and on a save.
+    const disposition = upstream.headers.get("content-disposition");
+    if (disposition) headers.set("Content-Disposition", disposition);
+  }
+
+  const res = new NextResponse(payload, { status: upstream.status, headers });
 
   if (rotated) setTokensOn(res, rotated);
   return res;

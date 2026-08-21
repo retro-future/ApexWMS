@@ -32,7 +32,7 @@ import { useResourceItem } from "@/hooks/use-resource";
 import { formatMoney, isValidPriceInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
-import { isEditable } from "@/lib/receipts";
+import { isEditable } from "@/lib/documents";
 import type { Fulfilment, PurchaseOrder, PurchaseOrderLine } from "@/lib/types";
 
 const FULFILMENT_COLOR: Record<Fulfilment, string> = {

@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  // Lets the dev server serve phones/tablets on the LAN (e.g. testing login
+  // on a real device) instead of silently blocking RSC/navigation requests.
+  allowedDevOrigins: ["192.168.100.8"],
+};
 
 // Picks up src/i18n/request.ts by convention.
 const withNextIntl = createNextIntlPlugin();

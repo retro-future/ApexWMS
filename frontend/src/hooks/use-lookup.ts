@@ -1,11 +1,13 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { useCan } from "@/components/MeProvider";
 import { useResourceList } from "@/hooks/use-resource";
+import { apiGet } from "@/lib/api";
 import { Permission } from "@/lib/permissions";
-import type { Customer, Location, Product, Supplier } from "@/lib/types";
+import type { Customer, Employee, Location, Product, Supplier } from "@/lib/types";
 
 /**
  * Documents reference their products, suppliers, locations and customers by
@@ -22,9 +24,14 @@ import type { Customer, Location, Product, Supplier } from "@/lib/types";
 /** One request, not one per page: reference lists are small and the API caps page size at 200. */
 const PAGE_SIZE = 200;
 
-export type LookupMap = {
+export type LookupMap<T = unknown> = {
   /** The display name for an id, or `undefined` when it is not loaded/permitted. */
   get: (id: string | null | undefined) => string | undefined;
+  /**
+   * The rows themselves, for the screens that offer them as a filter rather
+   * than only resolving ids. Empty where the permission is not held.
+   */
+  all: T[];
   isLoading: boolean;
 };
 
@@ -32,7 +39,7 @@ function useLookup<T extends { id: string }>(
   resource: string,
   label: (item: T) => string,
   allowed: boolean,
-): LookupMap {
+): LookupMap<T> {
   // No `isActive` filter: deactivated rows still appear on documents raised
   // before they were retired, and a receipt from March must not lose its
   // supplier's name.
@@ -52,11 +59,12 @@ function useLookup<T extends { id: string }>(
 
   return {
     get: (id) => (id ? byId.get(id) : undefined),
+    all: query.data?.items ?? [],
     isLoading: query.isLoading,
   };
 }
 
-export function useProductLookup(): LookupMap {
+export function useProductLookup(): LookupMap<Product> {
   const can = useCan();
   return useLookup<Product>(
     "products",
@@ -65,7 +73,7 @@ export function useProductLookup(): LookupMap {
   );
 }
 
-export function useSupplierLookup(): LookupMap {
+export function useSupplierLookup(): LookupMap<Supplier> {
   const can = useCan();
   return useLookup<Supplier>(
     "suppliers",
@@ -74,7 +82,7 @@ export function useSupplierLookup(): LookupMap {
   );
 }
 
-export function useLocationLookup(): LookupMap {
+export function useLocationLookup(): LookupMap<Location> {
   const can = useCan();
   return useLookup<Location>(
     "locations",
@@ -83,11 +91,43 @@ export function useLocationLookup(): LookupMap {
   );
 }
 
-export function useCustomerLookup(): LookupMap {
+export function useCustomerLookup(): LookupMap<Customer> {
   const can = useCan();
   return useLookup<Customer>(
     "customers",
     (customer) => customer.fullName,
     can(Permission.Customer.View),
   );
+}
+
+/**
+ * Who did a thing — an invoice's author, its confirmer, and the manager who
+ * approved a line's price (FR-4.5f).
+ *
+ * It cannot go through `useLookup`: `/users` is not paged, it returns a
+ * plain list. And it is gated on `Users.View`, which only an Owner holds —
+ * so a Seller reading an invoice they overrode sees a dash where the name
+ * would be, rather than a 403 on the whole page.
+ */
+export function useEmployeeLookup(): LookupMap<Employee> {
+  const can = useCan();
+  const allowed = can(Permission.Users.View);
+
+  const query = useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiGet<Employee[]>("/users"),
+    enabled: allowed,
+  });
+
+  const byId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const employee of query.data ?? []) map.set(employee.id, employee.fullName);
+    return map;
+  }, [query.data]);
+
+  return {
+    get: (id) => (id ? byId.get(id) : undefined),
+    all: query.data ?? [],
+    isLoading: query.isLoading,
+  };
 }

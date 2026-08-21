@@ -1,17 +1,16 @@
 "use client";
 
-import { Loader, TextInput } from "@mantine/core";
-import { IconBarcode } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { ActionIcon, Loader, TextInput } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { IconBarcode, IconCamera } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { useCan } from "@/components/MeProvider";
-import { apiGet, queryString } from "@/lib/api";
-import { notifyError } from "@/lib/notify";
+import { CameraScanner } from "@/components/scan/CameraScanner";
+import { useScanLookup } from "@/hooks/use-scan-lookup";
 import { Permission } from "@/lib/permissions";
-import type { ScanLookup } from "@/lib/types";
 
 /**
  * The "customer walks in with a phone" bar (FR-7.1, FR-7.2).
@@ -22,50 +21,92 @@ import type { ScanLookup } from "@/lib/types";
  * handset's page — a device unit is reached by its IMEI, never by a UUID
  * anyone could type.
  */
+
+/** Dashboard idles as a scan station: pull focus back after this long of no other activity. */
+const SCAN_REFOCUS_IDLE_MS = 2 * 60 * 1000;
+
 export function ScanBar() {
   const t = useTranslations("scan");
-  const router = useRouter();
+  const pathname = usePathname();
   const can = useCan();
   const [code, setCode] = useState("");
+  const [cameraOpened, { open: openCamera, close: closeCamera }] = useDisclosure(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const lookup = useMutation({
-    mutationFn: (scanned: string) =>
-      apiGet<ScanLookup>(`/scan/lookup${queryString({ code: scanned })}`),
-    onSuccess: (result) => {
-      setCode("");
-      if (result.kind === "device" && result.device) {
-        router.push(`/device-units/${result.device.id}`);
-      } else if (result.product) {
-        router.push(`/products/${result.product.id}`);
-      }
-    },
-    // A 404 is the ordinary answer to an unknown code, not a failure worth
-    // an alert box — the operator scans the next thing.
-    onError: () => notifyError(t("notFound", { code })),
-  });
+  const lookup = useScanLookup();
 
-  if (!can(Permission.Scan.Lookup)) return null;
+  const isDashboard = pathname === "/";
+  const canScan = can(Permission.Scan.Lookup);
+
+  // Kiosk behavior: on the dashboard, keep the scanner ready for the next
+  // handset. It refocuses after idle time rather than on every blur, so it
+  // doesn't yank focus away from someone actively typing elsewhere.
+  useEffect(() => {
+    if (!isDashboard || !canScan || cameraOpened) return;
+
+    let idleTimer: ReturnType<typeof setTimeout>;
+    const scheduleRefocus = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (document.activeElement !== inputRef.current) {
+          inputRef.current?.focus();
+        }
+      }, SCAN_REFOCUS_IDLE_MS);
+    };
+
+    inputRef.current?.focus();
+    scheduleRefocus();
+    document.addEventListener("mousedown", scheduleRefocus);
+    document.addEventListener("keydown", scheduleRefocus);
+
+    return () => {
+      clearTimeout(idleTimer);
+      document.removeEventListener("mousedown", scheduleRefocus);
+      document.removeEventListener("keydown", scheduleRefocus);
+    };
+  }, [isDashboard, canScan, cameraOpened]);
+
+  if (!canScan) return null;
+
+  function onCameraDecode(scanned: string) {
+    setCode(scanned);
+    closeCamera();
+    lookup.mutate(scanned, { onSuccess: () => setCode("") });
+  }
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        const scanned = code.trim();
-        if (scanned) lookup.mutate(scanned);
-      }}
-    >
-      <TextInput
-        value={code}
-        onChange={(event) => setCode(event.currentTarget.value)}
-        placeholder={t("placeholder")}
-        aria-label={t("placeholder")}
-        leftSection={<IconBarcode size={18} stroke={1.5} />}
-        rightSection={lookup.isPending ? <Loader size="xs" /> : null}
-        autoComplete="off"
-        spellCheck={false}
-        visibleFrom="sm"
-        w={280}
-      />
-    </form>
+    <>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const scanned = code.trim();
+          if (scanned) lookup.mutate(scanned, { onSuccess: () => setCode("") });
+        }}
+      >
+        <TextInput
+          ref={inputRef}
+          value={code}
+          onChange={(event) => setCode(event.currentTarget.value)}
+          placeholder={t("placeholder")}
+          aria-label={t("placeholder")}
+          leftSection={<IconBarcode size={18} stroke={1.5} />}
+          rightSection={lookup.isPending ? <Loader size="xs" /> : null}
+          autoComplete="off"
+          spellCheck={false}
+          visibleFrom="sm"
+          w={280}
+        />
+      </form>
+      <ActionIcon
+        variant="subtle"
+        size="lg"
+        aria-label={t("cameraTrigger")}
+        hiddenFrom="sm"
+        onClick={openCamera}
+      >
+        <IconCamera size={20} stroke={1.5} />
+      </ActionIcon>
+      <CameraScanner opened={cameraOpened} onClose={closeCamera} onDecode={onCameraDecode} />
+    </>
   );
 }

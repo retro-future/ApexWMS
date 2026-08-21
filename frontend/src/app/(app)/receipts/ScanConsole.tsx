@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -11,12 +12,14 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { IconAlertCircle, IconBarcode, IconCheck } from "@tabler/icons-react";
+import { useDisclosure } from "@mantine/hooks";
+import { IconAlertCircle, IconBarcode, IconCamera, IconCheck } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { useCan } from "@/components/MeProvider";
+import { CameraScanner } from "@/components/scan/CameraScanner";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useProductLookup } from "@/hooks/use-lookup";
 import { formatMoney, minorToInput } from "@/lib/money";
@@ -84,6 +87,7 @@ export function ScanConsole({
   const [cashPaid, setCashPaid] = useState("");
   const [rejection, setRejection] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<string | null>(null);
+  const [cameraOpened, { open: openCamera, close: closeCamera }] = useDisclosure(false);
 
   const serialLines = receipt.lines.filter(isSerial);
   // A scan onto a receipt with several serialized lines must name one, so
@@ -129,9 +133,8 @@ export function ScanConsole({
   const cost =
     costInput ?? (reference ? minorToInput(reference.minor, reference.currency) : "");
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const imei = code.trim();
+  async function submitCode(raw: string) {
+    const imei = raw.trim();
     if (!imei) return;
 
     setRejection(null);
@@ -188,6 +191,16 @@ export function ScanConsole({
     } finally {
       inputRef.current?.focus();
     }
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitCode(code);
+  }
+
+  function onCameraDecode(decoded: string) {
+    setCode(decoded);
+    void submitCode(decoded);
   }
 
   return (
@@ -264,6 +277,14 @@ export function ScanConsole({
                 <Button type="submit" loading={scan.isPending}>
                   {t("title")}
                 </Button>
+                <ActionIcon
+                  variant="default"
+                  size="lg"
+                  aria-label={t("cameraTrigger")}
+                  onClick={openCamera}
+                >
+                  <IconCamera size={20} stroke={1.5} />
+                </ActionIcon>
               </Group>
 
               {canPrice && (
@@ -320,6 +341,12 @@ export function ScanConsole({
                 </Text>
               )}
             </Stack>
+            <CameraScanner
+              opened={cameraOpened}
+              onClose={closeCamera}
+              onDecode={onCameraDecode}
+              title={t("title")}
+            />
           </form>
         )}
       </Stack>

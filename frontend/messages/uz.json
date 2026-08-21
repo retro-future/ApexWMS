@@ -51,7 +51,11 @@
     "toggleTheme": "Mavzuni almashtirish",
     "inbound": "Kirim",
     "purchaseOrders": "Xarid buyurtmalari",
-    "receipts": "Kirim hujjatlari"
+    "receipts": "Kirim hujjatlari",
+    "outbound": "Sotuv",
+    "invoices": "Sotuv hisob-fakturalari",
+    "reports": "Hisobotlar",
+    "priceDeviations": "Narx chetlanishlari"
   },
   "auth": {
     "signInTitle": "Kirish",
@@ -232,7 +236,13 @@
     "immutable": "Tasdiqlangan hujjatni o'zgartirib bo'lmaydi. Xatosi bo'lsa, bekor qilib qaytadan tuziladi.",
     "cancelledNotice": "Bu hujjat bekor qilingan. Uning harakatlari o'chirilmagan, kompensatsiya qilingan.",
     "priceHintUsd": "Ikkitagacha kasr, masalan 599.00",
-    "priceHintUzs": "Faqat butun so'm — bu valyutada mayda birlik yo'q."
+    "priceHintUzs": "Faqat butun so'm — bu valyutada mayda birlik yo'q.",
+    "resolvedPrice": "Hisoblangan narx",
+    "chargedPrice": "To'lanadigan",
+    "quote": "Taxminiy",
+    "quoteHint": "Bu taxminiy hisob, yakuniy summa emas. Narxlar tasdiqlashda qayta hisoblanadi, shuning uchun hozir qilingan chegirma xaridorga yetib boradi.",
+    "approvedBy": "{name} tasdiqladi",
+    "openPdf": "PDF ochish"
   },
   "purchaseOrders": {
     "title": "Xarid buyurtmalari",
@@ -311,7 +321,56 @@
       "needsPriceHint": "Ishlatilgan apparat katalog narxini olmaydi. Narx belgilash huquqi bor xodim uni baholashi kerak.",
       "readOnly": "Bu kirim yopilgan — boshqa skanerlab bo'lmaydi.",
       "allScanned": "Barcha qatorlar to'liq skanerlandi — boshqa skanerlaydigan narsa yo'q.",
-      "empty": "Hali hech narsa skanerlanmagan."
+      "empty": "Hali hech narsa skanerlanmagan.",
+      "cameraTrigger": "Kamera bilan skanerlash"
+    }
+  },
+  "invoices": {
+    "title": "Sotuv hisob-fakturalari",
+    "subtitle": "Peshtaxtada nima sotilmoqda. Tovar va pul hisob-faktura tasdiqlanganda harakatlanadi.",
+    "new": "Yangi hisob-faktura",
+    "newTitle": "Yangi sotuv hisob-fakturasi",
+    "notFound": "Bu do'konda bunday hisob-faktura yo'q.",
+    "customer": "Xaridor",
+    "customerHint": "Ixtiyoriy. Tasodifiy xaridor uchun bo'sh qoldiring.",
+    "walkIn": "Tasodifiy xaridor",
+    "location": "Joylashuv",
+    "locationHint": "Faqat shu yerdagi telefonlarni skanerlash mumkin. Keyin o'zgartirib bo'lmaydi.",
+    "lineCount": "Qatorlar",
+    "searchPlaceholder": "Raqam, IMEI, mijoz ismi yoki telefoni bo'yicha qidirish…",
+    "filterStatus": "Holat",
+    "confirmTitle": "Sotuvni tasdiqlaysizmi?",
+    "confirmBody": "Barcha narxlar hozir qayta hisoblanadi. Telefonlar sotilgan deb belgilanadi va ikkala daftar ham yoziladi. Keyin tahrirlab bo'lmaydi.",
+    "cancelTitle": "Hisob-fakturani bekor qilasizmi?",
+    "cancelBody": "Qoplovchi yozuvlar telefonlarni omborga avvalgi narxida qaytaradi. Dastlabki yozuvlar qoladi.",
+    "blockersTitle": "Bu hisob-fakturani hali tasdiqlab bo'lmaydi",
+    "blockerEmpty": "Hali hech narsa skanerlanmagan.",
+    "blockerUnpriced": "{product} uchun narx aniqlanmaydi — uni egasi yoki menejer belgilashi kerak.",
+    "approvedBySomeone": "Narx qo'lda o'zgartirilgan",
+    "sell": {
+      "title": "Sotish uchun skanerlash",
+      "placeholder": "IMEI yoki shtrix-kodni skanerlang yoki kiriting, so'ng Enter bosing",
+      "hint": "Telefon IMEI bo'yicha, aksessuar shtrix-kod bo'yicha. Tizim nimani skanerlaganingizni o'zi aniqlaydi.",
+      "accepted": "{price} narxida qo'shildi · hisob-fakturada {count} ta qator",
+      "lineCount": "{count} ta qator",
+      "empty": "Hali hech narsa skanerlanmagan.",
+      "accessory": "Aksessuar",
+      "needsPrice": "Narx kerak",
+      "remove": "Qatorni o'chirish",
+      "removed": "Qator o'chirildi",
+      "override": "Narxni o'zgartirish",
+      "overrideTitle": "Bu qatorning narxini o'zgartirish",
+      "overridePrice": "To'lanadigan narx",
+      "resolvedHint": "Tizim bu qator uchun {price} ni aniqlaydi.",
+      "noResolvedPrice": "Bu qator uchun narx hali aniqlanmayapti.",
+      "overrideNote": "Izoh",
+      "overrideNoteHint": "Ixtiyoriy. Sotuv bilan saqlanadi va narx chetlanishlari hisobotida ko'rinadi.",
+      "clearOverride": "O'zgartirishni bekor qilish",
+      "sellThis": "Bu telefonni sotish",
+      "sellThisTitle": "Bu telefonni sotish",
+      "sellThisBody": "Shu joylashuvda yangi hisob-faktura ochadi va telefonni unga skanerlaydi.",
+      "sellThisUnpriced": "Bu telefon uchun narx aniqlanmaydi, shuning uchun egasi yoki menejer narx belgilamaguncha uni sotib bo'lmaydi.",
+      "cameraTrigger": "Kamera bilan skanerlash"
     }
   },
   "deviceUnits": {
@@ -347,6 +406,33 @@
   },
   "scan": {
     "placeholder": "IMEI yoki shtrix-kodni skanerlang",
-    "notFound": "{code} kodiga mos hech narsa topilmadi."
+    "notFound": "{code} kodiga mos hech narsa topilmadi.",
+    "cameraTrigger": "Kamera bilan skanerlash",
+    "button": "Skanerlash"
+  },
+  "camera": {
+    "title": "Kamera bilan skanerlash",
+    "starting": "Kamera ishga tushirilmoqda…",
+    "insecure": "Kamera bilan skanerlash uchun xavfsiz ulanish kerak. Klaviatura skanerdan foydalaning.",
+    "denied": "Kameraga ruxsat berilmadi. Brauzer sozlamalarida ruxsat bering yoki klaviatura skanerdan foydalaning.",
+    "noCamera": "Bu qurilmada kamera topilmadi.",
+    "unsupported": "Bu brauzer kamera bilan skanerlashni qo'llab-quvvatlamaydi.",
+    "error": "Kamerani ishga tushirib bo'lmadi. Qayta urinib ko'ring yoki klaviatura skanerdan foydalaning.",
+    "close": "Yopish"
+  },
+  "reports": {
+    "priceDeviationsTitle": "Narx chetlanishlari",
+    "priceDeviationsSubtitle": "Tizim aniqlagan narxdan boshqa narxda sotilgan har bir tasdiqlangan qator — ikkala yo'nalishda ham. Tasdiqlovchi yoki xaridor bo'yicha saralang: bitta menejer va bitta xaridor qayta-qayta — bu hisobot aynan shuni ko'rsatish uchun bor.",
+    "date": "Sana",
+    "invoice": "Hisob-faktura",
+    "handset": "Telefon",
+    "difference": "Farq",
+    "approver": "Tasdiqlagan",
+    "filterApprover": "Tasdiqlagan",
+    "filterCustomer": "Xaridor",
+    "from": "Dan",
+    "to": "Gacha",
+    "note": "Izoh",
+    "unattributed": "Yozilmagan"
   }
 }

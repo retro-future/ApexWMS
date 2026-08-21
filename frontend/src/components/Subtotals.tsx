@@ -3,7 +3,7 @@
 import { Group, Text } from "@mantine/core";
 
 import { formatMoney } from "@/lib/money";
-import type { CurrencySubtotal } from "@/lib/types";
+import type { Currency } from "@/lib/types";
 
 /**
  * One figure per currency, side by side.
@@ -11,13 +11,17 @@ import type { CurrencySubtotal } from "@/lib/types";
  * PRD §4.5 rule 4: totals are per-currency, never summed and never
  * converted. There is deliberately no `total` prop for a caller to add
  * $6.00 to 50 000 so'm into — the payload has no such field either.
+ *
+ * The prop is narrower than `CurrencySubtotal` on purpose: a draft invoice's
+ * quote is assembled client-side from minor amounts and has no major-unit
+ * string to offer, and nothing here reads one.
  */
 export function Subtotals({
   subtotals,
   size = "sm",
   fw,
 }: {
-  subtotals: CurrencySubtotal[];
+  subtotals: { currency: Currency; amountMinor: number }[];
   size?: string;
   fw?: number;
 }) {
