@@ -88,6 +88,39 @@ dive: [documents.md](../docs/architecture/documents.md).
 - Domain: `domain/entities/document.py` (`Document` base lifecycle),
   `purchase_order.py`, `goods_receipt.py`
 
+## Sales invoices (M5)
+
+Outbound documents: open an invoice, scan to sell, override a line, confirm
+to `SALE_REVENUE` + `COGS`, cancel to compensate, print. Deep dive:
+[documents.md](../docs/architecture/documents.md).
+
+- Commands: `commands/create_sales_invoice.py`, `scan_invoice_line.py`,
+  `override_invoice_line_price.py`, `unscan_invoice_line.py`,
+  `confirm_sales_invoice.py`, `cancel_sales_invoice.py`
+- Queries: `queries/get_sales_invoice.py`, `list_sales_invoices.py`,
+  `get_sales_invoice_pdf.py`
+- Models: `models/sales_invoice.py`, `invoice_scan_result.py`
+- Services: `services/invoice_posting.py` (`InvoicePoster` — where the
+  price is resolved the second time), `services/cost_pools.py`
+  (`CostPoolReader`, shared with `LedgerReconciler`)
+- Domain: `domain/entities/sales_invoice.py`,
+  `domain/services/pricing.py` (`PriceResolver`, FR-2.14)
+- Rendering: port `application/ports/documents.py`, implementation
+  `infrastructure/documents/invoice_pdf.py`
+- Router: `presentation/routers/sales_invoices.py` (`/invoices`)
+
+## Reporting (M5)
+
+Reads over what the documents already wrote, all behind
+`Permission.Reporting.View` (Manager/Owner) and all read-only.
+
+- Queries: `queries/list_price_deviations.py` (FR-9.7 — confirmed lines
+  charged something other than the resolved price, in both directions)
+- Models: `models/price_deviation.py`
+- Carrier: `dtos/price_deviation.py` (`PriceDeviation`, the joined read row
+  `SalesInvoiceRepository.list_deviations` builds)
+- Router: `presentation/routers/reports.py` (`/reports`)
+
 ## Scanning & lookup
 
 One endpoint resolving a scanned string to a handset or a catalog row

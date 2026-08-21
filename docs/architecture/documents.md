@@ -1,12 +1,12 @@
-# Documents (PRD §4.4, §5.3 — M4)
+# Documents (PRD §4.4, §5.3, §5.4)
 
-The first two of the six document types exist: `PurchaseOrder` and
-`GoodsReceipt`. Both extend `Document` (`domain/entities/document.py`),
+Three of the six document types exist: `PurchaseOrder`, `GoodsReceipt`
+and `SalesInvoice`. All extend `Document` (`domain/entities/document.py`),
 which owns §4.4's one lifecycle — `DRAFT → CONFIRMED → CANCELLED`, terminal
 at both ends — and nothing else. **What makes a particular document
 confirmable is its own business**: a subclass overrides `confirm()` to
-state its invariants and delegates the state change upward. The four still
-to come (M5's invoice, M6's return/count/write-off) inherit the same base.
+state its invariants and delegates the state change upward. The three still
+to come (M6's return, count and write-off) inherit the same base.
 
 - **`GoodsReceipt.confirm()` is the aggregate rule, and it does no I/O at
   all** (PRD §7.4 point 3, FR-3.8, FR-3.10): scan counts against declared
@@ -45,3 +45,63 @@ to come (M5's invoice, M6's return/count/write-off) inherit the same base.
 moving to the new endpoints: what it produces is a used handset in stock
 with no asking price, which FR-3.10 exists to refuse, and two M3 tests
 (FR-2.15's three-row markdown log, FR-2.14's refusal) rest on that state.
+
+## The Sales Invoice, and why its `confirm()` is thin
+
+`GoodsReceipt.confirm()` can state every one of its invariants because all
+of them are facts about its own lines. `SalesInvoice.confirm()` cannot:
+what a line charges depends on the *live* `DeviceUnit` and the *live*
+catalog row, and resolving that needs two repository reads. So the split
+runs along the I/O boundary rather than along the document type.
+
+- **`SalesInvoice.confirm()` checks only the aggregate** — still a draft,
+  has lines, no handset on it twice. `tests/domain/test_sales_invoice.py`
+  imports no repository, exactly as the receipt's suite does.
+- **`InvoicePoster` (`application/services/invoice_posting.py`) does the
+  rest**: re-check that each handset is still `IN_STOCK` here, re-resolve
+  every price through `PriceResolver`, snapshot the line, and hand one
+  `Posting` to `LedgerPoster`. It never commits, so
+  `ConfirmSalesInvoiceHandler`'s transaction is what makes PRD FR-4.5b2's
+  *"nothing is written to either ledger"* true for a tenth line that will
+  not resolve.
+
+**A draft line's `resolved_price` and `charged_price` are nullable, and
+they stay null for its whole life as a draft.** That is PRD FR-4.5b1
+expressed structurally rather than in a comment: there is no scan-time
+figure for anything to freeze, and the price the scan response returns is
+a display value the invoice never stores. `override_price` is the third
+and separate column — what a Manager typed, which survives re-resolution.
+
+That nullability is what the counter screen has to work around, since it
+still needs a figure to read to the customer. `frontend/src/lib/invoices.ts`
+and `hooks/use-invoice-quote.ts` assemble one from each handset's own
+`resolvedPrice` and each accessory's `defaultSalePrice` — both already
+published by the API, so the client applies no resolution rule of its own —
+and label the result a quote. It is not cached against the invoice and not
+sent back; `ConfirmSalesInvoiceHandler` resolves again regardless, and the
+two figures are allowed to differ.
+
+`price_approved_by` sits on the line rather than being read off the
+document, because the confirmer and the approver are routinely different
+people (PRD FR-4.5f); the ledger's `user_id` names the confirmer, so
+without the column the deviation report would attribute the discount to
+whoever happened to be at the till. That report is
+`queries/list_price_deviations.py`, reading the two snapshot columns back
+through `SalesInvoiceRepository.list_deviations` — the one place the join
+onto `device_units` is outer, because an accessory line deviates without
+naming a handset.
+
+**Nothing on the invoice payload is behind `Permission.COST_VIEW`**, in
+deliberate contrast to the receipt: every figure on an invoice is a price
+the customer is being asked for, and a Seller must see all of them. The
+receipt's figures are costs, and `SalesInvoiceData` carries none.
+
+`GET /invoices/{id}/pdf` renders on demand and stores nothing
+(`infrastructure/documents/invoice_pdf.py`). A confirmed document is
+immutable and its lines carry their own snapshots, so the file is
+byte-stable; a stored blob would be a cache of something that cannot
+change. A `DRAFT` is refused with `DocumentNotConfirmedError`, and a
+`CANCELLED` invoice still prints, marked as such. The renderer reaches no
+repository — the caller passes in what each line reads as — and
+`APEXWMS_PDF_FONT_PATH` swaps fpdf2's Latin-1 core font for a Unicode face
+where a store needs Cyrillic.

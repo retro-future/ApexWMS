@@ -79,6 +79,24 @@ classmethod, not a constructor-injected collaborator. See
 [value-objects.md](value-objects.md) for `CostPool`, the weighted-average
 costing value object these services build on.
 
+## The accessory cost pool is replayed, not stored
+
+A serialized phone carries its own `acquisition_cost`, so its COGS is a
+fact. A quantity accessory has no per-unit identity, so its cost is a
+weighted average — and there is **no column holding it**.
+`application/services/cost_pools.py`'s `CostPoolReader` rebuilds one
+product-and-location pool from the stock ledger's quantities and the money
+ledger's purchase values, in total per document rather than per unit
+(dividing a line's cost out and multiplying it back would introduce a
+rounding error that was never in the data).
+
+One replay, two callers, and that is the point: `InvoicePoster` books COGS
+from it at confirm, and `LedgerReconciler` recomputes on-hand value from it
+for PRD FR-10.7. Two implementations would let a sale be booked at one
+average and reconciled against another, showing up as a discrepancy in the
+check that exists to catch real ones. `INVENTORY_SIGN` lives there too,
+since both sides read it.
+
 ## Verification
 
 `apexwms verify-projections` and `apexwms verify-financials`
