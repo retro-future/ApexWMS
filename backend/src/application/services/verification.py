@@ -24,7 +24,6 @@ exercised against production is one nobody trusts.
 """
 
 from dataclasses import dataclass
-from uuid import UUID
 
 from application.ports import (
     DeviceUnitPriceChangeRepository,
@@ -35,10 +34,10 @@ from application.ports import (
     StockLevelRepository,
     StockMovementRepository,
 )
+from application.services.cost_pools import INVENTORY_SIGN, CostPoolReader
 from domain.entities import DeviceUnit
-from domain.enums import TransactionType
 from domain.services import UnitProjector
-from domain.value_objects import CostPool, Currency, Money
+from domain.value_objects import Currency, Money
 
 # How many catalog rows a sweep pulls at a time.
 _PAGE_SIZE = 200
@@ -210,12 +209,12 @@ class LedgerReconciler:
         units: DeviceUnitRepository,
         transactions: FinancialTransactionRepository,
         movements: StockMovementRepository,
-        products: ProductRepository,
+        pools: CostPoolReader,
     ) -> None:
         self._units = units
         self._transactions = transactions
         self._movements = movements
-        self._products = products
+        self._pools = pools
 
     async def on_hand_value(self) -> dict[Currency, Money]:
         """What the store is holding, **per currency**, computed from stock.
@@ -234,60 +233,10 @@ class LedgerReconciler:
         for unit in await self._units.list_on_hand():
             _accumulate(totals, unit.acquisition_cost)
         for product_id, location_id in await self._movements.list_moved_pairs():
-            pool = await self._replay_pool(product_id, location_id)
+            pool = await self._pools.pool_for(product_id, location_id)
             if pool is not None and not pool.value.is_zero:
                 _accumulate(totals, pool.value)
         return totals
-
-    async def _replay_pool(self, product_id: UUID, location_id: UUID) -> CostPool | None:
-        """Rebuild one accessory's cost pool from the two ledgers.
-
-        Receipts take their value from the ``PURCHASE`` (or surplus
-        ``COUNT_ADJUSTMENT``) entry the same document wrote, in **total**
-        rather than per unit — dividing a line's cost out and multiplying
-        it back would introduce a rounding error that was never in the
-        data. Issues take their proportional share of the pool
-        (``CostPool.issue``), which is what makes a sold-out pool land on
-        exactly zero.
-        """
-        product = await self._products.get(product_id)
-        if product is None:
-            return None
-
-        value_in = await self._value_added_per_document(product_id, location_id)
-        pool = CostPool.empty(product.currency)
-        for movement in await self._movements.list_for_pair(product_id, location_id):
-            if movement.quantity_delta > 0:
-                pool = pool.receive_total(
-                    movement.quantity_delta,
-                    value_in.pop(movement.document_id, Money.zero(product.currency)),
-                )
-            else:
-                pool, _ = pool.issue(-movement.quantity_delta)
-        return pool
-
-    async def _value_added_per_document(
-        self, product_id: UUID, location_id: UUID
-    ) -> dict[UUID, Money]:
-        """How much each document added to this pool's value.
-
-        Only the inbound categories: an issue's cost is *computed* from the
-        pool, never read back out of the ledger, or the check would be
-        comparing the money ledger against itself.
-        """
-        added: dict[UUID, Money] = {}
-        for txn in await self._transactions.list_for_pair(product_id, location_id):
-            sign = _INVENTORY_SIGN.get(txn.txn_type)
-            if sign is None:
-                continue
-            contribution = txn.amount * sign
-            if contribution.is_negative or contribution.is_zero:
-                continue
-            running = added.get(txn.document_id)
-            added[txn.document_id] = (
-                contribution if running is None else running + contribution
-            )
-        return added
 
     async def ledger_value(self) -> dict[Currency, Money]:
         """What the money ledger says the store should be holding.
@@ -303,7 +252,7 @@ class LedgerReconciler:
         """
         totals: dict[Currency, Money] = {}
         for (txn_type, _), amount in (await self._transactions.totals_by_type()).items():
-            sign = _INVENTORY_SIGN.get(txn_type)
+            sign = INVENTORY_SIGN.get(txn_type)
             if sign is not None:
                 _accumulate(totals, amount * sign)
         return totals
@@ -326,30 +275,6 @@ class LedgerReconciler:
                     )
                 )
         return found
-
-
-# How each category moves *inventory value*, which is not the same as how
-# it moves money — and the mismatch is the trap this table exists to close.
-#
-# §4.6's signs describe cash: a ``PURCHASE`` is stored negative because
-# money left the till, while the goods it bought made the shelves *worth
-# more*. A ``SUPPLIER_RETURN_CREDIT`` is stored positive for the same
-# reason in reverse. So two categories have to be flipped to read as
-# inventory, and ``COUNT_ADJUSTMENT`` — whose sign already describes goods
-# found or missing — does not.
-#
-# Getting this wrong does not crash anything. It produces a reconciliation
-# that is off by exactly twice the purchases, which is the sort of figure
-# somebody spends a day chasing.
-_INVENTORY_SIGN: dict[TransactionType, int] = {
-    TransactionType.PURCHASE: -1,
-    TransactionType.COGS: +1,
-    TransactionType.WRITE_OFF_LOSS: +1,
-    TransactionType.SUPPLIER_RETURN_CREDIT: -1,
-    TransactionType.COUNT_ADJUSTMENT: +1,
-}
-# SALE_REVENUE and PAYMENT_RECEIVED are absent, not zero: they are figures
-# about the customer, and no sign would make them belong here.
 
 
 def _accumulate(totals: dict[Currency, Money], amount: Money) -> None:

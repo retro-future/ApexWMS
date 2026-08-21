@@ -19,6 +19,7 @@ subclasses (``master/repositories/base.py``, ``tenant/repositories/base.py``).
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import ColumnExpressionArgument, Row, Select, func, select
@@ -115,9 +116,32 @@ class SqlRepository:
         on the total. *stmt* must already carry its ``ORDER BY`` — without
         one, "page 2" is not a stable concept.
         """
-        total = await self._session.scalar(select(func.count()).select_from(stmt.subquery()))
+        total = await self._count(stmt)
         items = await self._many(stmt.offset((page - 1) * page_size).limit(page_size), hydrate)
-        return items, total or 0
+        return items, total
+
+    async def _page_rows[*Ts, EntityT](
+        self,
+        stmt: Select[tuple[*Ts]],
+        page: int,
+        page_size: int,
+        hydrate: Callable[[Row[tuple[*Ts]]], EntityT],
+    ) -> tuple[list[EntityT], int]:
+        """As ``_page``, for a statement that selects more than one model.
+
+        The same pairing ``_one``/``_one_row`` and ``_many``/``_many_rows``
+        already have: a read whose row is stitched from a join cannot go
+        through ``scalars``.
+        """
+        total = await self._count(stmt)
+        items = await self._many_rows(
+            stmt.offset((page - 1) * page_size).limit(page_size), hydrate
+        )
+        return items, total
+
+    async def _count(self, stmt: Select[Any]) -> int:
+        total = await self._session.scalar(select(func.count()).select_from(stmt.subquery()))
+        return total or 0
 
 
 # The bound on EntityT is the unsubscripted ``Entity``, not ``Entity[KeyT]``:

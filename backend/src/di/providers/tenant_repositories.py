@@ -26,6 +26,7 @@ from application.ports import (
     ProductPriceChangeRepository,
     ProductRepository,
     PurchaseOrderRepository,
+    SalesInvoiceRepository,
     StockLevelRepository,
     StockMovementRepository,
     SupplierRepository,
@@ -46,6 +47,7 @@ from infrastructure.persistence.tenant.repositories import (
     SqlProductPriceChangeRepository,
     SqlProductRepository,
     SqlPurchaseOrderRepository,
+    SqlSalesInvoiceRepository,
     SqlStockLevelRepository,
     SqlStockMovementRepository,
     SqlSupplierRepository,
@@ -127,6 +129,10 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def goods_receipts(self, session: TenantSession) -> GoodsReceiptRepository:
         return SqlGoodsReceiptRepository(session)
+
+    @provide
+    def sales_invoices(self, session: TenantSession) -> SalesInvoiceRepository:
+        return SqlSalesInvoiceRepository(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:

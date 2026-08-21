@@ -53,7 +53,7 @@ def verifier(world) -> ProjectionVerifier:
 
 def reconciler(world) -> LedgerReconciler:
     return LedgerReconciler(
-        world.units, world.transactions, world.movements, world.products
+        world.units, world.transactions, world.movements, world.cost_pools()
     )
 
 

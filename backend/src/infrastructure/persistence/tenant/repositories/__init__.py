@@ -16,6 +16,7 @@ from .location import SqlLocationRepository
 from .product import SqlProductRepository
 from .product_price_change import SqlProductPriceChangeRepository
 from .purchase_order import SqlPurchaseOrderRepository
+from .sales_invoice import SqlSalesInvoiceRepository
 from .settings import SETTINGS_ROW_ID, SqlTenantSettingsRepository
 from .stock_level import SqlStockLevelRepository
 from .stock_movement import SqlStockMovementRepository
@@ -34,6 +35,7 @@ __all__ = [
     "SqlProductPriceChangeRepository",
     "SqlProductRepository",
     "SqlPurchaseOrderRepository",
+    "SqlSalesInvoiceRepository",
     "SqlStockLevelRepository",
     "SqlStockMovementRepository",
     "SqlSupplierRepository",

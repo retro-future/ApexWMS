@@ -1,11 +1,12 @@
 """The singleton settings row seeded at provisioning.
 
-One row, two accessors, no identity to look it up by — so ``TenantRepository``
+One row, no identity to look it up by — so ``TenantRepository``
 rather than ``TenantCrudRepository``, which is what that base is for.
 """
 
 from sqlalchemy import select
 
+from application.dtos import Letterhead
 from infrastructure.persistence.tenant.models import TenantSettingsModel
 
 from .base import TenantRepository
@@ -34,3 +35,16 @@ class SqlTenantSettingsRepository(TenantRepository):
         if row is None:
             raise LookupError(_ROW_MISSING)
         row.timezone = timezone
+
+    async def get_letterhead(self) -> Letterhead:
+        row = await self._row(TenantSettingsModel, SETTINGS_ROW_ID)
+        if row is None:
+            raise LookupError(_ROW_MISSING)
+        return Letterhead(business_name=row.business_name, address=row.address)
+
+    async def set_letterhead(self, letterhead: Letterhead) -> None:
+        row = await self._row(TenantSettingsModel, SETTINGS_ROW_ID)
+        if row is None:
+            raise LookupError(_ROW_MISSING)
+        row.business_name = letterhead.business_name
+        row.address = letterhead.address

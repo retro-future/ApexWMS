@@ -16,6 +16,9 @@ dependencies = [
     "argon2-cffi>=23.1",
     "email-validator>=2.2",
     "tzdata>=2025.1",
+    # Pure Python, no system libraries — WeasyPrint would need Cairo and
+    # Pango, which is a build problem on Windows and in a slim container.
+    "fpdf2>=2.8",
 ]
 
 [project.scripts]

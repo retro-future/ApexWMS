@@ -19,6 +19,7 @@ from domain.entities.product import Product
 from domain.entities.product_price_change import ProductPriceChange
 from domain.entities.purchase_order import PurchaseOrder, PurchaseOrderLine
 from domain.entities.refresh_token import RefreshTokenRecord
+from domain.entities.sales_invoice import SalesInvoice, SalesInvoiceLine
 from domain.entities.stock_level import StockLevel
 from domain.entities.stock_movement import StockMovement
 from domain.entities.supplier import Supplier
@@ -45,6 +46,8 @@ __all__ = [
     "PurchaseOrderLine",
     "ReceivedUnit",
     "RefreshTokenRecord",
+    "SalesInvoice",
+    "SalesInvoiceLine",
     "StockLevel",
     "StockMovement",
     "Supplier",

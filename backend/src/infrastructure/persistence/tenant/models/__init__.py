@@ -3,7 +3,7 @@
 Who works at this store (``employees``), what provisioning seeds
 (PRD §3.4: the default location and the tenant's settings), the M2
 catalog, M3's two append-only ledgers with the projections they feed, and
-M4's inbound documents.
+M4's inbound documents with M5's outbound invoice.
 
 No table here carries a ``tenant_id``: isolation is physical (PRD §3.1).
 """
@@ -24,6 +24,7 @@ from .location import LocationModel
 from .product import ProductModel
 from .product_price_change import ProductPriceChangeModel
 from .purchase_order import PurchaseOrderLineModel, PurchaseOrderModel
+from .sales_invoice import SalesInvoiceLineModel, SalesInvoiceModel
 from .settings import TenantSettingsModel
 from .stock_level import StockLevelModel
 from .stock_movement import StockMovementModel
@@ -44,6 +45,8 @@ __all__ = [
     "PurchaseOrderLineModel",
     "PurchaseOrderModel",
     "ReceivedUnitModel",
+    "SalesInvoiceLineModel",
+    "SalesInvoiceModel",
     "StockLevelModel",
     "StockMovementModel",
     "SupplierModel",

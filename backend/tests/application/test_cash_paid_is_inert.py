@@ -89,7 +89,7 @@ async def trade_in_store(*, record_cash: bool):
 
 def reconciler(world) -> LedgerReconciler:
     return LedgerReconciler(
-        world.units, world.transactions, world.movements, world.products
+        world.units, world.transactions, world.movements, world.cost_pools()
     )
 
 

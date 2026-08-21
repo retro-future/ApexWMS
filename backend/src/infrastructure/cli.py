@@ -359,7 +359,7 @@ async def _verify_one(url: str, command: str) -> list[str]:
     ``TenantSession`` wrapper is not cosmetic; it is what stops a master
     session reaching a tenant repository (``infrastructure/types.py``).
     """
-    from application.services import LedgerReconciler, ProjectionVerifier
+    from application.services import CostPoolReader, LedgerReconciler, ProjectionVerifier
     from domain.services import UnitProjector
     from infrastructure.persistence.tenant.repositories import (
         SqlDeviceUnitPriceChangeRepository,
@@ -379,11 +379,12 @@ async def _verify_one(url: str, command: str) -> list[str]:
             movements = SqlStockMovementRepository(session)
             products = SqlProductRepository(session)
             if command == "verify-financials":
+                transactions = SqlFinancialTransactionRepository(session)
                 checker = LedgerReconciler(
                     units,
-                    SqlFinancialTransactionRepository(session),
+                    transactions,
                     movements,
-                    products,
+                    CostPoolReader(products, movements, transactions),
                 )
                 return [str(finding) for finding in await checker.reconcile()]
 

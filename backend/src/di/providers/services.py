@@ -12,11 +12,13 @@ from dishka import Provider, Scope, provide_all
 
 from application.services import (
     ClaimsFactory,
+    CostPoolReader,
     DeviceUnitLoader,
     DeviceUnitRepricer,
     DocumentLineBuilder,
     DocumentLoader,
     DocumentNumberer,
+    InvoicePoster,
     LedgerPoster,
     ProductRepricer,
     ReceiptPoster,
@@ -43,6 +45,9 @@ class ApplicationServicesProvider(Provider):
         DocumentLineBuilder,
         DocumentLoader,
         ReceiptPoster,
+        # --- M5 outbound ---
+        CostPoolReader,
+        InvoicePoster,
         SlugNormalizer,
         TimezoneValidator,
     )

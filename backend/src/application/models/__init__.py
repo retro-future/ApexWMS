@@ -21,9 +21,11 @@ from application.models.device_unit import DeviceUnitData
 from application.models.employee import EmployeeListItem
 from application.models.goods_receipt import GoodsReceiptData, GoodsReceiptLineData
 from application.models.invite_user import InviteResultData
+from application.models.invoice_scan_result import InvoiceScanResultData
 from application.models.location import LocationData
 from application.models.login import LoginData
 from application.models.me import MeData
+from application.models.price_deviation import PriceDeviationData
 from application.models.price_history import PriceChangeData
 from application.models.product import ProductData
 from application.models.purchase_order import (
@@ -32,6 +34,7 @@ from application.models.purchase_order import (
     PurchaseOrderLineData,
 )
 from application.models.received_unit import ReceivedUnitData
+from application.models.sales_invoice import SalesInvoiceData, SalesInvoiceLineData
 from application.models.scan_lookup import ScanKind, ScanLookupData
 from application.models.scan_result import ScanResultData
 from application.models.supplier import SupplierData
@@ -51,14 +54,18 @@ __all__ = [
     "GoodsReceiptLineData",
     "InviteResultData",
     "LocationData",
+    "InvoiceScanResultData",
     "LoginData",
     "MeData",
     "PriceChangeData",
+    "PriceDeviationData",
     "ProductData",
     "PurchaseOrderData",
     "PurchaseOrderLineData",
     "ReceivedUnitData",
     "ScanKind",
+    "SalesInvoiceData",
+    "SalesInvoiceLineData",
     "ScanLookupData",
     "ScanResultData",
     "SupplierData",

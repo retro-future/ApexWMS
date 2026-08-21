@@ -146,3 +146,38 @@ class PriceCannotBeUnsetError(DomainError):
     projection contradicting the history it is supposed to be derived from.
     A model the store has stopped selling is deactivated, not un-priced.
     """
+
+
+class UnitNotSellableError(DomainError):
+    """A handset scanned onto an invoice that is not on the shelf (FR-4.3).
+
+    States the status it actually holds. You cannot sell a phone that is
+    already sold, and finding that out at the counter beats finding it out
+    when the ledgers disagree.
+    """
+
+
+class WrongLocationError(DomainError):
+    """A handset scanned onto an invoice raised for another location (FR-4.4).
+
+    Stock is held somewhere specific, and a sale takes it from the place
+    the invoice names — otherwise the movement would decrement a location
+    the phone was never at.
+    """
+
+
+class InsufficientStockError(DomainError):
+    """A line asking for more of an accessory than the location holds (FR-4.7).
+
+    Refused whole: there is no partial fulfilment, because half a confirmed
+    invoice is a document the ledgers could not describe.
+    """
+
+
+class EmptyInvoiceError(DomainError):
+    """An invoice confirmed with no lines on it.
+
+    Nothing left the store, so there is nothing to book — and a zero-line
+    sale would still consume an invoice number and appear in every sales
+    report as a transaction that never happened.
+    """

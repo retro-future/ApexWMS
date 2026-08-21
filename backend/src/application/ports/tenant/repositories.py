@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from application.dtos import Letterhead, PriceDeviation
 from application.ports.repository import AppendOnlyRepository, Repository
 from domain.entities import (
     Customer,
@@ -29,6 +30,8 @@ from domain.entities import (
     PurchaseOrder,
     PurchaseOrderLine,
     ReceivedUnit,
+    SalesInvoice,
+    SalesInvoiceLine,
     StockLevel,
     StockMovement,
     Supplier,
@@ -63,6 +66,12 @@ class TenantSettingsRepository(Protocol):
     async def get_timezone(self) -> str: ...
 
     async def set_timezone(self, timezone: str) -> None: ...
+
+    async def get_letterhead(self) -> Letterhead:
+        """The store's own details, for the top of a printed document (FR-8.1)."""
+        ...
+
+    async def set_letterhead(self, letterhead: Letterhead) -> None: ...
 
 
 class ProductRepository(Repository[Product, UUID], Protocol):
@@ -323,4 +332,49 @@ class GoodsReceiptRepository(Repository[GoodsReceipt, UUID], Protocol):
         """Product → quantity received against this order, confirmed receipts
         only. FR-3.9's pending/partial/complete is this against what was
         ordered; a draft receipt has received nothing."""
+        ...
+
+
+class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
+    """An invoice and the lines scanned onto it (§4.4, §5.4).
+
+    ``add_line``/``remove_line`` exist for the same reason the receipt's
+    unit methods do: a scan is one row, and §6 gives the round trip 200ms.
+    """
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        customer_id: UUID | None = None,
+        location_id: UUID | None = None,
+    ) -> tuple[list[SalesInvoice], int]: ...
+
+    async def add_line(self, line: SalesInvoiceLine) -> None: ...
+
+    async def update_line(self, line: SalesInvoiceLine) -> None:
+        """Override one line's price, or fix its snapshot at confirm (FR-4.5)."""
+        ...
+
+    async def remove_line(self, line_id: UUID) -> None:
+        """Take a line off while the invoice is still a draft (FR-4.5c)."""
+        ...
+
+    async def list_deviations(
+        self,
+        page: int,
+        page_size: int,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        approved_by: UUID | None = None,
+        customer_id: UUID | None = None,
+    ) -> tuple[list[PriceDeviation], int]:
+        """FR-9.7: confirmed lines charged something other than the resolved
+        price, newest first.
+
+        Confirmed only. A cancelled invoice keeps its snapshots, but a
+        reversed sale is not a deviation anyone still has to answer for.
+        """
         ...

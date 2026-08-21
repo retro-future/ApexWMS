@@ -37,3 +37,10 @@ class Settings(BaseSettings):
     # Tenant engine registry (PRD §3.2)
     max_live_tenant_engines: int = 50
     tenant_pool_size: int = 5
+
+    # Document PDFs (FR-8.1). fpdf2's built-in Helvetica covers Latin-1
+    # only, which is enough for Uzbek Latin and "so'm" but not Cyrillic.
+    # Point this at a Unicode TTF (DejaVu Sans, Noto Sans) to print Russian
+    # names properly; unset, they degrade to '?' rather than failing the
+    # download.
+    pdf_font_path: str | None = None

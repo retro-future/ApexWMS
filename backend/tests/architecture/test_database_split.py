@@ -49,6 +49,9 @@ TENANT_TABLES = {
     "goods_receipt_lines": entities.GoodsReceiptLine,
     "goods_receipt_units": entities.ReceivedUnit,
     "document_sequences": None,  # the per-tenant number counter, §4.4
+    # --- M5 outbound documents ---
+    "sales_invoices": entities.SalesInvoice,
+    "sales_invoice_lines": entities.SalesInvoiceLine,
 }
 
 # Append-only tables: every row names its author (PRD §4.3 rule 3, §4.5b).

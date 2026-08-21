@@ -3,17 +3,18 @@
 Scopes:
     APP     — settings, MasterDB engine, tenant engine registry, security
               services, the tenant provisioner, stateless domain
-              collaborators (e.g. ``UnitProjector``); later the PDF renderer.
+              collaborators (e.g. ``UnitProjector``) and the PDF renderer.
     REQUEST — the authenticated user, MasterDB/TenantDB sessions, UoWs,
               repositories, and command/query handlers.
 
-Each milestone adds its providers as a new module here (M7: pdf; ...)
-and registers them in ``di.container.create_container``.
+Each milestone adds its providers as a new module here and registers
+them in ``di.container.create_container``.
 """
 
 from di.providers.auth import AuthProvider
 from di.providers.authorization import AuthorizationProvider
 from di.providers.config import ConfigProvider
+from di.providers.documents import DocumentsProvider
 from di.providers.domain_services import DomainServicesProvider
 from di.providers.handlers import HandlersProvider
 from di.providers.master_db import MasterDbProvider
@@ -28,6 +29,7 @@ __all__ = [
     "AuthProvider",
     "AuthorizationProvider",
     "ConfigProvider",
+    "DocumentsProvider",
     "DomainServicesProvider",
     "HandlersProvider",
     "MasterDbProvider",

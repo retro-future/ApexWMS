@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from application.dtos import OwnerSeed, RefreshTokenParts
+from application.dtos import Letterhead, OwnerSeed, RefreshTokenParts
 from application.errors import ProvisioningFailedError, TenantNotActiveError
 from domain.core import Entity
 from domain.entities import (
@@ -30,6 +30,8 @@ from domain.entities import (
     PurchaseOrderLine,
     ReceivedUnit,
     RefreshTokenRecord,
+    SalesInvoice,
+    SalesInvoiceLine,
     StockLevel,
     StockMovement,
     Supplier,
@@ -435,15 +437,56 @@ class FakeCustomerRepository(FakeRepository[Customer]):
         return _page(found, page, page_size)
 
 
+class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
+    """The line methods write through the aggregate the handler already
+    holds, exactly as the SQL repository writes one row rather than
+    rewriting the whole invoice per beep."""
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        customer_id: UUID | None = None,
+        location_id: UUID | None = None,
+    ) -> tuple[list[SalesInvoice], int]:
+        found = [
+            invoice
+            for invoice in self.by_id.values()
+            if _matches(search, invoice.number)
+            and (status is None or invoice.status is status)
+            and (customer_id is None or invoice.customer_id == customer_id)
+            and (location_id is None or invoice.location_id == location_id)
+        ]
+        return _page(sorted(found, key=lambda i: i.created_at, reverse=True), page, page_size)
+
+    async def add_line(self, line: SalesInvoiceLine) -> None:
+        return None
+
+    async def update_line(self, line: SalesInvoiceLine) -> None:
+        return None
+
+    async def remove_line(self, line_id: UUID) -> None:
+        return None
+
+
 class FakeTenantSettingsRepository:
     def __init__(self, timezone: str = "Asia/Tashkent") -> None:
         self.timezone = timezone
+        self.letterhead = Letterhead()
 
     async def get_timezone(self) -> str:
         return self.timezone
 
     async def set_timezone(self, timezone: str) -> None:
         self.timezone = timezone
+
+    async def get_letterhead(self) -> Letterhead:
+        return self.letterhead
+
+    async def set_letterhead(self, letterhead: Letterhead) -> None:
+        self.letterhead = letterhead
 
 
 class FakeUnitOfWork:

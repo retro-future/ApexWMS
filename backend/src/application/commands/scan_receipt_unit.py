@@ -83,6 +83,15 @@ class ScanReceiptUnitHandler(
 
         already = next((u for u in receipt.units() if u.imei == imei), None)
         if already is not None:
+            if already.goods_receipt_line_id != line.id:
+                other = next(
+                    ln for ln in receipt.lines if ln.id == already.goods_receipt_line_id
+                )
+                raise DuplicateImeiError(
+                    f"IMEI {imei} is already scanned onto this receipt against "
+                    f"{other.product_id}, not {line.product_id} — a handset cannot "
+                    "be two different products"
+                )
             # A double-fire of the same trigger pull. Nothing changes and
             # the running count is returned as if the first scan had just
             # happened (§6).

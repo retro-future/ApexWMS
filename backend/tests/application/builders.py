@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 from application.commands.accept_invite import AcceptInviteHandler
 from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
 from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
+from application.commands.cancel_sales_invoice import CancelSalesInvoiceHandler
 from application.commands.change_device_unit_condition import (
     ChangeDeviceUnitConditionHandler,
 )
@@ -23,16 +24,21 @@ from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
 from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
+from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceHandler
 from application.commands.create_customer import CreateCustomerHandler
 from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
 from application.commands.create_location import CreateLocationHandler
 from application.commands.create_product import CreateProductHandler
 from application.commands.create_purchase_order import CreatePurchaseOrderHandler
+from application.commands.create_sales_invoice import CreateSalesInvoiceHandler
 from application.commands.create_superadmin import CreateSuperAdminHandler
 from application.commands.create_supplier import CreateSupplierHandler
 from application.commands.create_tenant import CreateTenantHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
+from application.commands.override_invoice_line_price import (
+    OverrideInvoiceLinePriceHandler,
+)
 from application.commands.price_purchase_order_line import (
     PricePurchaseOrderLineHandler,
 )
@@ -40,7 +46,9 @@ from application.commands.price_receipt_unit import PriceReceiptUnitHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
 from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
 from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
+from application.commands.scan_invoice_line import ScanInvoiceLineHandler
 from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
+from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
@@ -59,6 +67,7 @@ from application.queries.get_me import GetMeHandler
 from application.queries.get_product import GetProductHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_purchase_order import GetPurchaseOrderHandler
+from application.queries.get_sales_invoice import GetSalesInvoiceHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.list_customers import ListCustomersHandler
@@ -66,15 +75,18 @@ from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
 from application.queries.list_purchase_orders import ListPurchaseOrdersHandler
+from application.queries.list_sales_invoices import ListSalesInvoicesHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.services import (
     ClaimsFactory,
+    CostPoolReader,
     DeviceUnitLoader,
     DeviceUnitRepricer,
     DocumentLineBuilder,
     DocumentLoader,
     DocumentNumberer,
+    InvoicePoster,
     LedgerPoster,
     ProductRepricer,
     ReceiptPoster,
@@ -104,6 +116,7 @@ from tests.application.fakes import (
     FakeProvisioner,
     FakePurchaseOrderRepository,
     FakeRefreshTokenRepository,
+    FakeSalesInvoiceRepository,
     FakeStockLevelRepository,
     FakeStockMovementRepository,
     FakeSupplierRepository,
@@ -147,6 +160,7 @@ class World:
     levels: FakeStockLevelRepository
     orders: FakePurchaseOrderRepository
     receipts: FakeGoodsReceiptRepository
+    invoices: FakeSalesInvoiceRepository
     document_numbers: FakeDocumentNumberRepository
     scope: FakeTenantScope
     uow: FakeUnitOfWork
@@ -356,6 +370,9 @@ class World:
             UnitProjector(),
         )
 
+    def cost_pools(self) -> CostPoolReader:
+        return CostPoolReader(self.products, self.movements, self.transactions)
+
     # --- M4 purchasing & receiving ---
 
     def numberer(self) -> DocumentNumberer:
@@ -365,7 +382,7 @@ class World:
         return DocumentLineBuilder(self.products)
 
     def document_loader(self) -> DocumentLoader:
-        return DocumentLoader(self.orders, self.receipts)
+        return DocumentLoader(self.orders, self.receipts, self.invoices)
 
     def receipt_poster(self, actor: UUID | None = None) -> ReceiptPoster:
         return ReceiptPoster(
@@ -596,6 +613,69 @@ class World:
         pair, _ = await self.issuer.issue(user.id, claims)
         return pair.refresh_token
 
+    # --- M5 outbound ---
+
+    def invoice_poster(self, actor: UUID | None = None) -> InvoicePoster:
+        return InvoicePoster(
+            self.units, self.products, self.levels, self.cost_pools(), self.poster(actor)
+        )
+
+    def create_sales_invoice(self, actor: UUID | None = None) -> CreateSalesInvoiceHandler:
+        return CreateSalesInvoiceHandler(
+            self.invoices,
+            self.locations,
+            self.customers,
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def scan_invoice_line(self) -> ScanInvoiceLineHandler:
+        return ScanInvoiceLineHandler(
+            self.invoices,
+            self.device_unit_loader(),
+            self.products,
+            self.document_loader(),
+            self.uow,
+        )
+
+    def override_invoice_line_price(
+        self, actor: UUID | None = None
+    ) -> OverrideInvoiceLinePriceHandler:
+        return OverrideInvoiceLinePriceHandler(
+            self.invoices, self.document_loader(), self.uow, self._as(actor)
+        )
+
+    def unscan_invoice_line(self) -> UnscanInvoiceLineHandler:
+        return UnscanInvoiceLineHandler(self.invoices, self.document_loader(), self.uow)
+
+    def confirm_sales_invoice(self, actor: UUID | None = None) -> ConfirmSalesInvoiceHandler:
+        return ConfirmSalesInvoiceHandler(
+            self.invoices,
+            self.document_loader(),
+            self.invoice_poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def cancel_sales_invoice(self, actor: UUID | None = None) -> CancelSalesInvoiceHandler:
+        return CancelSalesInvoiceHandler(
+            self.invoices,
+            self.document_loader(),
+            self.poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def get_sales_invoice(self) -> GetSalesInvoiceHandler:
+        return GetSalesInvoiceHandler(self.document_loader())
+
+    def list_sales_invoices(self) -> ListSalesInvoicesHandler:
+        return ListSalesInvoicesHandler(self.invoices)
+
 
 def make_world(provisioner_fails: bool = False) -> World:
     clock = FakeClock()
@@ -626,6 +706,7 @@ def make_world(provisioner_fails: bool = False) -> World:
         unit_price_changes=FakeDeviceUnitPriceChangeRepository(),
         orders=FakePurchaseOrderRepository(),
         receipts=FakeGoodsReceiptRepository(),
+        invoices=FakeSalesInvoiceRepository(),
         document_numbers=FakeDocumentNumberRepository(),
         movements=FakeStockMovementRepository(),
         transactions=FakeFinancialTransactionRepository(),

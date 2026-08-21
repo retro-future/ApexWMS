@@ -32,7 +32,11 @@ from domain.errors import (
     DocumentNotDraftError,
     DomainError,
     DuplicateScanError,
+    InsufficientStockError,
     OverReceiptError,
+    PriceNotSetError,
+    UnitNotSellableError,
+    WrongLocationError,
 )
 
 _STATUS: list[tuple[type[Exception], int]] = [
@@ -55,6 +59,12 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (DocumentNotConfirmedError, 409),
     (OverReceiptError, 409),
     (DuplicateScanError, 409),
+    # So is a handset that cannot be sold, and for the same reason: the
+    # goods, not the request, are what changed (§5.4).
+    (UnitNotSellableError, 409),
+    (WrongLocationError, 409),
+    (InsufficientStockError, 409),
+    (PriceNotSetError, 409),
     (MissingTenantError, 400),
     (InvitationError, 400),
     (InvalidTimezoneError, 422),

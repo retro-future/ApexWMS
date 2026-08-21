@@ -276,6 +276,51 @@ class TestTheGuards:
         assert response.status_code == 409, response.text
         assert "in_stock" in response.json()["detail"]
 
+    async def test_the_same_imei_cannot_land_on_two_lines_of_one_receipt(
+        self, client, store
+    ):
+        """One handset cannot be scanned as two different products."""
+        owner, ids = store
+        other_phone_response = await client.post(
+            f"{API}/products",
+            headers=owner.auth,
+            json={
+                "sku": "SGA54-128",
+                "name": "Samsung A54 128GB",
+                "trackingType": "serial",
+                "currency": "USD",
+            },
+        )
+        assert other_phone_response.status_code == 201, other_phone_response.text
+        other_phone = other_phone_response.json()["data"]["id"]
+
+        receipt = await open_receipt(
+            client,
+            owner,
+            {
+                "locationId": ids["location"],
+                "supplierId": ids["supplier"],
+                "lines": [
+                    {"productId": ids["phone"], "quantity": 1},
+                    {"productId": other_phone, "quantity": 1},
+                ],
+            },
+        )
+        first_line = receipt["lines"][0]["id"]
+        second_line = receipt["lines"][1]["id"]
+
+        first = await scan(
+            client, owner, receipt["id"], NEW_IMEIS[0],
+            lineId=first_line, acquisitionCost="700.00",
+        )
+        assert first.status_code == 200, first.text
+
+        response = await scan(
+            client, owner, receipt["id"], NEW_IMEIS[0], lineId=second_line
+        )
+
+        assert response.status_code == 409, response.text
+
     async def test_an_unpriced_used_handset_blocks_the_confirm_and_names_itself(
         self, client, store
     ):
