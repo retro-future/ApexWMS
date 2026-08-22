@@ -32,6 +32,7 @@ from domain.errors import (
     InvalidMoneyError,
     UnpricedOrderLineError,
 )
+from domain.services import SubtotalsCalculator
 from domain.value_objects import Currency, Money
 
 
@@ -79,19 +80,7 @@ class PurchaseOrder(Document):
         super().confirm(now, user_id)
 
     def subtotals(self) -> dict[Currency, Money]:
-        """One figure per currency present, never their sum (FR-2.7).
-
-        Skips whatever is still unpriced rather than refusing, because a
-        draft is read while it is being filled in.
-        """
-        totals: dict[Currency, Money] = {}
-        for line in self.lines:
-            total = line.total_cost
-            if total is None:
-                continue
-            running = totals.get(total.currency, Money.zero(total.currency))
-            totals[total.currency] = running + total
-        return totals
+        return SubtotalsCalculator.by_currency(line.total_cost for line in self.lines)
 
     def ordered_quantities(self) -> dict[UUID, int]:
         """How much of each product was ordered — FR-3.9's denominator."""

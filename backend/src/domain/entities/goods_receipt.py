@@ -34,6 +34,7 @@ from domain.errors import (
     ReceiptSourceError,
     UnpricedUnitError,
 )
+from domain.services import SubtotalsCalculator
 from domain.value_objects import IMEI, Currency, Money
 
 
@@ -174,19 +175,7 @@ class GoodsReceipt(Document):
         return [unit for line in self.lines for unit in line.units]
 
     def subtotals(self) -> dict[Currency, Money]:
-        """One figure per currency present, never their sum (FR-2.7).
-
-        Skips whatever is still unpriced rather than refusing, because a
-        draft is read while it is being filled in.
-        """
-        totals: dict[Currency, Money] = {}
-        for line in self.lines:
-            total = line.total_cost
-            if total is None:
-                continue
-            running = totals.get(total.currency, Money.zero(total.currency))
-            totals[total.currency] = running + total
-        return totals
+        return SubtotalsCalculator.by_currency(line.total_cost for line in self.lines)
 
     def received_quantities(self) -> dict[UUID, int]:
         """How much of each product this receipt brought in — FR-3.9's numerator."""

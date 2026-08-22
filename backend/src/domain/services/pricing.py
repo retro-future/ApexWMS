@@ -31,10 +31,21 @@ run the identical function, which is what stops a draft and its confirm
 from disagreeing about the rule.
 """
 
-from domain.entities import DeviceUnit, Product
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from domain.enums import DeviceCondition
 from domain.errors import PriceNotSetError
 from domain.value_objects import Money
+
+if TYPE_CHECKING:
+    # Deferred: a runtime import here would make ``domain.entities`` and
+    # ``domain.services`` import each other (``SubtotalsCalculator`` is a
+    # domain service that ``domain.entities.document``'s subclasses call),
+    # which Python cannot resolve at module load time. Only used as type
+    # hints below, never constructed, so this is safe to defer.
+    from domain.entities import DeviceUnit, Product
 
 
 class PriceResolver:

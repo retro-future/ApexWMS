@@ -14,11 +14,19 @@ history and compares. Same function, so a mismatch is always real.
 Pure: a sequence of movements in, a state out. No repository, no I/O.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from domain.entities import StockMovement
 from domain.enums import DeviceStatus, MovementType
+
+if TYPE_CHECKING:
+    # Deferred for the same reason as domain/services/pricing.py: a runtime
+    # import here would make domain.entities and domain.services import
+    # each other. Only used as a type hint below, never constructed.
+    from domain.entities import StockMovement
 
 # Where a handset ends up when a movement takes it off the shelf.
 #

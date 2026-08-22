@@ -40,6 +40,7 @@ from domain.errors import (
     InvalidLineError,
     InvalidMoneyError,
 )
+from domain.services import SubtotalsCalculator
 from domain.value_objects import Currency, Money
 
 
@@ -182,18 +183,7 @@ class SalesInvoice(Document):
         super().confirm(now, user_id)
 
     def subtotals(self) -> dict[Currency, Money]:
-        """One figure per currency present, never their sum (FR-2.7).
-
-        Empty while the invoice is a draft, because a draft holds no prices.
-        """
-        totals: dict[Currency, Money] = {}
-        for line in self.lines:
-            total = line.line_total
-            if total is None:
-                continue
-            running = totals.get(total.currency, Money.zero(total.currency))
-            totals[total.currency] = running + total
-        return totals
+        return SubtotalsCalculator.by_currency(line.line_total for line in self.lines)
 
     def deviations(self) -> list[SalesInvoiceLine]:
         """The lines charged something other than the resolved price (FR-9.7)."""

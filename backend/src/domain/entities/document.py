@@ -15,6 +15,11 @@ checks its prices, a Purchase Order has nothing to check at all. Subclasses
 override ``confirm`` to state their invariants and then delegate here for
 the state change, so the one lifecycle stays in one place while the rules
 stay with the document that owns them.
+
+Each subclass's ``subtotals`` goes through ``domain.services.SubtotalsCalculator``
+(not here) — putting it behind entity construction would import
+``domain.services``, which itself depends on ``domain.entities`` (see
+``PriceResolver``), and Python cannot resolve that cycle at module load time.
 """
 
 from dataclasses import dataclass
