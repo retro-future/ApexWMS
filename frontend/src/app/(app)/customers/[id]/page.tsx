@@ -20,6 +20,7 @@ import { useParams } from "next/navigation";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useCustomerAccount } from "@/hooks/use-customer-account";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useCreditCompanyLookup } from "@/hooks/use-lookup";
 import { formatMoney } from "@/lib/money";
 import type { CreditInvoiceDebt } from "@/lib/types";
@@ -41,6 +42,7 @@ export default function CustomerAccountPage() {
   const t = useTranslations("credit");
   const tCustomers = useTranslations("customers");
   const tCommon = useTranslations("common");
+  const { formatDate } = useDateFormat();
   const { id } = useParams<{ id: string }>();
 
   const query = useCustomerAccount(id);
@@ -186,9 +188,7 @@ export default function CustomerAccountPage() {
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm">
-                          {sale.confirmedAt
-                            ? new Date(sale.confirmedAt).toLocaleDateString()
-                            : tCommon("none")}
+                          {sale.confirmedAt ? formatDate(sale.confirmedAt) : tCommon("none")}
                         </Text>
                       </Table.Td>
                     </Table.Tr>

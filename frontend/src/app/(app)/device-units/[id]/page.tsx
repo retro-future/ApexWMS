@@ -27,6 +27,7 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useLocationLookup } from "@/hooks/use-lookup";
 import { useResourceItem, useResourceList } from "@/hooks/use-resource";
@@ -53,6 +54,7 @@ export default function DeviceUnitPage() {
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
   const tSell = useTranslations("invoices.sell");
+  const { formatDateTime } = useDateFormat();
   const { id } = useParams<{ id: string }>();
   const can = useCan();
 
@@ -215,9 +217,7 @@ export default function DeviceUnitPage() {
                   <Table.Tbody>
                     {(history.data ?? []).map((change) => (
                       <Table.Tr key={change.id}>
-                        <Table.Td>
-                          {new Date(change.occurredAt).toLocaleString()}
-                        </Table.Td>
+                        <Table.Td>{formatDateTime(change.occurredAt)}</Table.Td>
                         <Table.Td>
                           {change.oldPrice === null
                             ? t("priceFirst", {

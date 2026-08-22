@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ListShell } from "@/components/ListShell";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useResourceList } from "@/hooks/use-resource";
 import { formatMoney } from "@/lib/money";
 import type { Debtor } from "@/lib/types";
@@ -24,6 +25,7 @@ export function DebtorsList() {
   const t = useTranslations("reports");
   const tCredit = useTranslations("credit");
   const tCommon = useTranslations("common");
+  const { formatDate } = useDateFormat();
 
   const [page, setPage] = useState(1);
   const query = useResourceList<Debtor>("reports/debtors", { page });
@@ -72,7 +74,7 @@ export function DebtorsList() {
           <Table.Td>
             <Text size="sm">{tCredit("days", { count: row.daysSinceOldest })}</Text>
             <Text size="xs" c="dimmed">
-              {new Date(row.oldestOpenAt).toLocaleDateString()}
+              {formatDate(row.oldestOpenAt)}
             </Text>
           </Table.Td>
           <Table.Td>

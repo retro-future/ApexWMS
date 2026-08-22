@@ -26,6 +26,7 @@ import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useProductLookup, useSupplierLookup } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
@@ -45,6 +46,7 @@ export default function PurchaseOrderPage() {
   const t = useTranslations("purchaseOrders");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const { formatDateTime } = useDateFormat();
   const { id } = useParams<{ id: string }>();
   const can = useCan();
 
@@ -121,7 +123,7 @@ export default function PurchaseOrderPage() {
           <Text size="sm" c="dimmed">
             {t("supplier")}: {suppliers.get(order.supplierId) ?? tCommon("none")}
             {" · "}
-            {tDoc("created")}: {new Date(order.createdAt).toLocaleString()}
+            {tDoc("created")}: {formatDateTime(order.createdAt)}
           </Text>
           {order.note && <Text size="sm">{order.note}</Text>}
         </Stack>

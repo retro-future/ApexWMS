@@ -29,6 +29,7 @@ import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import {
   useCustomerLookup,
@@ -59,6 +60,7 @@ export default function ReceiptPage() {
   const tScan = useTranslations("receipts.scan");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const { formatDateTime } = useDateFormat();
   const { id } = useParams<{ id: string }>();
   const can = useCan();
   const queryClient = useQueryClient();
@@ -211,7 +213,7 @@ export default function ReceiptPage() {
             {" · "}
             {t("location")}: {locations.get(receipt.locationId) ?? tCommon("none")}
             {" · "}
-            {tDoc("created")}: {new Date(receipt.createdAt).toLocaleString()}
+            {tDoc("created")}: {formatDateTime(receipt.createdAt)}
           </Text>
           {receipt.note && <Text size="sm">{receipt.note}</Text>}
         </Stack>

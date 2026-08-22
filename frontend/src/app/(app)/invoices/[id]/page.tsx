@@ -33,6 +33,7 @@ import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useInvoiceQuote } from "@/hooks/use-invoice-quote";
 import {
@@ -56,6 +57,7 @@ export default function InvoicePage() {
   const tCredit = useTranslations("credit");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const { formatDateTime } = useDateFormat();
   const { id } = useParams<{ id: string }>();
   const can = useCan();
   const queryClient = useQueryClient();
@@ -176,11 +178,11 @@ export default function InvoicePage() {
             {" · "}
             {t("location")}: {locations.get(invoice.locationId) ?? tCommon("none")}
             {" · "}
-            {tDoc("created")}: {new Date(invoice.createdAt).toLocaleString()}
+            {tDoc("created")}: {formatDateTime(invoice.createdAt)}
           </Text>
           {invoice.confirmedAt && (
             <Text size="sm" c="dimmed">
-              {tDoc("confirmed")}: {new Date(invoice.confirmedAt).toLocaleString()}
+              {tDoc("confirmed")}: {formatDateTime(invoice.confirmedAt)}
               {employees.get(invoice.confirmedBy) &&
                 ` · ${employees.get(invoice.confirmedBy)}`}
             </Text>

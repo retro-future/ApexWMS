@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ListShell } from "@/components/ListShell";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useCustomerLookup, useEmployeeLookup } from "@/hooks/use-lookup";
 import { useResourceList } from "@/hooks/use-resource";
 import { formatMoney } from "@/lib/money";
@@ -29,6 +30,7 @@ export function PriceDeviationsList() {
   const t = useTranslations("reports");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const { formatDate } = useDateFormat();
 
   const customers = useCustomerLookup();
   const employees = useEmployeeLookup();
@@ -145,7 +147,7 @@ export function PriceDeviationsList() {
       {rows.map((row) => (
         <Table.Tr key={`${row.invoiceId}-${row.imei ?? row.productId}`}>
           <Table.Td>
-            <Text size="sm">{new Date(row.confirmedAt).toLocaleDateString()}</Text>
+            <Text size="sm">{formatDate(row.confirmedAt)}</Text>
           </Table.Td>
           <Table.Td>
             <Anchor component={Link} href={`/invoices/${row.invoiceId}`} fw={500}>

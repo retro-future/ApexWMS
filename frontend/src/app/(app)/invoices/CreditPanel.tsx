@@ -21,6 +21,7 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useEmployeeLookup } from "@/hooks/use-lookup";
 import { refundDueMinor, reversedPaymentIds } from "@/lib/credit";
@@ -175,6 +176,7 @@ function PaymentRow({
 }) {
   const t = useTranslations("credit");
   const tCommon = useTranslations("common");
+  const { formatDateTime } = useDateFormat();
   const can = useCan();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -202,7 +204,7 @@ function PaymentRow({
   return (
     <Table.Tr>
       <Table.Td>
-        <Text size="sm">{new Date(payment.occurredAt).toLocaleString()}</Text>
+        <Text size="sm">{formatDateTime(payment.occurredAt)}</Text>
       </Table.Td>
       <Table.Td>
         <Group gap="2xs" wrap="nowrap">

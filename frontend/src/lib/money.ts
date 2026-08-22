@@ -57,7 +57,7 @@ export function formatMoney(minor: number, currency: Currency): string {
  * What a price input may contain. UZS has no minor unit, so a decimal point
  * in a so'm price is a mistake rather than a rounding question.
  */
-export function priceInputPattern(currency: Currency): RegExp {
+function priceInputPattern(currency: Currency): RegExp {
   return currency === "USD" ? /^\d+(\.\d{1,2})?$/ : /^\d+$/;
 }
 

@@ -86,10 +86,3 @@ export const Permission = {
 export function can(me: Me | null | undefined, permission: string): boolean {
   return Boolean(me?.permissions?.includes(permission));
 }
-
-export function canAny(
-  me: Me | null | undefined,
-  permissions: string[],
-): boolean {
-  return permissions.some((permission) => can(me, permission));
-}

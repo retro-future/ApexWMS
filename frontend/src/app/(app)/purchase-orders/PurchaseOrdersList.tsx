@@ -12,6 +12,7 @@ import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { ListShell } from "@/components/ListShell";
 import { useCan } from "@/components/MeProvider";
 import { Subtotals } from "@/components/Subtotals";
+import { useDateFormat } from "@/hooks/use-date-format";
 import { useSupplierLookup } from "@/hooks/use-lookup";
 import { useResourceList } from "@/hooks/use-resource";
 import { Permission } from "@/lib/permissions";
@@ -28,6 +29,7 @@ export function PurchaseOrdersList() {
   const t = useTranslations("purchaseOrders");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const { formatDate } = useDateFormat();
   const can = useCan();
   const suppliers = useSupplierLookup();
 
@@ -134,7 +136,7 @@ export function PurchaseOrdersList() {
           </Table.Td>
           <Table.Td>
             <Text size="sm" c="dimmed">
-              {new Date(order.createdAt).toLocaleDateString()}
+              {formatDate(order.createdAt)}
             </Text>
           </Table.Td>
         </Table.Tr>
