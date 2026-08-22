@@ -11,7 +11,6 @@ import {
   Table,
   Text,
   Textarea,
-  TextInput,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,6 +19,7 @@ import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
@@ -309,21 +309,15 @@ function RecordPaymentModal({
       error={error}
       submitLabel={t("recordPayment")}
     >
-      <TextInput
+      <MoneyInput
         label={t("amount")}
         description={t("remainingIs", {
           amount: formatMoney(invoice.remainingMinor, "UZS"),
         })}
         value={amount}
-        onChange={(event) => setAmount(event.currentTarget.value)}
-        inputMode="numeric"
+        onChange={setAmount}
         error={malformed ? t("somOnly") : tooMuch ? t("blocker.overpayment") : undefined}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            UZS
-          </Text>
-        }
-        rightSectionWidth={44}
+        currency="UZS"
         data-autofocus
       />
       <Select

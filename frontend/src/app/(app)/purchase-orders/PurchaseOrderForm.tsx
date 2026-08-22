@@ -12,7 +12,6 @@ import {
   Table,
   Text,
   Textarea,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -20,6 +19,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { MoneyInput } from "@/components/MoneyInput";
 import { ProductSelect } from "@/components/ProductSelect";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useResourceCreate, useResourceList } from "@/hooks/use-resource";
@@ -218,26 +218,15 @@ export function PurchaseOrderForm() {
                         />
                       </Table.Td>
                       <Table.Td>
-                        <TextInput
+                        <MoneyInput
                           value={line.unitCost}
-                          onChange={(event) =>
-                            updateLine(line.key, {
-                              unitCost: event.currentTarget.value,
-                            })
-                          }
+                          onChange={(value) => updateLine(line.key, { unitCost: value })}
                           placeholder={
                             line.product ? priceHint(line.product.currency) : ""
                           }
                           disabled={!line.product}
                           error={priceError(line)}
-                          rightSection={
-                            line.product && (
-                              <Text size="xs" c="dimmed">
-                                {line.product.currency}
-                              </Text>
-                            )
-                          }
-                          rightSectionWidth={44}
+                          currency={line.product && line.product.currency}
                         />
                       </Table.Td>
                       <Table.Td>

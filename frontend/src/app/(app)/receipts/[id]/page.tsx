@@ -13,7 +13,6 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle, IconTrash } from "@tabler/icons-react";
@@ -25,6 +24,7 @@ import { useState } from "react";
 import { ScanConsole } from "@/app/(app)/receipts/ScanConsole";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FormModal } from "@/components/FormModal";
+import { MoneyInput } from "@/components/MoneyInput";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
@@ -546,7 +546,7 @@ function PriceUnitModal({
       error={error}
       submitLabel={tCommon("save")}
     >
-      <TextInput
+      <MoneyInput
         label={tScan("acquisitionCost")}
         description={
           !unit.acquisitionCost && reference
@@ -556,37 +556,22 @@ function PriceUnitModal({
             : undefined
         }
         value={cost}
-        onChange={(event) => setCost(event.currentTarget.value)}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            {unit.currency}
-          </Text>
-        }
-        rightSectionWidth={44}
+        onChange={setCost}
+        currency={unit.currency}
         data-autofocus
       />
-      <TextInput
+      <MoneyInput
         label={tScan("askingPrice")}
         value={asking}
-        onChange={(event) => setAsking(event.currentTarget.value)}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            {unit.currency}
-          </Text>
-        }
-        rightSectionWidth={44}
+        onChange={setAsking}
+        currency={unit.currency}
       />
-      <TextInput
+      <MoneyInput
         label={tScan("cashPaid")}
         description={tScan("cashPaidHint")}
         value={cash}
-        onChange={(event) => setCash(event.currentTarget.value)}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            UZS
-          </Text>
-        }
-        rightSectionWidth={44}
+        onChange={setCash}
+        currency="UZS"
       />
     </FormModal>
   );

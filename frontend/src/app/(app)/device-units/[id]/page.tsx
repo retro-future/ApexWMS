@@ -14,7 +14,6 @@ import {
   Table,
   Text,
   Textarea,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
@@ -26,6 +25,7 @@ import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
@@ -447,17 +447,12 @@ function RepriceModal({
       error={error}
       submitLabel={tCommon("save")}
     >
-      <TextInput
+      <MoneyInput
         label={t("newPrice")}
         description={t("repriceHint")}
         value={price}
-        onChange={(event) => setPrice(event.currentTarget.value)}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            {unit.currency}
-          </Text>
-        }
-        rightSectionWidth={44}
+        onChange={setPrice}
+        currency={unit.currency}
         data-autofocus
       />
       <Textarea

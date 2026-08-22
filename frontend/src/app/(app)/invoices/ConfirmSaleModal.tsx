@@ -16,6 +16,7 @@ import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { Subtotals } from "@/components/Subtotals";
 import { useResourceList } from "@/hooks/use-resource";
 import {
@@ -165,37 +166,25 @@ export function ConfirmSaleModal({
 
       {terms.paymentType === "store_credit" && (
         <>
-          <TextInput
+          <MoneyInput
             label={t("debt")}
             description={t("debtHint")}
             value={terms.debt}
-            onChange={(event) => set("debt", event.currentTarget.value)}
-            inputMode="numeric"
+            onChange={(value) => set("debt", value)}
             error={
               terms.debt.trim() && !isValidPriceInput(terms.debt, "UZS")
                 ? t("somOnly")
                 : undefined
             }
-            rightSection={
-              <Text size="xs" c="dimmed">
-                UZS
-              </Text>
-            }
-            rightSectionWidth={44}
+            currency="UZS"
             data-autofocus
           />
-          <TextInput
+          <MoneyInput
             label={t("downPayment")}
             description={t("downPaymentHint")}
             value={terms.downPayment}
-            onChange={(event) => set("downPayment", event.currentTarget.value)}
-            inputMode="numeric"
-            rightSection={
-              <Text size="xs" c="dimmed">
-                UZS
-              </Text>
-            }
-            rightSectionWidth={44}
+            onChange={(value) => set("downPayment", value)}
+            currency="UZS"
           />
           {debtMinor !== null && debtMinor > 0 && (
             <Text size="sm">

@@ -19,6 +19,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { CameraScanner } from "@/components/scan/CameraScanner";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useProductLookup } from "@/hooks/use-lookup";
@@ -308,17 +309,12 @@ export function ScanConsole({
                     onChange={(event) => setAskingPrice(event.currentTarget.value)}
                     w={{ base: "100%", sm: 160 }}
                   />
-                  <TextInput
+                  <MoneyInput
                     label={t("cashPaid")}
                     description={t("cashPaidHint")}
                     value={cashPaid}
-                    onChange={(event) => setCashPaid(event.currentTarget.value)}
-                    rightSection={
-                      <Text size="xs" c="dimmed">
-                        UZS
-                      </Text>
-                    }
-                    rightSectionWidth={44}
+                    onChange={setCashPaid}
+                    currency="UZS"
                     w={{ base: "100%", sm: 260 }}
                   />
                 </Group>

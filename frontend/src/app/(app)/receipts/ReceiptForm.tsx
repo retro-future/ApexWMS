@@ -22,6 +22,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { ProductSelect } from "@/components/ProductSelect";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useSupplierLookup } from "@/hooks/use-lookup";
@@ -325,13 +326,9 @@ export function ReceiptForm() {
                         </Table.Td>
                         {canPrice && (
                           <Table.Td>
-                            <TextInput
+                            <MoneyInput
                               value={line.unitCost}
-                              onChange={(event) =>
-                                updateLine(line.key, {
-                                  unitCost: event.currentTarget.value,
-                                })
-                              }
+                              onChange={(value) => updateLine(line.key, { unitCost: value })}
                               disabled={!costable(line)}
                               placeholder={
                                 line.product?.trackingType === "serial"
@@ -341,14 +338,7 @@ export function ReceiptForm() {
                                     : "0"
                               }
                               error={priceError(line)}
-                              rightSection={
-                                costable(line) && (
-                                  <Text size="xs" c="dimmed">
-                                    {line.product!.currency}
-                                  </Text>
-                                )
-                              }
-                              rightSectionWidth={44}
+                              currency={costable(line) && line.product?.currency}
                             />
                           </Table.Td>
                         )}

@@ -11,7 +11,6 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle, IconPackageImport } from "@tabler/icons-react";
@@ -23,6 +22,7 @@ import { useState } from "react";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
@@ -334,18 +334,13 @@ function PriceLineModal({
       error={error}
       submitLabel={tCommon("save")}
     >
-      <TextInput
+      <MoneyInput
         label={tDoc("unitCost")}
         description={t("priceLineHint")}
         value={value}
-        onChange={(event) => setValue(event.currentTarget.value)}
+        onChange={setValue}
         placeholder={line.currency === "USD" ? "0.00" : "0"}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            {line.currency}
-          </Text>
-        }
-        rightSectionWidth={44}
+        currency={line.currency}
         data-autofocus
       />
     </FormModal>

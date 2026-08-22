@@ -15,7 +15,6 @@ import {
   Table,
   Text,
   Textarea,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle, IconFileText, IconTrash } from "@tabler/icons-react";
@@ -30,6 +29,7 @@ import { SellConsole } from "@/app/(app)/invoices/SellConsole";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
+import { MoneyInput } from "@/components/MoneyInput";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
@@ -569,7 +569,7 @@ function OverridePriceModal({
       error={error}
       submitLabel={tCommon("save")}
     >
-      <TextInput
+      <MoneyInput
         label={tSell("overridePrice")}
         description={
           resolvedMinor === null
@@ -579,13 +579,8 @@ function OverridePriceModal({
               })
         }
         value={price}
-        onChange={(event) => setPrice(event.currentTarget.value)}
-        rightSection={
-          <Text size="xs" c="dimmed">
-            {line.currency}
-          </Text>
-        }
-        rightSectionWidth={44}
+        onChange={setPrice}
+        currency={line.currency}
         data-autofocus
       />
       <Textarea
