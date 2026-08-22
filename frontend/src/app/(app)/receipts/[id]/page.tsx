@@ -21,10 +21,9 @@ import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { PriceUnitModal } from "@/app/(app)/receipts/PriceUnitModal";
 import { ScanConsole } from "@/app/(app)/receipts/ScanConsole";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
-import { FormModal } from "@/components/FormModal";
-import { MoneyInput } from "@/components/MoneyInput";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
@@ -39,21 +38,11 @@ import {
 } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
 import { isEditable } from "@/lib/documents";
-import { formatMoney, minorToInput } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
-import {
-  confirmBlockers,
-  isSerial,
-  referenceCosts,
-  type ReferenceCost,
-} from "@/lib/receipts";
-import type {
-  GoodsReceipt,
-  PurchaseOrder,
-  ReceivedUnit,
-  ScanResult,
-} from "@/lib/types";
+import { confirmBlockers, isSerial, referenceCosts } from "@/lib/receipts";
+import type { GoodsReceipt, PurchaseOrder, ReceivedUnit, ScanResult } from "@/lib/types";
 
 export default function ReceiptPage() {
   const t = useTranslations("receipts");
@@ -481,98 +470,5 @@ export default function ReceiptPage() {
         onSubmit={runCancel}
       />
     </Stack>
-  );
-}
-
-/** FR-3.4b: an Owner or Manager prices what the Storekeeper scanned. */
-function PriceUnitModal({
-  receiptId,
-  unit,
-  reference,
-  onClose,
-}: {
-  receiptId: string;
-  unit: ReceivedUnit;
-  reference: ReferenceCost | undefined;
-  onClose: () => void;
-}) {
-  const tScan = useTranslations("receipts.scan");
-  const tCommon = useTranslations("common");
-
-  const [cost, setCost] = useState(
-    unit.acquisitionCost ??
-      (reference ? minorToInput(reference.minor, reference.currency) : ""),
-  );
-  const [asking, setAsking] = useState(unit.askingPrice ?? "");
-  const [cash, setCash] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const price = useDocumentAction<
-    ReceivedUnit,
-    {
-      acquisitionCost?: string;
-      askingPrice?: string;
-      cashPaid?: string;
-      cashPaidCurrency?: "UZS";
-    }
-  >("receipts", receiptId, {
-    method: "PATCH",
-    path: () => `/scan/${unit.imei}`,
-  });
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    try {
-      await price.mutateAsync({
-        ...(cost.trim() ? { acquisitionCost: cost.trim() } : {}),
-        ...(asking.trim() ? { askingPrice: asking.trim() } : {}),
-        ...(cash.trim() ? { cashPaid: cash.trim(), cashPaidCurrency: "UZS" } : {}),
-      });
-      notifySuccess(tCommon("saved"));
-      onClose();
-    } catch (thrown) {
-      setError(errorMessage(thrown, tCommon("retry")));
-    }
-  }
-
-  return (
-    <FormModal
-      opened
-      onClose={onClose}
-      title={tScan("priceUnitTitle", { imei: unit.imei })}
-      onSubmit={submit}
-      busy={price.isPending}
-      error={error}
-      submitLabel={tCommon("save")}
-    >
-      <MoneyInput
-        label={tScan("acquisitionCost")}
-        description={
-          !unit.acquisitionCost && reference
-            ? tScan("poReferenceHint", {
-                price: formatMoney(reference.minor, reference.currency),
-              })
-            : undefined
-        }
-        value={cost}
-        onChange={setCost}
-        currency={unit.currency}
-        data-autofocus
-      />
-      <MoneyInput
-        label={tScan("askingPrice")}
-        value={asking}
-        onChange={setAsking}
-        currency={unit.currency}
-      />
-      <MoneyInput
-        label={tScan("cashPaid")}
-        description={tScan("cashPaidHint")}
-        value={cash}
-        onChange={setCash}
-        currency="UZS"
-      />
-    </FormModal>
   );
 }
