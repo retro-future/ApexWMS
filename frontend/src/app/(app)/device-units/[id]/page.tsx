@@ -8,43 +8,30 @@ import {
   Center,
   Group,
   Loader,
-  Select,
   SimpleGrid,
   Stack,
   Table,
   Text,
-  Textarea,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
-import { FormModal } from "@/components/FormModal";
+import { ConditionModal } from "@/app/(app)/device-units/ConditionModal";
+import { RepriceModal } from "@/app/(app)/device-units/RepriceModal";
+import { SellUnitModal } from "@/app/(app)/device-units/SellUnitModal";
 import { useCan } from "@/components/MeProvider";
-import { MoneyInput } from "@/components/MoneyInput";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useDateFormat } from "@/hooks/use-date-format";
-import { useDocumentAction } from "@/hooks/use-document";
 import { useLocationLookup } from "@/hooks/use-lookup";
-import { useResourceItem, useResourceList } from "@/hooks/use-resource";
-import { apiGet, apiSend } from "@/lib/api";
-import { isValidPriceInput } from "@/lib/money";
-import { errorMessage, notifySuccess } from "@/lib/notify";
+import { useResourceItem } from "@/hooks/use-resource";
+import { apiGet } from "@/lib/api";
 import { Permission } from "@/lib/permissions";
-import type {
-  Customer,
-  DeviceCondition,
-  DeviceUnit,
-  Location,
-  PriceChange,
-  SalesInvoice,
-} from "@/lib/types";
-
-const CONDITIONS: DeviceCondition[] = ["new", "refurbished", "used"];
+import type { DeviceUnit, PriceChange } from "@/lib/types";
 
 /** A handset that has left stock is settled: no repricing, no re-grading. */
 const ON_HAND = new Set(["in_stock", "reserved"]);
@@ -254,119 +241,6 @@ export default function DeviceUnitPage() {
   );
 }
 
-/**
- * The counter's shortcut: open an invoice and put this handset on it
- * (FR-4.1, FR-4.2), without going back to the invoice list to do it.
- *
- * The location defaults to the one holding the unit, because a handset
- * scanned onto an invoice raised elsewhere is refused (FR-4.4) — offering
- * any other default would be offering a guaranteed rejection.
- *
- * The two calls are not atomic, and deliberately not hidden behind one: if
- * the scan is refused — the commonest reason being a handset nobody has
- * priced (FR-4.2b) — the draft invoice still exists and the operator lands
- * on it, which is where they would want to be anyway.
- */
-function SellUnitModal({
-  unit,
-  onClose,
-}: {
-  unit: DeviceUnit;
-  onClose: () => void;
-}) {
-  const tSell = useTranslations("invoices.sell");
-  const tInvoices = useTranslations("invoices");
-  const tCommon = useTranslations("common");
-  const router = useRouter();
-
-  const [locationId, setLocationId] = useState<string | null>(unit.locationId);
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const locations = useResourceList<Location>("locations", {
-    page: 1,
-    pageSize: 200,
-    isActive: true,
-  });
-  const customers = useResourceList<Customer>("customers", {
-    page: 1,
-    pageSize: 200,
-    isActive: true,
-  });
-
-  const start = useMutation({
-    mutationFn: async () => {
-      const invoice = await apiSend<SalesInvoice>("POST", "/invoices", {
-        locationId,
-        ...(customerId ? { customerId } : {}),
-      });
-      await apiSend("POST", `/invoices/${invoice!.id}/scan`, { code: unit.imei });
-      return invoice!;
-    },
-  });
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    if (!locationId) return;
-    try {
-      const invoice = await start.mutateAsync();
-      router.push(`/invoices/${invoice.id}`);
-    } catch (thrown) {
-      setError(errorMessage(thrown, tCommon("retry")));
-    }
-  }
-
-  return (
-    <FormModal
-      opened
-      onClose={onClose}
-      title={tSell("sellThisTitle")}
-      onSubmit={submit}
-      busy={start.isPending}
-      error={error}
-      submitLabel={tSell("sellThis")}
-    >
-      <Text size="sm" c="dimmed">
-        {tSell("sellThisBody")}
-      </Text>
-
-      {/* Said before the call, not after: the scan will be refused, and the
-          Seller reading this cannot fix it themselves (FR-4.2b). */}
-      {unit.resolvedPrice === null && (
-        <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>
-          {tSell("sellThisUnpriced")}
-        </Alert>
-      )}
-
-      <Select
-        label={tInvoices("location")}
-        value={locationId}
-        onChange={setLocationId}
-        searchable
-        required
-        data={(locations.data?.items ?? []).map((location) => ({
-          value: location.id,
-          label: location.name,
-        }))}
-        data-autofocus
-      />
-      <Select
-        label={tInvoices("customer")}
-        placeholder={tInvoices("walkIn")}
-        value={customerId}
-        onChange={setCustomerId}
-        searchable
-        clearable
-        data={(customers.data?.items ?? []).map((customer) => ({
-          value: customer.id,
-          label: customer.fullName,
-        }))}
-      />
-    </FormModal>
-  );
-}
-
 function Figure({
   label,
   value,
@@ -392,134 +266,5 @@ function Figure({
         </Text>
       )}
     </Stack>
-  );
-}
-
-/** FR-2.15/FR-2.16: a cut is an append-only row, never an overwrite. */
-function RepriceModal({
-  unit,
-  onClose,
-}: {
-  unit: DeviceUnit;
-  onClose: () => void;
-}) {
-  const t = useTranslations("deviceUnits");
-  const tCommon = useTranslations("common");
-  const tDoc = useTranslations("documents");
-
-  const [price, setPrice] = useState(unit.askingPrice ?? "");
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const reprice = useDocumentAction<
-    DeviceUnit,
-    { askingPrice: string; reason: string | null }
-  >("device-units", unit.id, { method: "PATCH", path: "/price" });
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    if (!isValidPriceInput(price, unit.currency)) {
-      setError(
-        unit.currency === "USD" ? tDoc("priceHintUsd") : tDoc("priceHintUzs"),
-      );
-      return;
-    }
-    try {
-      await reprice.mutateAsync({
-        askingPrice: price.trim(),
-        reason: reason.trim() || null,
-      });
-      notifySuccess(t("repriced"));
-      onClose();
-    } catch (thrown) {
-      setError(errorMessage(thrown, tCommon("retry")));
-    }
-  }
-
-  return (
-    <FormModal
-      opened
-      onClose={onClose}
-      title={t("repriceTitle")}
-      onSubmit={submit}
-      busy={reprice.isPending}
-      error={error}
-      submitLabel={tCommon("save")}
-    >
-      <MoneyInput
-        label={t("newPrice")}
-        description={t("repriceHint")}
-        value={price}
-        onChange={setPrice}
-        currency={unit.currency}
-        data-autofocus
-      />
-      <Textarea
-        label={tDoc("reason")}
-        value={reason}
-        onChange={(event) => setReason(event.currentTarget.value)}
-        autosize
-        minRows={2}
-      />
-    </FormModal>
-  );
-}
-
-/** FR-2.18: condition is a pricing input, so changing it is a pricing act. */
-function ConditionModal({
-  unit,
-  onClose,
-}: {
-  unit: DeviceUnit;
-  onClose: () => void;
-}) {
-  const t = useTranslations("deviceUnits");
-  const tDoc = useTranslations("documents");
-  const tCommon = useTranslations("common");
-
-  const [condition, setCondition] = useState<DeviceCondition>(unit.condition);
-  const [error, setError] = useState<string | null>(null);
-
-  const change = useDocumentAction<DeviceUnit, { condition: DeviceCondition }>(
-    "device-units",
-    unit.id,
-    { method: "PATCH", path: "/condition" },
-  );
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    try {
-      await change.mutateAsync({ condition });
-      notifySuccess(t("conditionChanged"));
-      onClose();
-    } catch (thrown) {
-      setError(errorMessage(thrown, tCommon("retry")));
-    }
-  }
-
-  return (
-    <FormModal
-      opened
-      onClose={onClose}
-      title={t("changeConditionTitle")}
-      onSubmit={submit}
-      busy={change.isPending}
-      error={error}
-      submitLabel={tCommon("save")}
-    >
-      <Select
-        label={t("condition")}
-        description={t("changeConditionHint")}
-        value={condition}
-        onChange={(value) => setCondition((value ?? unit.condition) as DeviceCondition)}
-        data={CONDITIONS.map((value) => ({
-          value,
-          label: tDoc(`condition.${value}`),
-        }))}
-        allowDeselect={false}
-      />
-    </FormModal>
   );
 }
