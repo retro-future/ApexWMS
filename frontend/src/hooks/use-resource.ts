@@ -80,3 +80,13 @@ export function useResourceUpdate<T, TPayload>(resource: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [resource] }),
   });
 }
+
+/** Wraps a filter setter so changing it also resets pagination to page 1. */
+export function makePageReset(setPage: (page: number) => void) {
+  return function reset<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setter(value);
+      setPage(1);
+    };
+  };
+}

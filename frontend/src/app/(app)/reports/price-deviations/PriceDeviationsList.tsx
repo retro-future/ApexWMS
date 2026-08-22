@@ -9,7 +9,7 @@ import { useState } from "react";
 import { ListShell } from "@/components/ListShell";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useCustomerLookup, useEmployeeLookup } from "@/hooks/use-lookup";
-import { useResourceList } from "@/hooks/use-resource";
+import { makePageReset, useResourceList } from "@/hooks/use-resource";
 import { formatMoney } from "@/lib/money";
 import type { PriceDeviation } from "@/lib/types";
 
@@ -42,12 +42,7 @@ export function PriceDeviationsList() {
   const [sort, setSort] = useState<SortKey>(null);
   const [page, setPage] = useState(1);
 
-  function reset<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
+  const reset = makePageReset(setPage);
 
   const query = useResourceList<PriceDeviation>("reports/price-deviations", {
     page,

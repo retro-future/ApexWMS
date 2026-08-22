@@ -14,7 +14,7 @@ import { useCan } from "@/components/MeProvider";
 import { Subtotals } from "@/components/Subtotals";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useSupplierLookup } from "@/hooks/use-lookup";
-import { useResourceList } from "@/hooks/use-resource";
+import { makePageReset, useResourceList } from "@/hooks/use-resource";
 import { Permission } from "@/lib/permissions";
 import type { Fulfilment, PurchaseOrder } from "@/lib/types";
 
@@ -41,12 +41,7 @@ export function PurchaseOrdersList() {
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [page, setPage] = useState(1);
 
-  function reset<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
+  const reset = makePageReset(setPage);
 
   const query = useResourceList<PurchaseOrder>("purchase-orders", {
     page,

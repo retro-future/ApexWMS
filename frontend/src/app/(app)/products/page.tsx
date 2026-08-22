@@ -20,7 +20,7 @@ import { useState } from "react";
 import { useCan } from "@/components/MeProvider";
 import { ACTIONS_COLUMN_WIDTH, ListShell } from "@/components/ListShell";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useResourceList } from "@/hooks/use-resource";
+import { makePageReset, useResourceList } from "@/hooks/use-resource";
 import { formatMoney } from "@/lib/money";
 import { Permission } from "@/lib/permissions";
 import type { Product } from "@/lib/types";
@@ -36,13 +36,7 @@ export default function ProductsPage() {
   const [tracking, setTracking] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  // Any filter change invalidates the current page number.
-  function reset<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
+  const reset = makePageReset(setPage);
 
   const query = useResourceList<Product>("products", {
     page,

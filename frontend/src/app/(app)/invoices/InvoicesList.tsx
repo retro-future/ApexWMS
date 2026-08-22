@@ -13,7 +13,7 @@ import { ListShell } from "@/components/ListShell";
 import { useCan } from "@/components/MeProvider";
 import { Subtotals } from "@/components/Subtotals";
 import { useCustomerLookup, useLocationLookup } from "@/hooks/use-lookup";
-import { useResourceList } from "@/hooks/use-resource";
+import { makePageReset, useResourceList } from "@/hooks/use-resource";
 import { formatMoney } from "@/lib/money";
 import { Permission } from "@/lib/permissions";
 import type { SalesInvoice } from "@/lib/types";
@@ -35,12 +35,7 @@ export function InvoicesList() {
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [page, setPage] = useState(1);
 
-  function reset<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
+  const reset = makePageReset(setPage);
 
   const query = useResourceList<SalesInvoice>("invoices", {
     page,

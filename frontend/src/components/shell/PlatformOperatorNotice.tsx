@@ -3,8 +3,8 @@
 import { Alert, Button, Card, Center, Code, Group, Stack, Text, Title } from "@mantine/core";
 import { IconInfoCircle, IconLogout } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 
+import { useSignOut } from "@/hooks/use-sign-out";
 import type { Me } from "@/lib/types";
 
 /**
@@ -16,13 +16,7 @@ import type { Me } from "@/lib/types";
 export function PlatformOperatorNotice({ me }: { me: Me }) {
   const t = useTranslations("auth");
   const tNav = useTranslations("nav");
-  const router = useRouter();
-
-  async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
-  }
+  const signOut = useSignOut();
 
   return (
     <Center mih="100dvh" p="md">
@@ -51,7 +45,7 @@ export function PlatformOperatorNotice({ me }: { me: Me }) {
               variant="light"
               color="red"
               leftSection={<IconLogout size={16} />}
-              onClick={signOut}
+              onClick={() => signOut()}
             >
               {tNav("signOut")}
             </Button>

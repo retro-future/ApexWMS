@@ -17,7 +17,7 @@ import {
   useLocationLookup,
   useSupplierLookup,
 } from "@/hooks/use-lookup";
-import { useResourceList } from "@/hooks/use-resource";
+import { makePageReset, useResourceList } from "@/hooks/use-resource";
 import { Permission } from "@/lib/permissions";
 import { isSerial } from "@/lib/receipts";
 import type { GoodsReceipt } from "@/lib/types";
@@ -51,12 +51,7 @@ export function ReceiptsList() {
   const [source, setSource] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  function reset<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
+  const reset = makePageReset(setPage);
 
   const query = useResourceList<GoodsReceipt>("receipts", {
     page,

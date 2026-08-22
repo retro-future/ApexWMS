@@ -4,15 +4,15 @@ import { Alert, Button, PasswordInput, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useSignOut } from "@/hooks/use-sign-out";
 import { ApiError, apiSend } from "@/lib/api";
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
-  const router = useRouter();
+  const signOut = useSignOut();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -38,9 +38,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
 
       // The backend revokes every refresh token on a password change, so the
       // session cannot survive this. Drop the cookies and start clean.
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.replace("/login?changed=1");
-      router.refresh();
+      await signOut("/login?changed=1");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : tCommon("retry"));
       setBusy(false);

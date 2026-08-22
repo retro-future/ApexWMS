@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 
 import { useMe } from "@/components/MeProvider";
+import { useSignOut } from "@/hooks/use-sign-out";
 import { roleLabelKey } from "@/lib/roles";
 
 export function UserMenu() {
@@ -13,12 +14,7 @@ export function UserMenu() {
   const tStaff = useTranslations("staff.roles");
   const me = useMe();
   const router = useRouter();
-
-  async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
-  }
+  const signOut = useSignOut();
 
   const initials = me.fullName
     .split(" ")
@@ -68,7 +64,7 @@ export function UserMenu() {
         <Menu.Item
           color="red"
           leftSection={<IconLogout size={16} />}
-          onClick={signOut}
+          onClick={() => signOut()}
         >
           {t("signOut")}
         </Menu.Item>
