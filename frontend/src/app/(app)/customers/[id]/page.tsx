@@ -1,22 +1,11 @@
 "use client";
 
-import {
-  Alert,
-  Anchor,
-  Card,
-  Center,
-  Group,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Anchor, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useCustomerAccount } from "@/hooks/use-customer-account";
@@ -48,20 +37,14 @@ export default function CustomerAccountPage() {
   const query = useCustomerAccount(id);
   const companies = useCreditCompanyLookup();
 
-  if (query.isLoading) {
-    return (
-      <Center p="xl">
-        <Loader size="sm" />
-      </Center>
-    );
-  }
+  if (query.isLoading) return <DetailLoading />;
 
   const account = query.data;
   if (query.isError || !account) {
     return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {query.error instanceof Error ? query.error.message : tCustomers("notFound")}
-      </Alert>
+      <DetailError
+        message={query.error instanceof Error ? query.error.message : tCustomers("notFound")}
+      />
     );
   }
 

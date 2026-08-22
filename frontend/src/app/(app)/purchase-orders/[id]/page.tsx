@@ -1,24 +1,13 @@
 "use client";
 
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Group,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconAlertCircle, IconPackageImport } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
@@ -68,20 +57,14 @@ export default function PurchaseOrderPage() {
     { path: "/cancel" },
   );
 
-  if (query.isLoading) {
-    return (
-      <Center p="xl">
-        <Loader size="sm" />
-      </Center>
-    );
-  }
+  if (query.isLoading) return <DetailLoading />;
 
   const order = query.data;
   if (query.isError || !order) {
     return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {query.error instanceof Error ? query.error.message : t("notFound")}
-      </Alert>
+      <DetailError
+        message={query.error instanceof Error ? query.error.message : t("notFound")}
+      />
     );
   }
 

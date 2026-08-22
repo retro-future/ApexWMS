@@ -1,23 +1,13 @@
 "use client";
 
-import {
-  Alert,
-  Button,
-  Card,
-  Center,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Alert, Button, Card, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
+import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { useCan } from "@/components/MeProvider";
 import { apiGet, apiSend } from "@/lib/api";
 import { errorMessage, notifySuccess } from "@/lib/notify";
@@ -67,20 +57,10 @@ export default function SettingsPage() {
     }
   }
 
-  if (query.isLoading) {
-    return (
-      <Center p="xl">
-        <Loader size="sm" />
-      </Center>
-    );
-  }
+  if (query.isLoading) return <DetailLoading />;
 
   if (query.isError) {
-    return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {errorMessage(query.error, tCommon("retry"))}
-      </Alert>
-    );
+    return <DetailError message={errorMessage(query.error, tCommon("retry"))} />;
   }
 
   return (

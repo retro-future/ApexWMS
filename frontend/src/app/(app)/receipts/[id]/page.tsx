@@ -6,10 +6,8 @@ import {
   Badge,
   Button,
   Card,
-  Center,
   Group,
   List,
-  Loader,
   Stack,
   Table,
   Text,
@@ -23,6 +21,7 @@ import { useState } from "react";
 
 import { PriceUnitModal } from "@/app/(app)/receipts/PriceUnitModal";
 import { ScanConsole } from "@/app/(app)/receipts/ScanConsole";
+import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
@@ -118,20 +117,14 @@ export default function ReceiptPage() {
     );
   }
 
-  if (query.isLoading) {
-    return (
-      <Center p="xl">
-        <Loader size="sm" />
-      </Center>
-    );
-  }
+  if (query.isLoading) return <DetailLoading />;
 
   const receipt = query.data;
   if (query.isError || !receipt) {
     return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {query.error instanceof Error ? query.error.message : t("notFound")}
-      </Alert>
+      <DetailError
+        message={query.error instanceof Error ? query.error.message : t("notFound")}
+      />
     );
   }
 

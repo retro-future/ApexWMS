@@ -24,6 +24,7 @@ import { useState } from "react";
 import { ConditionModal } from "@/app/(app)/device-units/ConditionModal";
 import { RepriceModal } from "@/app/(app)/device-units/RepriceModal";
 import { SellUnitModal } from "@/app/(app)/device-units/SellUnitModal";
+import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { useCan } from "@/components/MeProvider";
 import { TableScrollArea } from "@/components/TableScrollArea";
 import { useDateFormat } from "@/hooks/use-date-format";
@@ -60,20 +61,14 @@ export default function DeviceUnitPage() {
   const [regrading, setRegrading] = useState(false);
   const [selling, setSelling] = useState(false);
 
-  if (query.isLoading) {
-    return (
-      <Center p="xl">
-        <Loader size="sm" />
-      </Center>
-    );
-  }
+  if (query.isLoading) return <DetailLoading />;
 
   const unit = query.data;
   if (query.isError || !unit) {
     return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {query.error instanceof Error ? query.error.message : t("notFound")}
-      </Alert>
+      <DetailError
+        message={query.error instanceof Error ? query.error.message : t("notFound")}
+      />
     );
   }
 

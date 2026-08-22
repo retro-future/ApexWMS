@@ -1,19 +1,6 @@
 "use client";
 
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Group,
-  List,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, List, Stack, Table, Text, Title } from "@mantine/core";
 import { IconAlertCircle, IconFileText } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -25,6 +12,7 @@ import { CreditPanel } from "@/app/(app)/invoices/CreditPanel";
 import { InvoiceLineRow } from "@/app/(app)/invoices/InvoiceLineRow";
 import { OverridePriceModal } from "@/app/(app)/invoices/OverridePriceModal";
 import { SellConsole } from "@/app/(app)/invoices/SellConsole";
+import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
@@ -103,20 +91,14 @@ export default function InvoicePage() {
     });
   }
 
-  if (query.isLoading) {
-    return (
-      <Center p="xl">
-        <Loader size="sm" />
-      </Center>
-    );
-  }
+  if (query.isLoading) return <DetailLoading />;
 
   const invoice = query.data;
   if (query.isError || !invoice) {
     return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {query.error instanceof Error ? query.error.message : t("notFound")}
-      </Alert>
+      <DetailError
+        message={query.error instanceof Error ? query.error.message : t("notFound")}
+      />
     );
   }
 
