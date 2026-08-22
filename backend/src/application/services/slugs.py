@@ -13,13 +13,13 @@ from application.errors import InvalidSlugError
 
 class SlugNormalizer:
     _SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-    MAX_SLUG_LENGTH = 63  # A DNS label, so the subdomain door stays open.
+    _MAX_LENGTH = 63  # A DNS label, so the subdomain door stays open.
 
     def normalize(self, slug: str) -> str:
         candidate = slug.strip().lower()
         if (
             not candidate
-            or len(candidate) > self.MAX_SLUG_LENGTH
+            or len(candidate) > self._MAX_LENGTH
             or not self._SLUG.match(candidate)
         ):
             raise InvalidSlugError(

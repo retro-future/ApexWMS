@@ -84,13 +84,6 @@ class PaymentPoster:
         await self._append(compensating, invoice)
         return compensating
 
-    async def remaining_on(self, invoice: SalesInvoice) -> Money:
-        """``debt − Σ payments``, computed and never stored (§4.7)."""
-        paid = await self._payments.paid_for(invoice.id)
-        if invoice.debt is None or invoice.status is not DocumentStatus.CONFIRMED:
-            return Money.zero(paid.currency)
-        return invoice.debt - paid
-
     async def _append(self, payment: Payment, invoice: SalesInvoice) -> None:
         await self._payments.add(payment)
         await self._poster.post_money(
