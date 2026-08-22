@@ -23,8 +23,7 @@ from application.ports import (
     TokenService,
     UserRepository,
 )
-from application.services.claims import ClaimsFactory
-from application.services.token_issuer import TokenIssuer
+from application.services import ClaimsFactory, TokenIssuer
 
 
 class RefreshTokensCommand(Command[ResultWithData[AuthTokensData]]):

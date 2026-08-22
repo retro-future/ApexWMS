@@ -16,8 +16,7 @@ from application.dtos import RequestedTenant
 from application.errors import InvalidCredentialsError
 from application.models import LoginData
 from application.ports import MasterUnitOfWork, PasswordHasher, UserRepository
-from application.services.claims import ClaimsFactory
-from application.services.token_issuer import TokenIssuer
+from application.services import ClaimsFactory, TokenIssuer
 
 
 class LoginCommand(Command[ResultWithData[LoginData]]):
