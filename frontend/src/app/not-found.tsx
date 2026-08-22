@@ -1,10 +1,12 @@
+"use client";
+
 import { Button, Card, Center, Stack, Title } from "@mantine/core";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
-export default async function NotFound() {
-  const t = await getTranslations("errors");
-  const tNav = await getTranslations("nav");
+export default function NotFound() {
+  const t = useTranslations("errors");
+  const tNav = useTranslations("nav");
 
   return (
     <Center mih="100dvh" p="md">

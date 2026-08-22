@@ -439,7 +439,7 @@
     "invoice": "Invoice",
     "age": "Age",
     "days": "{count, plural, one {# day} other {# days}}",
-    "phone": "Phone",
+    "phone": "Contact phone",
     "openDebts": "Store credit",
     "openDebtsHint": "Every store-credit sale to this customer, and what is still owed on each.",
     "noOpenDebts": "Nothing was sold to this customer on store credit.",

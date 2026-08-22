@@ -439,7 +439,7 @@
     "invoice": "Hisob-faktura",
     "age": "Muddati",
     "days": "{count} kun",
-    "phone": "Telefon",
+    "phone": "Aloqa telefoni",
     "openDebts": "Do'kon nasiyasi",
     "openDebtsHint": "Bu mijozga nasiyaga sotilgan har bir sotuv va ular bo'yicha qolgan summa.",
     "noOpenDebts": "Bu mijozga nasiyaga hech narsa sotilmagan.",
