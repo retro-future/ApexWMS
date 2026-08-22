@@ -40,6 +40,7 @@ export type LookupMap<T = unknown> = {
    */
   all: T[];
   isLoading: boolean;
+  error: unknown;
 };
 
 function useLookup<T extends { id: string }>(
@@ -68,6 +69,7 @@ function useLookup<T extends { id: string }>(
     get: (id) => (id ? byId.get(id) : undefined),
     all: query.data?.items ?? [],
     isLoading: query.isLoading,
+    error: query.error,
   };
 }
 
@@ -145,5 +147,6 @@ export function useEmployeeLookup(): LookupMap<Employee> {
     get: (id) => (id ? byId.get(id) : undefined),
     all: query.data ?? [],
     isLoading: query.isLoading,
+    error: query.error,
   };
 }

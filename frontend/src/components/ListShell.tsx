@@ -60,9 +60,10 @@ export function ListShell({
   /** For a list where empty is good news rather than a failed search. */
   emptyMessage?: string;
   total: number;
-  page: number;
-  pagesCount: number;
-  onPageChange: (page: number) => void;
+  /** Omit all three for an unpaged list — its endpoint returns every row at once. */
+  page?: number;
+  pagesCount?: number;
+  onPageChange?: (page: number) => void;
 }) {
   const t = useTranslations("common");
 
@@ -138,9 +139,9 @@ export function ListShell({
         <Text size="sm" c="dimmed">
           {t("totalItems", { count: total })}
         </Text>
-        {pagesCount > 1 && (
+        {pagesCount !== undefined && pagesCount > 1 && onPageChange && (
           <Pagination
-            value={page}
+            value={page ?? 1}
             onChange={onPageChange}
             total={pagesCount}
             size="sm"

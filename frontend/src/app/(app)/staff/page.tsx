@@ -5,37 +5,33 @@ import {
   Alert,
   Badge,
   Button,
-  Center,
   CopyButton,
   Group,
-  Loader,
   Select,
   Stack,
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  IconAlertCircle,
   IconCheck,
   IconCopy,
   IconInfoCircle,
   IconUserPlus,
   IconUserCog,
 } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
-import { ACTIONS_COLUMN_WIDTH } from "@/components/ListShell";
+import { ACTIONS_COLUMN_WIDTH, ListShell } from "@/components/ListShell";
 import { useCan, useMe } from "@/components/MeProvider";
 import { StatusBadge } from "@/components/StatusBadge";
-import { TableScrollArea } from "@/components/TableScrollArea";
-import { apiGet, apiSend } from "@/lib/api";
+import { useEmployeeLookup } from "@/hooks/use-lookup";
+import { apiSend } from "@/lib/api";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
 import { roleLabelKey } from "@/lib/roles";
@@ -50,11 +46,7 @@ export default function StaffPage() {
   const manage = can(Permission.Users.Manage);
   const queryClient = useQueryClient();
 
-  // Note: /users is NOT paged — it returns a plain list.
-  const query = useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiGet<Employee[]>("/users"),
-  });
+  const employees = useEmployeeLookup();
 
   const roleOptions = TENANT_ROLES.map((role) => ({
     value: role,
@@ -62,86 +54,64 @@ export default function StaffPage() {
   }));
 
   return (
-    <Stack gap="lg">
-      <Group justify="space-between" align="flex-start" wrap="wrap">
-        <Stack gap="3xs">
-          <Title order={2}>{t("title")}</Title>
-          <Text size="sm" c="dimmed">
-            {t("subtitle")}
-          </Text>
-        </Stack>
-        {manage && <InviteButton roleOptions={roleOptions} />}
-      </Group>
-
-      {query.isError ? (
-        <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-          {errorMessage(query.error, tCommon("retry"))}
-        </Alert>
-      ) : (
-        <TableScrollArea>
-          <Table highlightOnHover verticalSpacing="sm" miw={560}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t("name")}</Table.Th>
-                <Table.Th>{t("role")}</Table.Th>
-                <Table.Th>{tCommon("status")}</Table.Th>
-                <Table.Th w={ACTIONS_COLUMN_WIDTH} />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(query.data ?? []).map((employee) => (
-                <Table.Tr key={employee.id}>
-                  <Table.Td>
-                    <Stack gap={0}>
-                      <Group gap="xs">
-                        <Text size="sm" fw={500}>
-                          {employee.fullName}
-                        </Text>
-                        {employee.id === me.userId && (
-                          <Badge size="xs" variant="light" color="gray">
-                            you
-                          </Badge>
-                        )}
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {employee.email}
-                      </Text>
-                    </Stack>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge size="sm" variant="light">
-                      {tRoles(roleLabelKey(employee.role))}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <StatusBadge isActive={employee.isActive} />
-                  </Table.Td>
-                  <Table.Td>
-                    <Group justify="flex-end">
-                      {manage && (
-                        <ChangeRoleButton
-                          employee={employee}
-                          roleOptions={roleOptions}
-                          onDone={() =>
-                            queryClient.invalidateQueries({ queryKey: ["users"] })
-                          }
-                        />
-                      )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-
-          {query.isLoading && (
-            <Center p="xl">
-              <Loader size="sm" />
-            </Center>
-          )}
-        </TableScrollArea>
-      )}
-    </Stack>
+    <ListShell
+      title={t("title")}
+      subtitle={t("subtitle")}
+      action={manage && <InviteButton roleOptions={roleOptions} />}
+      isLoading={employees.isLoading}
+      error={employees.error}
+      isEmpty={employees.all.length === 0}
+      total={employees.all.length}
+      head={
+        <Table.Tr>
+          <Table.Th>{t("name")}</Table.Th>
+          <Table.Th>{t("role")}</Table.Th>
+          <Table.Th>{tCommon("status")}</Table.Th>
+          <Table.Th w={ACTIONS_COLUMN_WIDTH} />
+        </Table.Tr>
+      }
+    >
+      {employees.all.map((employee) => (
+        <Table.Tr key={employee.id}>
+          <Table.Td>
+            <Stack gap={0}>
+              <Group gap="xs">
+                <Text size="sm" fw={500}>
+                  {employee.fullName}
+                </Text>
+                {employee.id === me.userId && (
+                  <Badge size="xs" variant="light" color="gray">
+                    you
+                  </Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">
+                {employee.email}
+              </Text>
+            </Stack>
+          </Table.Td>
+          <Table.Td>
+            <Badge size="sm" variant="light">
+              {tRoles(roleLabelKey(employee.role))}
+            </Badge>
+          </Table.Td>
+          <Table.Td>
+            <StatusBadge isActive={employee.isActive} />
+          </Table.Td>
+          <Table.Td>
+            <Group justify="flex-end">
+              {manage && (
+                <ChangeRoleButton
+                  employee={employee}
+                  roleOptions={roleOptions}
+                  onDone={() => queryClient.invalidateQueries({ queryKey: ["users"] })}
+                />
+              )}
+            </Group>
+          </Table.Td>
+        </Table.Tr>
+      ))}
+    </ListShell>
   );
 }
 
