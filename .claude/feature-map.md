@@ -62,7 +62,8 @@ Deep dive: [ledgers.md](../docs/architecture/ledgers.md),
   `get_device_unit_price_history.py`, `get_product_price_history.py`
 - Models: `models/device_unit.py`, `price_history.py`,
   `currency_subtotal.py`
-- Services: `services/ledger.py` (`LedgerPoster`), `verification.py`
+- Services: `services/ledger.py` (`LedgerPoster`),
+  `verification/projections.py` + `verification/reconciliation.py`
   (`apexwms verify-projections`/`verify-financials`),
   `device_unit_repricer.py`, `product_repricer.py`, `device_unit_loader.py`,
   `sale_price.py`
@@ -130,7 +131,7 @@ postings and `DocumentType.PAYMENT`.
   `list_debtors` build)
 - Services: `services/payment_posting.py` (`PaymentPoster` — the only
   writer of a payment, and the reason FR-11.7 is structural),
-  `services/ledger.py`'s `post_money`, `services/verification.py`'s
+  `services/ledger.py`'s `post_money`, `services/verification/balances.py`'s
   `BalanceVerifier` (`apexwms verify-balances`)
 - Domain: `domain/entities/payment.py`, `credit_company.py`,
   `domain/enums/payment_type.py`, `payment_method.py`

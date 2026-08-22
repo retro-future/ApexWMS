@@ -128,11 +128,12 @@ since both sides read it.
 ## Verification
 
 `apexwms verify-projections`, `verify-financials` and `verify-balances`
-(`application/services/verification.py`) audit all of it, per tenant or
-fleet-wide. All three **report and never repair**: a sweep that quietly
-rewrote a projection would destroy the evidence of whatever wrote it wrong.
-Note `_INVENTORY_SIGN` there: PRD §4.6's signs describe *cash*, so
-`PURCHASE` and `SUPPLIER_RETURN_CREDIT` flip when read as inventory value.
+(`application/services/verification/`, one module per audit) audit all of
+it, per tenant or fleet-wide. All three **report and never repair**: a sweep
+that quietly rewrote a projection would destroy the evidence of whatever
+wrote it wrong. Note `INVENTORY_SIGN` in `services/cost_pools.py`, which
+`reconciliation.py` reads: PRD §4.6's signs describe *cash*, so `PURCHASE`
+and `SUPPLIER_RETURN_CREDIT` flip when read as inventory value.
 
 `BalanceVerifier` is the odd one out, because customer balances have no
 cached projection to check against — nothing stores a balance, on the

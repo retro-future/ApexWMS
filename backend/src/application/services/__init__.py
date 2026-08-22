@@ -1,11 +1,21 @@
 """Collaborator services composed inside command/query handlers.
 
 Unlike a ``Command``/``Query``, nothing here is invoked directly from a
-route or CLI command — these are plain constructor-injected helpers
-shared by handlers: ``ClaimsFactory``/``TokenIssuer`` by ``LoginHandler``,
+route — these are plain constructor-injected helpers shared by handlers:
+``ClaimsFactory``/``TokenIssuer`` by ``LoginHandler``,
 ``RefreshTokensHandler``, and ``AcceptInviteHandler``; ``SalePriceParser``
 and ``ProductRepricer`` by the product handlers;
 ``SlugNormalizer``/``TimezoneValidator`` by the tenant handlers.
+
+The posters are the weightiest of them. ``LedgerPoster`` writes both
+ledgers and moves what they project, and ``ReceiptPoster``/
+``InvoicePoster``/``PaymentPoster`` sit on top of it, one per document a
+confirm turns into rows. None of them commits — the calling handler owns
+the transaction.
+
+``verification/`` is the exception to "nothing is invoked directly": its
+three audits are what ``apexwms verify-*`` runs, hand-wired by the CLI
+because there is no request to resolve them in.
 """
 
 from application.services.claims import ClaimsFactory
