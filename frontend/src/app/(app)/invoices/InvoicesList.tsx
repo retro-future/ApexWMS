@@ -14,6 +14,7 @@ import { useCan } from "@/components/MeProvider";
 import { Subtotals } from "@/components/Subtotals";
 import { useCustomerLookup, useLocationLookup } from "@/hooks/use-lookup";
 import { makePageReset, useResourceList } from "@/hooks/use-resource";
+import { isOpenDebt } from "@/lib/credit";
 import { formatMoney } from "@/lib/money";
 import { Permission } from "@/lib/permissions";
 import type { SalesInvoice } from "@/lib/types";
@@ -140,7 +141,7 @@ export function InvoicesList() {
             {/* Only store credit can owe anything: a financed sale was paid
                 in full by the company at confirm (FR-11.4). */}
             {invoice.paymentType === "store_credit" ? (
-              <Text size="sm" fw={invoice.remainingMinor > 0 ? 600 : undefined}>
+              <Text size="sm" fw={isOpenDebt(invoice) ? 600 : undefined}>
                 {formatMoney(invoice.remainingMinor, "UZS")}
               </Text>
             ) : (
