@@ -15,9 +15,15 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from application.dtos import Letterhead, PriceDeviation
+from application.dtos import (
+    CreditInvoiceDebt,
+    DebtorSummary,
+    Letterhead,
+    PriceDeviation,
+)
 from application.ports.repository import AppendOnlyRepository, Repository
 from domain.entities import (
+    CreditCompany,
     Customer,
     DeviceUnit,
     DeviceUnitPriceChange,
@@ -25,6 +31,7 @@ from domain.entities import (
     FinancialTransaction,
     GoodsReceipt,
     Location,
+    Payment,
     Product,
     ProductPriceChange,
     PurchaseOrder,
@@ -142,6 +149,20 @@ class CustomerRepository(Repository[Customer, UUID], Protocol):
     ) -> tuple[list[Customer], int]:
         """*search* matches name or phone."""
         ...
+
+
+class CreditCompanyRepository(Repository[CreditCompany, UUID], Protocol):
+    """Owner-maintained reference data (FR-11.3), name-unique like suppliers."""
+
+    async def get_by_name(self, name: str) -> CreditCompany | None: ...
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+    ) -> tuple[list[CreditCompany], int]: ...
 
 
 # --- M3 ledgers (PRD §4.3, §4.6) -----------------------------------------
@@ -377,4 +398,68 @@ class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
         Confirmed only. A cancelled invoice keeps its snapshots, but a
         reversed sale is not a deviation anyone still has to answer for.
         """
+        ...
+
+    async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
+        """Every non-cash sale this customer has, newest first (FR-11.9).
+
+        Both halves of the account in one query: store-credit sales with
+        what has been paid against them, and financed sales carrying no
+        debt at all. Cancelled invoices are included — their debt is void
+        but any payments taken still have to be surfaced for refund
+        handling (FR-11.11).
+        """
+        ...
+
+    async def list_debtors(
+        self, page: int, page_size: int
+    ) -> tuple[list[DebtorSummary], int]:
+        """Every customer with a balance above zero, worst-first (FR-11.10).
+
+        Ordered by the age of their oldest open invoice: store credit has
+        no due date by design, so nothing is ever formally overdue and age
+        is what makes a stale debt visible.
+        """
+        ...
+
+    async def total_debt(self) -> Money:
+        """What every customer owes the store, as one som figure (§4.7).
+
+        The reconciliation half of ``verify-balances``: confirmed
+        store-credit debt minus everything collected against it.
+        """
+        ...
+
+
+class PaymentRepository(AppendOnlyRepository[Payment], Protocol):
+    """Money received against store credit (§4.7). Never updated, never deleted."""
+
+    async def get(self, payment_id: UUID) -> Payment | None: ...
+
+    async def list_for_invoice(self, sales_invoice_id: UUID) -> list[Payment]:
+        """One invoice's payments, oldest first — including the down payment
+        the confirm recorded and any compensating reversals."""
+        ...
+
+    async def list_for_invoices(
+        self, sales_invoice_ids: Sequence[UUID]
+    ) -> dict[UUID, list[Payment]]:
+        """The same, for a page of invoices in one query.
+
+        A list screen showing what is still owed would otherwise run a
+        query per row, and an invoice with no payments must still appear
+        with an empty list rather than be missing from the result.
+        """
+        ...
+
+    async def paid_for(self, sales_invoice_id: UUID) -> Money:
+        """Net som collected against one invoice, reversals included."""
+        ...
+
+    async def reversal_of(self, payment_id: UUID) -> Payment | None:
+        """The compensating entry against *payment_id*, if one was written."""
+        ...
+
+    async def list_all(self) -> list[Payment]:
+        """Every payment in the store — the sweep ``verify-balances`` runs."""
         ...

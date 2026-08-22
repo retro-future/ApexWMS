@@ -14,6 +14,8 @@ from domain.enums.document_status import DocumentStatus
 from domain.enums.document_type import DocumentType
 from domain.enums.invitation_kind import InvitationKind
 from domain.enums.movement_type import MovementType
+from domain.enums.payment_method import PaymentMethod
+from domain.enums.payment_type import PaymentType
 from domain.enums.tenant_role import TENANT_PREFIX, TenantRole
 from domain.enums.tenant_status import TenantStatus
 from domain.enums.tracking_type import TrackingType
@@ -29,6 +31,8 @@ __all__ = [
     "DocumentType",
     "InvitationKind",
     "MovementType",
+    "PaymentMethod",
+    "PaymentType",
     "TENANT_PREFIX",
     "TenantRole",
     "TenantStatus",

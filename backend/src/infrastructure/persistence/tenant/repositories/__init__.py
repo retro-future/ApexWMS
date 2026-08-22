@@ -5,6 +5,7 @@ tenant, so there is no filter to forget.
 """
 
 from .base import TenantCrudRepository, TenantRepository
+from .credit_company import SqlCreditCompanyRepository
 from .customer import SqlCustomerRepository
 from .device_unit import SqlDeviceUnitRepository
 from .device_unit_price_change import SqlDeviceUnitPriceChangeRepository
@@ -13,6 +14,7 @@ from .employee import SqlEmployeeRepository
 from .financial_transaction import SqlFinancialTransactionRepository
 from .goods_receipt import SqlGoodsReceiptRepository
 from .location import SqlLocationRepository
+from .payment import SqlPaymentRepository
 from .product import SqlProductRepository
 from .product_price_change import SqlProductPriceChangeRepository
 from .purchase_order import SqlPurchaseOrderRepository
@@ -24,6 +26,7 @@ from .supplier import SqlSupplierRepository
 
 __all__ = [
     "SETTINGS_ROW_ID",
+    "SqlCreditCompanyRepository",
     "SqlCustomerRepository",
     "SqlDeviceUnitPriceChangeRepository",
     "SqlDeviceUnitRepository",
@@ -32,6 +35,7 @@ __all__ = [
     "SqlFinancialTransactionRepository",
     "SqlGoodsReceiptRepository",
     "SqlLocationRepository",
+    "SqlPaymentRepository",
     "SqlProductPriceChangeRepository",
     "SqlProductRepository",
     "SqlPurchaseOrderRepository",

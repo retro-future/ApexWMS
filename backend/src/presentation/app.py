@@ -10,11 +10,13 @@ from infrastructure.config import Settings
 from presentation.errors import register_error_handlers
 from presentation.routers import (
     auth,
+    credit_companies,
     customers,
     device_units,
     goods_receipts,
     health,
     locations,
+    payments,
     products,
     purchase_orders,
     reports,
@@ -59,5 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(purchase_orders.router, prefix=API_PREFIX)
     app.include_router(goods_receipts.router, prefix=API_PREFIX)
     app.include_router(sales_invoices.router, prefix=API_PREFIX)
+    app.include_router(credit_companies.router, prefix=API_PREFIX)
+    app.include_router(payments.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
     return app

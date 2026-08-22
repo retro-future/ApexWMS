@@ -12,10 +12,17 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from application.dtos import Letterhead, OwnerSeed, RefreshTokenParts
+from application.dtos import (
+    CreditInvoiceDebt,
+    DebtorSummary,
+    Letterhead,
+    OwnerSeed,
+    RefreshTokenParts,
+)
 from application.errors import ProvisioningFailedError, TenantNotActiveError
 from domain.core import Entity
 from domain.entities import (
+    CreditCompany,
     Customer,
     DeviceUnit,
     DeviceUnitPriceChange,
@@ -24,6 +31,7 @@ from domain.entities import (
     GoodsReceipt,
     Invitation,
     Location,
+    Payment,
     Product,
     ProductPriceChange,
     PurchaseOrder,
@@ -45,6 +53,7 @@ from domain.enums import (
     AppRole,
     DocumentStatus,
     DocumentType,
+    PaymentType,
     TenantRole,
     TenantStatus,
     TrackingType,
@@ -442,6 +451,10 @@ class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
     holds, exactly as the SQL repository writes one row rather than
     rewriting the whole invoice per beep."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.payments: FakePaymentRepository | None = None
+
     async def list_page(
         self,
         page: int,
@@ -469,6 +482,139 @@ class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
 
     async def remove_line(self, line_id: UUID) -> None:
         return None
+
+    async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
+        found = [
+            self._to_debt(invoice)
+            for invoice in self.by_id.values()
+            if invoice.customer_id == customer_id
+            and invoice.payment_type is not PaymentType.PAID_IN_FULL
+            and invoice.status is not DocumentStatus.DRAFT
+        ]
+        return sorted(
+            found, key=lambda d: d.confirmed_at or datetime.min.replace(tzinfo=UTC), reverse=True
+        )
+
+    async def list_debtors(
+        self, page: int, page_size: int
+    ) -> tuple[list[DebtorSummary], int]:
+        by_customer: dict[UUID, list[CreditInvoiceDebt]] = {}
+        for invoice in self.by_id.values():
+            if invoice.customer_id is None or not invoice.payment_type.opens_debt:
+                continue
+            if invoice.status is not DocumentStatus.CONFIRMED:
+                continue
+            by_customer.setdefault(invoice.customer_id, []).append(self._to_debt(invoice))
+
+        summaries: list[DebtorSummary] = []
+        for customer_id, debts in by_customer.items():
+            open_debts = [debt for debt in debts if debt.is_open]
+            if not open_debts:
+                continue
+            balance = Money.zero(Currency.UZS)
+            for debt in open_debts:
+                balance = balance + debt.remaining
+            summaries.append(
+                DebtorSummary(
+                    customer_id=customer_id,
+                    full_name=str(customer_id),
+                    phone=None,
+                    balance=balance,
+                    oldest_open_at=min(
+                        debt.confirmed_at
+                        for debt in open_debts
+                        if debt.confirmed_at is not None
+                    ),
+                    open_invoice_count=len(open_debts),
+                )
+            )
+        return _page(sorted(summaries, key=lambda s: s.oldest_open_at), page, page_size)
+
+    async def total_debt(self) -> Money:
+        total = Money.zero(Currency.UZS)
+        for invoice in self.by_id.values():
+            if invoice.status is not DocumentStatus.CONFIRMED:
+                continue
+            if not invoice.payment_type.opens_debt or invoice.debt is None:
+                continue
+            total = total + invoice.debt - self._paid(invoice.id)
+        return total
+
+    def _to_debt(self, invoice: SalesInvoice) -> CreditInvoiceDebt:
+        return CreditInvoiceDebt(
+            invoice_id=invoice.id,
+            invoice_number=invoice.number,
+            status=invoice.status,
+            payment_type=invoice.payment_type,
+            confirmed_at=invoice.confirmed_at,
+            debt=invoice.debt,
+            paid=self._paid(invoice.id),
+            credit_company_id=invoice.credit_company_id,
+            contract_ref=invoice.contract_ref,
+        )
+
+    def _paid(self, invoice_id: UUID) -> Money:
+        """The debt reads join two tables, so this fake needs the other one.
+
+        ``World`` sets ``payments`` after building both, since neither can
+        be constructed holding the other.
+        """
+        total = Money.zero(Currency.UZS)
+        rows = [] if self.payments is None else self.payments.rows
+        for payment in rows:
+            if payment.sales_invoice_id == invoice_id:
+                total = total + payment.amount
+        return total
+
+
+class FakeCreditCompanyRepository(FakeRepository[CreditCompany]):
+    async def get_by_name(self, name: str) -> CreditCompany | None:
+        return next((c for c in self.by_id.values() if c.name == name), None)
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+    ) -> tuple[list[CreditCompany], int]:
+        found = [
+            company
+            for company in self.by_id.values()
+            if _matches(search, company.name, company.contact_name, company.phone)
+            and (is_active is None or company.is_active == is_active)
+        ]
+        return _page(sorted(found, key=lambda c: c.created_at), page, page_size)
+
+
+class FakePaymentRepository(FakeAppendOnlyRepository[Payment]):
+    async def get(self, payment_id: UUID) -> Payment | None:
+        return next((p for p in self.rows if p.id == payment_id), None)
+
+    async def list_for_invoice(self, sales_invoice_id: UUID) -> list[Payment]:
+        return [p for p in self.rows if p.sales_invoice_id == sales_invoice_id]
+
+    async def list_for_invoices(
+        self, sales_invoice_ids: Sequence[UUID]
+    ) -> dict[UUID, list[Payment]]:
+        wanted = set(sales_invoice_ids)
+        found: dict[UUID, list[Payment]] = {}
+        for payment in self.rows:
+            if payment.sales_invoice_id in wanted:
+                found.setdefault(payment.sales_invoice_id, []).append(payment)
+        return found
+
+    async def paid_for(self, sales_invoice_id: UUID) -> Money:
+        total = Money.zero(Currency.UZS)
+        for payment in await self.list_for_invoice(sales_invoice_id):
+            total = total + payment.amount
+        return total
+
+    async def reversal_of(self, payment_id: UUID) -> Payment | None:
+        return next((p for p in self.rows if p.reverses_payment_id == payment_id), None)
+
+    async def list_all(self) -> list[Payment]:
+        return list(self.rows)
 
 
 class FakeTenantSettingsRepository:

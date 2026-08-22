@@ -11,6 +11,7 @@
     apexwms seed-tenant <uuid> [--products N] [--customers N] [--suppliers N]
     apexwms verify-projections --all-tenants | --tenant <uuid>
     apexwms verify-financials  --all-tenants | --tenant <uuid>
+    apexwms verify-balances    --all-tenants | --tenant <uuid>
 
 There is no HTTP admin API in the MVP: shell access to the server plus the
 MasterDB URL *is* the SuperAdmin credential. The admin portal, and the
@@ -97,11 +98,13 @@ def main(argv: list[str] | None = None) -> int:
     seed.add_argument("--suppliers", type=int, default=5)
     seed.add_argument("--seed", type=int, default=None, help="random seed, for reproducible data")
 
-    # The two audits (PRD §11, FR-10.7). Same target flags as ``migrate``,
-    # because they answer the same shape of question about the same fleet.
+    # The three audits (PRD §11, FR-10.7, FR-10.7b). Same target flags as
+    # ``migrate``, because they answer the same shape of question about the
+    # same fleet.
     for name, help_text in (
         ("verify-projections", "recompute stock projections from the ledger"),
         ("verify-financials", "reconcile inventory value against the money ledger"),
+        ("verify-balances", "recompute customer debt from invoices and payments"),
     ):
         verify = sub.add_parser(name, help=help_text)
         scope = verify.add_mutually_exclusive_group(required=True)
@@ -132,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_retry_provisioning(settings, args.tenant_id, args.timezone))
     if args.command == "seed-tenant":
         return asyncio.run(_seed_tenant(settings, args))
-    if args.command in ("verify-projections", "verify-financials"):
+    if args.command in ("verify-projections", "verify-financials", "verify-balances"):
         tenant_id = None if args.all_tenants else args.tenant
         return asyncio.run(_verify(settings, args.command, tenant_id))
     return 2
@@ -310,7 +313,7 @@ async def _migrate_tenants(settings: Settings, tenant_id: UUID | None) -> int:
 
 
 async def _verify(settings: Settings, command: str, tenant_id: UUID | None) -> int:
-    """Fan the two audits out over the fleet (PRD §11, FR-10.7).
+    """Fan the three audits out over the fleet (PRD §11, FR-10.7, FR-10.7b).
 
     Same shape as the migration fan-out: continue past a tenant that
     cannot be reached, report everything at the end, exit non-zero if
@@ -359,14 +362,21 @@ async def _verify_one(url: str, command: str) -> list[str]:
     ``TenantSession`` wrapper is not cosmetic; it is what stops a master
     session reaching a tenant repository (``infrastructure/types.py``).
     """
-    from application.services import CostPoolReader, LedgerReconciler, ProjectionVerifier
+    from application.services import (
+        BalanceVerifier,
+        CostPoolReader,
+        LedgerReconciler,
+        ProjectionVerifier,
+    )
     from domain.services import UnitProjector
     from infrastructure.persistence.tenant.repositories import (
         SqlDeviceUnitPriceChangeRepository,
         SqlDeviceUnitRepository,
         SqlFinancialTransactionRepository,
+        SqlPaymentRepository,
         SqlProductPriceChangeRepository,
         SqlProductRepository,
+        SqlSalesInvoiceRepository,
         SqlStockLevelRepository,
         SqlStockMovementRepository,
     )
@@ -378,6 +388,14 @@ async def _verify_one(url: str, command: str) -> list[str]:
             units = SqlDeviceUnitRepository(session)
             movements = SqlStockMovementRepository(session)
             products = SqlProductRepository(session)
+            if command == "verify-balances":
+                balances = BalanceVerifier(
+                    SqlSalesInvoiceRepository(session),
+                    SqlPaymentRepository(session),
+                    SqlFinancialTransactionRepository(session),
+                )
+                return [str(finding) for finding in await balances.verify()]
+
             if command == "verify-financials":
                 transactions = SqlFinancialTransactionRepository(session)
                 checker = LedgerReconciler(

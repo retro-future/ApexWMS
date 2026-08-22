@@ -13,6 +13,7 @@ from uuid import UUID
 
 from application.core import IRequestHandler, Query, ResultWithData
 from application.models import SalesInvoiceData
+from application.ports import PaymentRepository
 from application.services import DocumentLoader
 
 
@@ -23,13 +24,16 @@ class GetSalesInvoiceQuery(Query[ResultWithData[SalesInvoiceData]]):
 class GetSalesInvoiceHandler(
     IRequestHandler[ResultWithData[SalesInvoiceData], GetSalesInvoiceQuery]
 ):
-    def __init__(self, loader: DocumentLoader) -> None:
+    def __init__(self, loader: DocumentLoader, payments: PaymentRepository) -> None:
         self._loader = loader
+        self._payments = payments
 
     async def handle(
         self, request: GetSalesInvoiceQuery
     ) -> ResultWithData[SalesInvoiceData]:
         invoice = await self._loader.load_invoice(request.sales_invoice_id)
         return ResultWithData[SalesInvoiceData].succeed_with_data(
-            SalesInvoiceData.from_entity(invoice)
+            SalesInvoiceData.from_entity(
+                invoice, await self._payments.list_for_invoice(invoice.id)
+            )
         )

@@ -13,8 +13,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from domain.entities import SalesInvoice, SalesInvoiceLine
-from domain.enums import DocumentStatus, TrackingType
+from domain.enums import DocumentStatus, PaymentType, TrackingType
 from domain.errors import (
+    AnonymousDebtError,
+    CreditTermsError,
     CurrencyMismatchError,
     DocumentNotConfirmedError,
     DocumentNotDraftError,
@@ -63,7 +65,11 @@ def case_line(invoice_id: UUID | None = None, **overrides: object) -> SalesInvoi
     return SalesInvoiceLine(**fields)  # type: ignore[arg-type]
 
 
-def invoice(*lines: SalesInvoiceLine, status: DocumentStatus = DocumentStatus.DRAFT):
+def invoice(
+    *lines: SalesInvoiceLine,
+    status: DocumentStatus = DocumentStatus.DRAFT,
+    **terms: object,
+):
     return SalesInvoice(
         id=uuid4(),
         number="INV-2026-0001",
@@ -72,6 +78,7 @@ def invoice(*lines: SalesInvoiceLine, status: DocumentStatus = DocumentStatus.DR
         created_by=uuid4(),
         created_at=NOW,
         lines=list(lines),
+        **terms,  # type: ignore[arg-type]
     )
 
 
@@ -245,3 +252,146 @@ class TestDeviationsAreWhatTheReportReads:
         deviations = invoice(followed, overridden, still_draft).deviations()
 
         assert deviations == [overridden]
+
+
+class TestEachPaymentTypeAdmitsOneShapeOfTerms:
+    """§4.7: the three ways a phone leaves the store, and what each one
+    may say about the money."""
+
+    def test_a_cash_sale_names_no_credit_company(self):
+        with pytest.raises(CreditTermsError):
+            invoice(phone_line(), credit_company_id=uuid4())
+
+    def test_a_cash_sale_carries_no_debt(self):
+        with pytest.raises(CreditTermsError):
+            invoice(phone_line(), debt=uzs("7800000"))
+
+    def test_a_financed_sale_names_its_company(self):
+        with pytest.raises(CreditTermsError):
+            invoice(phone_line(), payment_type=PaymentType.CREDIT_COMPANY)
+
+    def test_a_financed_sale_opens_no_debt(self):
+        """FR-11.4: the company pays the store in full at sale time."""
+        with pytest.raises(CreditTermsError):
+            invoice(
+                phone_line(),
+                payment_type=PaymentType.CREDIT_COMPANY,
+                credit_company_id=uuid4(),
+                debt=uzs("7800000"),
+            )
+
+    def test_a_financed_sale_may_record_a_contract_reference(self):
+        sale = invoice(
+            phone_line(),
+            payment_type=PaymentType.CREDIT_COMPANY,
+            credit_company_id=uuid4(),
+            contract_ref="UZ-99417",
+        )
+
+        assert sale.contract_ref == "UZ-99417"
+
+    def test_a_store_credit_sale_states_its_debt(self):
+        with pytest.raises(CreditTermsError):
+            invoice(
+                phone_line(),
+                payment_type=PaymentType.STORE_CREDIT,
+                customer_id=uuid4(),
+            )
+
+    def test_a_debt_of_zero_is_a_sale_that_was_paid_for(self):
+        with pytest.raises(CreditTermsError):
+            invoice(
+                phone_line(),
+                payment_type=PaymentType.STORE_CREDIT,
+                customer_id=uuid4(),
+                debt=uzs("0"),
+            )
+
+    def test_the_debt_is_written_in_som_whatever_the_lines_cost(self):
+        """§4.7: a $600 phone's debt is 7 800 000 so'm, with no rate
+        recorded anywhere."""
+        with pytest.raises(CurrencyMismatchError):
+            invoice(
+                phone_line(),
+                payment_type=PaymentType.STORE_CREDIT,
+                customer_id=uuid4(),
+                debt=usd("600"),
+            )
+
+    def test_the_store_does_not_lend_and_finance_the_same_sale(self):
+        with pytest.raises(CreditTermsError):
+            invoice(
+                phone_line(),
+                payment_type=PaymentType.STORE_CREDIT,
+                customer_id=uuid4(),
+                credit_company_id=uuid4(),
+                debt=uzs("7800000"),
+            )
+
+
+class TestStoreCreditNamesTheDebtor:
+    """§4.7: an invoice may be raised for a walk-in (FR-4.1), but a debt
+    cannot — it would be money the store knows it is owed and cannot say by
+    whom."""
+
+    def test_lending_to_nobody_is_refused(self):
+        with pytest.raises(AnonymousDebtError):
+            invoice(
+                phone_line(),
+                payment_type=PaymentType.STORE_CREDIT,
+                debt=uzs("7800000"),
+            )
+
+    def test_a_walk_in_may_still_pay_cash(self):
+        sale = invoice(phone_line())
+
+        assert sale.customer_id is None
+        assert sale.payment_type is PaymentType.PAID_IN_FULL
+
+    def test_a_walk_in_may_still_be_financed(self):
+        """FR-11.4: a financed sale is settled at confirm and differs from
+        cash only by a label."""
+        sale = invoice(
+            phone_line(),
+            payment_type=PaymentType.CREDIT_COMPANY,
+            credit_company_id=uuid4(),
+        )
+
+        assert sale.customer_id is None
+
+
+class TestTermsAreStatedWhileTheInvoiceIsStillADraft:
+    def test_set_terms_replaces_what_the_draft_carried(self):
+        customer = uuid4()
+        sale = invoice(phone_line(), customer_id=customer)
+
+        sale.set_terms(PaymentType.STORE_CREDIT, debt=uzs("7800000"))
+
+        assert sale.payment_type is PaymentType.STORE_CREDIT
+        assert sale.debt == uzs("7800000")
+
+    def test_switching_back_to_cash_clears_the_debt(self):
+        sale = invoice(phone_line(), customer_id=uuid4())
+        sale.set_terms(PaymentType.STORE_CREDIT, debt=uzs("7800000"))
+
+        sale.set_terms(PaymentType.PAID_IN_FULL)
+
+        assert sale.debt is None
+
+    def test_a_confirmed_sale_cannot_be_re_termed(self):
+        """§4.4: the debt is already open and the ledger already written."""
+        sale = invoice(phone_line(), customer_id=uuid4())
+        sale.confirm(NOW, uuid4())
+
+        with pytest.raises(DocumentNotDraftError):
+            sale.set_terms(PaymentType.STORE_CREDIT, debt=uzs("7800000"))
+
+    def test_confirming_checks_the_terms_too(self):
+        """A draft saved through some other path still cannot confirm into
+        an anonymous debt."""
+        sale = invoice(phone_line(), customer_id=uuid4())
+        sale.set_terms(PaymentType.STORE_CREDIT, debt=uzs("7800000"))
+        sale.customer_id = None
+
+        with pytest.raises(AnonymousDebtError):
+            sale.confirm(NOW, uuid4())

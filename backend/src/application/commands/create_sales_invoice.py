@@ -8,6 +8,11 @@ product id and a quantity into a new sale.
 The invoice has no currency of its own. Each line takes its currency from
 its product (FR-2.7), so one sale may hold a USD phone and a UZS case and
 present two subtotals with no field anywhere for their sum.
+
+``payment_type`` here is the Seller's intention (FR-11.1), so the till can
+show the right controls while scanning. The terms that are actually struck
+arrive in the confirm body, because the som debt and the down payment are
+only known once the customer has agreed to them.
 """
 
 from uuid import UUID, uuid4
@@ -25,7 +30,7 @@ from application.ports import (
 )
 from application.services import DocumentNumberer
 from domain.entities import SalesInvoice
-from domain.enums import DocumentStatus, DocumentType
+from domain.enums import DocumentStatus, DocumentType, PaymentType
 
 
 class CreateSalesInvoiceCommand(Command[ResultWithData[SalesInvoiceData]]):
@@ -34,6 +39,7 @@ class CreateSalesInvoiceCommand(Command[ResultWithData[SalesInvoiceData]]):
     # needs to keep (FR-4.1).
     customer_id: UUID | None = None
     note: str | None = None
+    payment_type: PaymentType = PaymentType.PAID_IN_FULL
 
 
 class CreateSalesInvoiceHandler(
@@ -69,6 +75,7 @@ class CreateSalesInvoiceHandler(
             location_id=request.location_id,
             customer_id=request.customer_id,
             note=request.note,
+            payment_type=request.payment_type,
             created_by=self._current.user_id,
             created_at=self._clock.now(),
         )

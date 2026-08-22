@@ -14,6 +14,15 @@ comes back to the shelf asking exactly what it asked before.
 ``SalesInvoice.cancel`` is what stops this running twice. Reversing a
 reversal would re-apply the sale, and the poster deliberately holds no
 guard of its own.
+
+**A store-credit sale's debt is voided and its payments are not**
+(FR-11.11). Nothing here writes to either: the debt drops out of every
+balance because the balance query counts confirmed invoices only, and the
+payments keep their ``PAYMENT_RECEIVED`` rows because those are booked
+under ``(PAYMENT, payment.id)`` rather than under this invoice — so
+``LedgerPoster.reverse`` never sees them. What comes back on the response
+is the money the store is now holding and has to hand back, which is
+exactly the figure refund handling needs.
 """
 
 from uuid import UUID
@@ -21,7 +30,12 @@ from uuid import UUID
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.models import SalesInvoiceData
-from application.ports import Clock, SalesInvoiceRepository, TenantUnitOfWork
+from application.ports import (
+    Clock,
+    PaymentRepository,
+    SalesInvoiceRepository,
+    TenantUnitOfWork,
+)
 from application.services import DocumentLoader, LedgerPoster
 from domain.enums import DocumentType
 
@@ -43,6 +57,7 @@ class CancelSalesInvoiceHandler(
     def __init__(
         self,
         invoices: SalesInvoiceRepository,
+        payments: PaymentRepository,
         loader: DocumentLoader,
         poster: LedgerPoster,
         clock: Clock,
@@ -50,6 +65,7 @@ class CancelSalesInvoiceHandler(
         current: CurrentUser,
     ) -> None:
         self._invoices = invoices
+        self._payments = payments
         self._loader = loader
         self._poster = poster
         self._clock = clock
@@ -67,5 +83,7 @@ class CancelSalesInvoiceHandler(
         await self._uow.commit()
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(
-            SalesInvoiceData.from_entity(invoice)
+            SalesInvoiceData.from_entity(
+                invoice, await self._payments.list_for_invoice(invoice.id)
+            )
         )

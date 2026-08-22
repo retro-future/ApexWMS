@@ -181,3 +181,46 @@ class EmptyInvoiceError(DomainError):
     sale would still consume an invoice number and appear in every sales
     report as a transaction that never happened.
     """
+
+
+class CreditTermsError(DomainError):
+    """Payment terms that contradict the payment type (§4.7, FR-11.1).
+
+    A cash sale naming a credit company, a financed sale carrying a som
+    debt, a store-credit sale carrying none — each would leave the invoice
+    asserting two different things about who owes the store money.
+    """
+
+
+class AnonymousDebtError(DomainError):
+    """A store-credit sale that names no customer (§4.7).
+
+    An invoice may be raised for a walk-in (FR-4.1), but a debt cannot: it
+    would be money the store knows it is owed and cannot say by whom,
+    invisible to every customer account and to the debtor list.
+    """
+
+
+class NotACreditSaleError(DomainError):
+    """A payment recorded against a sale that opened no debt (FR-11.4).
+
+    A cash sale and a financed one are both settled at confirm, so there is
+    nothing for a payment to settle.
+    """
+
+
+class OverpaymentError(DomainError):
+    """A payment larger than what is still owed (FR-11.6).
+
+    ``remaining = debt − Σ payments`` is a projection of append-only rows,
+    so a balance can only stay non-negative if the rows that build it are
+    refused at the point they would break it.
+    """
+
+
+class PaymentAlreadyReversedError(DomainError):
+    """A second compensating entry against one payment (FR-11.8).
+
+    Reversing a reversal would re-apply the payment. The original stays in
+    the ledger either way — a mistake is compensated, never deleted.
+    """

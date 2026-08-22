@@ -14,18 +14,27 @@ A draft's money fields are all null, and that is the API telling the truth
 about FR-4.5b1: a draft reserves no price. The figure the counter displays
 while scanning comes from the scan response, which resolves a price to
 *show* without writing one down.
+
+The debt fields are the one place a som figure sits beside dollar line
+prices, and they are unrelated to them by design (§4.7): the seller quotes
+the som total in their head, and no rate is recorded anywhere.
+``remainingMinor`` is computed on every read from ``debt − Σ payments``,
+which is also what makes it the refund figure once the invoice is
+cancelled (FR-11.11) — the debt is void but the payments are not.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.models.currency_subtotal import CurrencySubtotalData
-from domain.entities import SalesInvoice, SalesInvoiceLine
-from domain.enums import DocumentStatus, TrackingType
+from application.models.payment import PaymentData
+from domain.entities import Payment, SalesInvoice, SalesInvoiceLine
+from domain.enums import DocumentStatus, PaymentType, TrackingType
 from domain.value_objects import Currency, Money
 
 
@@ -101,9 +110,30 @@ class SalesInvoiceData(CamelModel):
     # One figure per currency present, never their sum (FR-2.7). Empty on
     # a draft, because a draft holds no prices.
     subtotals: list[CurrencySubtotalData]
+    # How this sale is paid for (§4.7). All three debt figures are som.
+    payment_type: PaymentType
+    credit_company_id: UUID | None
+    contract_ref: str | None
+    debt: Decimal | None = None
+    debt_minor: int | None = None
+    paid_minor: int = 0
+    remaining_minor: int = 0
+    payments: list[PaymentData] = []
 
     @classmethod
-    def from_entity(cls, invoice: SalesInvoice) -> SalesInvoiceData:
+    def from_entity(
+        cls, invoice: SalesInvoice, payments: Sequence[Payment] = ()
+    ) -> SalesInvoiceData:
+        paid = sum(payment.amount.amount_minor for payment in payments)
+        debt_minor = None if invoice.debt is None else invoice.debt.amount_minor
+        # A cancelled sale's debt is void (FR-11.11), so what is left to
+        # settle is nothing — and any payments taken are a refund, which is
+        # why they are still listed.
+        owing = (
+            debt_minor - paid
+            if debt_minor is not None and invoice.status is DocumentStatus.CONFIRMED
+            else 0
+        )
         return cls(
             id=invoice.id,
             number=invoice.number,
@@ -120,4 +150,12 @@ class SalesInvoiceData(CamelModel):
             cancellation_reason=invoice.cancellation_reason,
             lines=[SalesInvoiceLineData.from_entity(line) for line in invoice.lines],
             subtotals=CurrencySubtotalData.from_entity(invoice.subtotals()),
+            payment_type=invoice.payment_type,
+            credit_company_id=invoice.credit_company_id,
+            contract_ref=invoice.contract_ref,
+            debt=None if invoice.debt is None else invoice.debt.as_major(),
+            debt_minor=debt_minor,
+            paid_minor=paid,
+            remaining_minor=owing,
+            payments=[PaymentData.from_entity(payment) for payment in payments],
         )

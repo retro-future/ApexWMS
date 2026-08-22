@@ -28,6 +28,7 @@ from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
 from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceHandler
+from application.commands.create_credit_company import CreateCreditCompanyHandler
 from application.commands.create_customer import CreateCustomerHandler
 from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
 from application.commands.create_location import CreateLocationHandler
@@ -44,19 +45,24 @@ from application.commands.price_purchase_order_line import (
     PricePurchaseOrderLineHandler,
 )
 from application.commands.price_receipt_unit import PriceReceiptUnitHandler
+from application.commands.record_payment import RecordPaymentHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
 from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
 from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
+from application.commands.reverse_payment import ReversePaymentHandler
 from application.commands.scan_invoice_line import ScanInvoiceLineHandler
 from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
 from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
+from application.commands.update_credit_company import UpdateCreditCompanyHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
 from application.commands.update_product import UpdateProductHandler
 from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
+from application.queries.get_credit_company import GetCreditCompanyHandler
 from application.queries.get_customer import GetCustomerHandler
+from application.queries.get_customer_account import GetCustomerAccountHandler
 from application.queries.get_device_unit import GetDeviceUnitHandler
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
@@ -71,7 +77,9 @@ from application.queries.get_sales_invoice import GetSalesInvoiceHandler
 from application.queries.get_sales_invoice_pdf import GetSalesInvoicePdfHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
+from application.queries.list_credit_companies import ListCreditCompaniesHandler
 from application.queries.list_customers import ListCustomersHandler
+from application.queries.list_debtors import ListDebtorsHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_price_deviations import ListPriceDeviationsHandler
@@ -147,6 +155,15 @@ class HandlersProvider(Provider):
         GetSalesInvoiceHandler,
         GetSalesInvoicePdfHandler,
         ListSalesInvoicesHandler,
+        # --- M5b credit sales & customer debt ---
+        CreateCreditCompanyHandler,
+        UpdateCreditCompanyHandler,
+        GetCreditCompanyHandler,
+        ListCreditCompaniesHandler,
+        RecordPaymentHandler,
+        ReversePaymentHandler,
+        GetCustomerAccountHandler,
         # --- reporting ---
         ListPriceDeviationsHandler,
+        ListDebtorsHandler,
     )

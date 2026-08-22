@@ -11,6 +11,12 @@ The permission split here is the workflow, not decoration (§2.1):
   moment the body mentions a price.
 - ``Document.Cancel`` is Manager and Owner, because cancelling writes
   compensating rows into two ledgers (§4.4).
+- ``CreditSale.Create`` reaches a Seller and guards exactly one thing:
+  letting a phone leave before it is paid for. The confirm route escalates
+  to it the moment the body names a payment type other than paid in full,
+  the same way the line route escalates on a price.
+- ``Payment.Record`` is Seller, Manager and Owner. Reversing one is not,
+  and lives on its own router (``routers/payments.py``).
 
 Nothing on this document is behind ``Cost.View``: every figure on an
 invoice is a price the customer is being asked for, and a Seller must see
@@ -30,6 +36,7 @@ from application.commands.cancel_sales_invoice import (
 )
 from application.commands.confirm_sales_invoice import (
     ConfirmSalesInvoiceCommand,
+    ConfirmSalesInvoiceCommandPayload,
     ConfirmSalesInvoiceHandler,
 )
 from application.commands.create_sales_invoice import (
@@ -40,6 +47,11 @@ from application.commands.override_invoice_line_price import (
     OverrideInvoiceLinePriceCommand,
     OverrideInvoiceLinePriceCommandPayload,
     OverrideInvoiceLinePriceHandler,
+)
+from application.commands.record_payment import (
+    RecordPaymentCommand,
+    RecordPaymentCommandPayload,
+    RecordPaymentHandler,
 )
 from application.commands.scan_invoice_line import (
     ScanInvoiceLineCommand,
@@ -65,6 +77,7 @@ from application.queries.list_sales_invoices import (
     ListSalesInvoicesHandler,
     ListSalesInvoicesQuery,
 )
+from domain.enums import PaymentType
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 
@@ -167,12 +180,38 @@ async def confirm_sales_invoice(
     sales_invoice_id: UUID,
     current: FromDishka[CurrentUser],
     handler: FromDishka[ConfirmSalesInvoiceHandler],
+    # Optional: a cash sale states no terms, and every M5 caller sends no
+    # body at all.
+    body: ConfirmSalesInvoiceCommandPayload | None = None,
 ) -> ResultWithData[SalesInvoiceData]:
-    """FR-4.6: re-resolves every price, marks the handsets sold, and writes
-    both ledgers, together."""
+    """FR-4.6, FR-11.1: re-resolves every price, marks the handsets sold,
+    writes both ledgers together, and settles the sale on the terms the body
+    names — full price, a credit company, or a som debt with its down
+    payment."""
     require(current, Permission.SALES_MANAGE)
+    terms = {} if body is None else body.model_dump(exclude_unset=True)
+    if terms.get("payment_type") not in (None, PaymentType.PAID_IN_FULL):
+        require(current, Permission.CREDIT_SALE_CREATE)
     return await handler.handle(
-        ConfirmSalesInvoiceCommand(sales_invoice_id=sales_invoice_id)
+        ConfirmSalesInvoiceCommand(**terms, sales_invoice_id=sales_invoice_id)
+    )
+
+
+@router.post("/{sales_invoice_id}/payments", status_code=201)
+async def record_payment(
+    sales_invoice_id: UUID,
+    body: RecordPaymentCommandPayload,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[RecordPaymentHandler],
+) -> ResultWithData[SalesInvoiceData]:
+    """FR-11.6: money off what the customer still owes. Writes
+    ``PAYMENT_RECEIVED`` and never ``SALE_REVENUE`` (FR-11.7), and refuses
+    anything above the remaining balance."""
+    require(current, Permission.PAYMENT_RECORD)
+    return await handler.handle(
+        RecordPaymentCommand(
+            **body.model_dump(exclude_unset=True), sales_invoice_id=sales_invoice_id
+        )
     )
 
 

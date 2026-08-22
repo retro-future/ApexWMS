@@ -15,7 +15,14 @@ class SalesInvoiceModel(TenantBase):
     real foreign keys into ``employees``.
 
     ``customer_id`` is nullable because a walk-in buying a case for cash is
-    not a record the store needs to keep (FR-4.1).
+    not a record the store needs to keep (FR-4.1). A store-credit sale is
+    the one payment type that requires it, since a debt has to belong to
+    somebody (§4.7).
+
+    ``debt_minor`` is the som total the seller wrote at the counter, and it
+    is the only debt figure stored anywhere. What is still owed is
+    ``debt − Σ payments``, recomputed on every read — no column here or on
+    ``customers`` holds a balance that could drift.
     """
 
     __tablename__ = "sales_invoices"
@@ -28,6 +35,13 @@ class SalesInvoiceModel(TenantBase):
         ForeignKey("customers.id"), nullable=True, index=True
     )
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    payment_type: Mapped[str] = mapped_column(String(20), index=True)
+    credit_company_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("credit_companies.id"), nullable=True, index=True
+    )
+    contract_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Som, so exponent 0 and no currency column: all customer debt is som.
+    debt_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     confirmed_by: Mapped[uuid.UUID | None] = mapped_column(

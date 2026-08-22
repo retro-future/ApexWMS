@@ -52,6 +52,9 @@ TENANT_TABLES = {
     # --- M5 outbound documents ---
     "sales_invoices": entities.SalesInvoice,
     "sales_invoice_lines": entities.SalesInvoiceLine,
+    # --- M5b credit sales & customer debt ---
+    "credit_companies": entities.CreditCompany,
+    "payments": entities.Payment,
 }
 
 # Append-only tables: every row names its author (PRD §4.3 rule 3, §4.5b).
@@ -64,6 +67,7 @@ AUTHORED_TABLES = frozenset(
         "device_unit_price_changes",
         "stock_movements",
         "financial_transactions",
+        "payments",
     }
 )
 

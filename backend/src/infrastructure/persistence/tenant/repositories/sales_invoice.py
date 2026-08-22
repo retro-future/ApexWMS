@@ -18,17 +18,19 @@ them at once (FR-4.5b1).
 
 from collections import defaultdict
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Row, delete, or_, select
+from sqlalchemy import Row, delete, func, or_, select
 
-from application.dtos import PriceDeviation
+from application.dtos import CreditInvoiceDebt, DebtorSummary, PriceDeviation
 from domain.entities import SalesInvoice, SalesInvoiceLine
-from domain.enums import DocumentStatus, TrackingType
+from domain.enums import DocumentStatus, PaymentType, TrackingType
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import (
     CustomerModel,
     DeviceUnitModel,
+    PaymentModel,
     ProductModel,
     SalesInvoiceLineModel,
     SalesInvoiceModel,
@@ -57,6 +59,10 @@ class SqlSalesInvoiceRepository(TenantRepository):
         row.status = entity.status.value
         row.customer_id = entity.customer_id
         row.note = entity.note
+        row.payment_type = entity.payment_type.value
+        row.credit_company_id = entity.credit_company_id
+        row.contract_ref = entity.contract_ref
+        row.debt_minor = self._minor(entity.debt)
         row.confirmed_by = entity.confirmed_by
         row.confirmed_at = entity.confirmed_at
         row.cancelled_by = entity.cancelled_by
@@ -200,6 +206,81 @@ class SqlSalesInvoiceRepository(TenantRepository):
 
         return await self._page_rows(stmt, page, page_size, self._to_deviation)
 
+    async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
+        # A correlated subquery rather than a join, so an invoice with three
+        # payments still comes back as one row.
+        paid = (
+            select(func.coalesce(func.sum(PaymentModel.amount_minor), 0))
+            .where(PaymentModel.sales_invoice_id == SalesInvoiceModel.id)
+            .scalar_subquery()
+        )
+        stmt = (
+            select(SalesInvoiceModel, paid)
+            .where(
+                SalesInvoiceModel.customer_id == customer_id,
+                SalesInvoiceModel.payment_type != PaymentType.PAID_IN_FULL.value,
+                SalesInvoiceModel.status != DocumentStatus.DRAFT.value,
+            )
+            .order_by(SalesInvoiceModel.confirmed_at.desc(), SalesInvoiceModel.id)
+        )
+        return await self._many_rows(stmt, self._to_credit_debt)
+
+    async def list_debtors(
+        self, page: int, page_size: int
+    ) -> tuple[list[DebtorSummary], int]:
+        # A correlated subquery rather than a join, for the same reason
+        # ``credit_history_for`` uses one: joining ``payments`` would repeat
+        # an invoice once per payment and count its debt that many times.
+        paid = (
+            select(func.coalesce(func.sum(PaymentModel.amount_minor), 0))
+            .where(PaymentModel.sales_invoice_id == SalesInvoiceModel.id)
+            .scalar_subquery()
+        )
+        remaining = SalesInvoiceModel.debt_minor - paid
+        # Grouped in SQL rather than in Python: a debtor list that loaded
+        # every credit sale and every payment to add them up would read the
+        # store's whole history to answer one question.
+        stmt = (
+            select(
+                CustomerModel.id,
+                CustomerModel.full_name,
+                CustomerModel.phone,
+                func.sum(remaining),
+                func.min(SalesInvoiceModel.confirmed_at),
+                func.count(SalesInvoiceModel.id),
+            )
+            .join(CustomerModel, CustomerModel.id == SalesInvoiceModel.customer_id)
+            # Settled sales drop out here rather than in a HAVING, so the
+            # count and the age describe the open debts and nothing else.
+            .where(
+                SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value,
+                SalesInvoiceModel.payment_type == PaymentType.STORE_CREDIT.value,
+                remaining > 0,
+            )
+            .group_by(CustomerModel.id, CustomerModel.full_name, CustomerModel.phone)
+            # Oldest open invoice first. Store credit has no due date by
+            # design (§4.7), so age is the only thing that makes a stale
+            # debt visible; ``id`` breaks ties so a page boundary is stable.
+            .order_by(func.min(SalesInvoiceModel.confirmed_at), CustomerModel.id)
+        )
+        return await self._page_rows(stmt, page, page_size, self._to_debtor)
+
+    async def total_debt(self) -> Money:
+        owed = await self._session.scalar(
+            select(func.coalesce(func.sum(SalesInvoiceModel.debt_minor), 0)).where(
+                SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value,
+                SalesInvoiceModel.payment_type == PaymentType.STORE_CREDIT.value,
+            )
+        )
+        collected = await self._session.scalar(
+            select(func.coalesce(func.sum(PaymentModel.amount_minor), 0))
+            .join(
+                SalesInvoiceModel, SalesInvoiceModel.id == PaymentModel.sales_invoice_id
+            )
+            .where(SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value)
+        )
+        return self._som(owed) - self._som(collected)
+
     async def _lines_for(
         self, invoice_ids: list[UUID]
     ) -> defaultdict[UUID, list[SalesInvoiceLine]]:
@@ -223,6 +304,50 @@ class SqlSalesInvoiceRepository(TenantRepository):
     @staticmethod
     def _minor(amount: Money | None) -> int | None:
         return None if amount is None else amount.amount_minor
+
+    @staticmethod
+    def _som(total: int | Decimal | None) -> Money:
+        """A summed som amount, as ``Money``.
+
+        Postgres widens ``SUM(BIGINT)`` to ``NUMERIC`` and asyncpg returns
+        a ``Decimal``, which ``Money`` refuses. Every summand was a whole
+        som, so the conversion is lossless.
+        """
+        return Money(int(total or 0), Currency.UZS)
+
+    @classmethod
+    def _to_credit_debt(
+        cls, row: Row[tuple[SalesInvoiceModel, int]]
+    ) -> CreditInvoiceDebt:
+        invoice, paid = row._tuple()
+        return CreditInvoiceDebt(
+            invoice_id=invoice.id,
+            invoice_number=invoice.number,
+            status=DocumentStatus(invoice.status),
+            payment_type=PaymentType(invoice.payment_type),
+            confirmed_at=invoice.confirmed_at,
+            debt=cls._money(invoice.debt_minor, Currency.UZS),
+            paid=cls._som(paid),
+            credit_company_id=invoice.credit_company_id,
+            contract_ref=invoice.contract_ref,
+        )
+
+    @classmethod
+    def _to_debtor(
+        cls, row: Row[tuple[UUID, str, str | None, int, datetime | None, int]]
+    ) -> DebtorSummary:
+        customer_id, full_name, phone, balance, oldest, open_count = row._tuple()
+        # Non-null by the query's own WHERE: it counts confirmed invoices
+        # only, and a confirmed document carries its confirm timestamp.
+        assert oldest is not None
+        return DebtorSummary(
+            customer_id=customer_id,
+            full_name=full_name,
+            phone=phone,
+            balance=cls._som(balance),
+            oldest_open_at=oldest,
+            open_invoice_count=open_count,
+        )
 
     @staticmethod
     def _money(minor: int | None, currency: Currency) -> Money | None:
@@ -285,6 +410,10 @@ class SqlSalesInvoiceRepository(TenantRepository):
             location_id=entity.location_id,
             customer_id=entity.customer_id,
             note=entity.note,
+            payment_type=entity.payment_type.value,
+            credit_company_id=entity.credit_company_id,
+            contract_ref=entity.contract_ref,
+            debt_minor=None if entity.debt is None else entity.debt.amount_minor,
             created_by=entity.created_by,
             created_at=entity.created_at,
             confirmed_by=entity.confirmed_by,
@@ -294,8 +423,10 @@ class SqlSalesInvoiceRepository(TenantRepository):
             cancellation_reason=entity.cancellation_reason,
         )
 
-    @staticmethod
-    def _to_entity(row: SalesInvoiceModel, lines: list[SalesInvoiceLine]) -> SalesInvoice:
+    @classmethod
+    def _to_entity(
+        cls, row: SalesInvoiceModel, lines: list[SalesInvoiceLine]
+    ) -> SalesInvoice:
         return SalesInvoice(
             id=row.id,
             number=row.number,
@@ -303,6 +434,10 @@ class SqlSalesInvoiceRepository(TenantRepository):
             location_id=row.location_id,
             customer_id=row.customer_id,
             note=row.note,
+            payment_type=PaymentType(row.payment_type),
+            credit_company_id=row.credit_company_id,
+            contract_ref=row.contract_ref,
+            debt=cls._money(row.debt_minor, Currency.UZS),
             created_by=row.created_by,
             created_at=row.created_at,
             confirmed_by=row.confirmed_by,

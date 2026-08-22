@@ -6,6 +6,7 @@ holds that store's business data — its catalog from M2, its ledgers from
 M3 — and its ``Employee`` rows: what a person may do *there*.
 """
 
+from domain.entities.credit_company import CreditCompany
 from domain.entities.customer import Customer
 from domain.entities.device_unit import DeviceUnit
 from domain.entities.device_unit_price_change import DeviceUnitPriceChange
@@ -15,6 +16,7 @@ from domain.entities.financial_transaction import FinancialTransaction
 from domain.entities.goods_receipt import GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.entities.invitation import Invitation, InvitationKind
 from domain.entities.location import Location
+from domain.entities.payment import Payment
 from domain.entities.product import Product
 from domain.entities.product_price_change import ProductPriceChange
 from domain.entities.purchase_order import PurchaseOrder, PurchaseOrderLine
@@ -29,6 +31,7 @@ from domain.entities.user_app_role import UserAppRole
 from domain.entities.user_tenant_access import UserTenantAccess
 
 __all__ = [
+    "CreditCompany",
     "Customer",
     "DeviceUnit",
     "DeviceUnitPriceChange",
@@ -40,6 +43,7 @@ __all__ = [
     "Invitation",
     "InvitationKind",
     "Location",
+    "Payment",
     "Product",
     "ProductPriceChange",
     "PurchaseOrder",

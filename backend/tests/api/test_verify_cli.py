@@ -1,7 +1,8 @@
-"""``apexwms verify-projections`` / ``verify-financials`` over a real fleet.
+"""The three ``apexwms verify-*`` audits over a real fleet.
 
 PRD §11 makes the ledger the source of truth and the projections
-rebuildable; FR-10.7 makes goods and money reconcile per currency. These
+rebuildable; FR-10.7 makes goods and money reconcile per currency; §4.7
+makes every customer balance a projection of invoices and payments. These
 run the actual fan-out against actual databases, because a verification
 routine nobody has watched find a real discrepancy is not one anyone
 should trust.
@@ -30,12 +31,29 @@ async def _execute(settings, tenant_id: str, statement: str) -> None:
         await engine.dispose()
 
 
+async def _sold_on_credit(client, settings, owner) -> str:
+    """A $600 phone on store credit for 7 800 000 so'm, 800 000 down."""
+    from tests.api.test_credit_api import a_customer, a_scanned_invoice, confirm
+
+    customer_id = await a_customer(client, owner)
+    invoice_id = await a_scanned_invoice(client, settings, owner, customer_id=customer_id)
+    await confirm(
+        client,
+        owner,
+        invoice_id,
+        paymentType="store_credit",
+        debt="7800000",
+        downPayment="800000",
+    )
+    return invoice_id
+
 class TestACleanFleetPasses:
     async def test_a_freshly_provisioned_store_reconciles(
         self, settings, owner, capsys
     ):
         assert await _verify(settings, "verify-projections", None) == 0
         assert await _verify(settings, "verify-financials", None) == 0
+        assert await _verify(settings, "verify-balances", None) == 0
         assert "everything reconciles" in capsys.readouterr().out
 
     async def test_a_store_with_stock_reconciles(
@@ -223,3 +241,67 @@ class TestTargetingOneStore:
         assert exit_code == 1
         assert "FAILED" in out
         assert "1 unreachable" in out
+
+
+class TestDebtReconciles:
+    """§4.7, FR-10.7b: a balance recomputable from immutable history is a
+    balance you can trust — provided something actually recomputes it."""
+
+    async def test_a_store_credit_sale_with_payments_reconciles(
+        self, client, settings, owner, capsys
+    ):
+        await _sold_on_credit(client, settings, owner)
+
+        assert await _verify(settings, "verify-balances", None) == 0
+
+    async def test_a_payment_the_money_ledger_never_saw_is_caught(
+        self, client, settings, owner, capsys
+    ):
+        """The bug this exists for: one of the two writes landing without
+        the other, which ``PaymentPoster`` does in a single transaction and
+        so can only happen if something bypasses it."""
+        invoice_id = await _sold_on_credit(client, settings, owner)
+        await _execute(
+            settings,
+            owner.tenant_id,
+            "INSERT INTO payments "
+            "(id, sales_invoice_id, occurred_at, amount_minor, method, user_id) "
+            f"SELECT gen_random_uuid(), '{invoice_id}', now(), 500000, 'cash', "
+            "created_by FROM sales_invoices "
+            f"WHERE id = '{invoice_id}'",
+        )
+
+        exit_code = await _verify(settings, "verify-balances", None)
+
+        out = capsys.readouterr().out
+        assert exit_code == 1
+        assert "cash collected on store credit" in out
+
+    async def test_a_debt_edited_below_what_was_collected_is_caught(
+        self, client, settings, owner, capsys
+    ):
+        invoice_id = await _sold_on_credit(client, settings, owner)
+        await _execute(
+            settings,
+            owner.tenant_id,
+            f"UPDATE sales_invoices SET debt_minor = 100000 WHERE id = '{invoice_id}'",
+        )
+
+        exit_code = await _verify(settings, "verify-balances", None)
+
+        out = capsys.readouterr().out
+        assert exit_code == 1
+        assert "debt on INV-" in out
+
+    async def test_nothing_is_repaired(self, client, settings, owner, capsys):
+        invoice_id = await _sold_on_credit(client, settings, owner)
+        await _execute(
+            settings,
+            owner.tenant_id,
+            f"UPDATE sales_invoices SET debt_minor = 100000 WHERE id = '{invoice_id}'",
+        )
+
+        await _verify(settings, "verify-balances", None)
+        capsys.readouterr()
+
+        assert await _verify(settings, "verify-balances", None) == 1

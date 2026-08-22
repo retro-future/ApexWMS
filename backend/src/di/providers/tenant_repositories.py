@@ -15,6 +15,7 @@ mid-request rather than resolved at the edge (PRD §3.3).
 from dishka import Provider, Scope, provide
 
 from application.ports import (
+    CreditCompanyRepository,
     CustomerRepository,
     DeviceUnitPriceChangeRepository,
     DeviceUnitRepository,
@@ -23,6 +24,7 @@ from application.ports import (
     FinancialTransactionRepository,
     GoodsReceiptRepository,
     LocationRepository,
+    PaymentRepository,
     ProductPriceChangeRepository,
     ProductRepository,
     PurchaseOrderRepository,
@@ -36,6 +38,7 @@ from application.ports import (
 )
 from infrastructure.config import Settings
 from infrastructure.persistence.tenant.repositories import (
+    SqlCreditCompanyRepository,
     SqlCustomerRepository,
     SqlDeviceUnitPriceChangeRepository,
     SqlDeviceUnitRepository,
@@ -44,6 +47,7 @@ from infrastructure.persistence.tenant.repositories import (
     SqlFinancialTransactionRepository,
     SqlGoodsReceiptRepository,
     SqlLocationRepository,
+    SqlPaymentRepository,
     SqlProductPriceChangeRepository,
     SqlProductRepository,
     SqlPurchaseOrderRepository,
@@ -90,6 +94,10 @@ class TenantRepositoriesProvider(Provider):
     def customers(self, session: TenantSession) -> CustomerRepository:
         return SqlCustomerRepository(session)
 
+    @provide
+    def credit_companies(self, session: TenantSession) -> CreditCompanyRepository:
+        return SqlCreditCompanyRepository(session)
+
     # --- M3 ledgers and their projections ------------------------------
 
     @provide
@@ -133,6 +141,12 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def sales_invoices(self, session: TenantSession) -> SalesInvoiceRepository:
         return SqlSalesInvoiceRepository(session)
+
+    # --- M5b credit sales (PRD §4.7) -----------------------------------
+
+    @provide
+    def payments(self, session: TenantSession) -> PaymentRepository:
+        return SqlPaymentRepository(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:

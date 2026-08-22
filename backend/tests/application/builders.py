@@ -25,6 +25,7 @@ from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
 from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceHandler
+from application.commands.create_credit_company import CreateCreditCompanyHandler
 from application.commands.create_customer import CreateCustomerHandler
 from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
 from application.commands.create_location import CreateLocationHandler
@@ -43,13 +44,16 @@ from application.commands.price_purchase_order_line import (
     PricePurchaseOrderLineHandler,
 )
 from application.commands.price_receipt_unit import PriceReceiptUnitHandler
+from application.commands.record_payment import RecordPaymentHandler
 from application.commands.refresh_tokens import RefreshTokensHandler
 from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
 from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
+from application.commands.reverse_payment import ReversePaymentHandler
 from application.commands.scan_invoice_line import ScanInvoiceLineHandler
 from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
 from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
+from application.commands.update_credit_company import UpdateCreditCompanyHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
 from application.commands.update_product import UpdateProductHandler
@@ -57,6 +61,7 @@ from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
 from application.dtos import CurrentUser, RequestedTenant
 from application.queries.get_customer import GetCustomerHandler
+from application.queries.get_customer_account import GetCustomerAccountHandler
 from application.queries.get_device_unit import GetDeviceUnitHandler
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
@@ -70,7 +75,9 @@ from application.queries.get_purchase_order import GetPurchaseOrderHandler
 from application.queries.get_sales_invoice import GetSalesInvoiceHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
+from application.queries.list_credit_companies import ListCreditCompaniesHandler
 from application.queries.list_customers import ListCustomersHandler
+from application.queries.list_debtors import ListDebtorsHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
@@ -79,6 +86,7 @@ from application.queries.list_sales_invoices import ListSalesInvoicesHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.services import (
+    BalanceVerifier,
     ClaimsFactory,
     CostPoolReader,
     DeviceUnitLoader,
@@ -88,6 +96,7 @@ from application.services import (
     DocumentNumberer,
     InvoicePoster,
     LedgerPoster,
+    PaymentPoster,
     ProductRepricer,
     ReceiptPoster,
     SalePriceParser,
@@ -101,6 +110,7 @@ from domain.permissions import Permission
 from domain.services import UnitProjector
 from tests.application.fakes import (
     FakeClock,
+    FakeCreditCompanyRepository,
     FakeCustomerRepository,
     FakeDeviceUnitPriceChangeRepository,
     FakeDeviceUnitRepository,
@@ -111,6 +121,7 @@ from tests.application.fakes import (
     FakeHasher,
     FakeInvitationRepository,
     FakeLocationRepository,
+    FakePaymentRepository,
     FakeProductPriceChangeRepository,
     FakeProductRepository,
     FakeProvisioner,
@@ -161,6 +172,8 @@ class World:
     orders: FakePurchaseOrderRepository
     receipts: FakeGoodsReceiptRepository
     invoices: FakeSalesInvoiceRepository
+    credit_companies: FakeCreditCompanyRepository
+    payments: FakePaymentRepository
     document_numbers: FakeDocumentNumberRepository
     scope: FakeTenantScope
     uow: FakeUnitOfWork
@@ -653,8 +666,12 @@ class World:
     def confirm_sales_invoice(self, actor: UUID | None = None) -> ConfirmSalesInvoiceHandler:
         return ConfirmSalesInvoiceHandler(
             self.invoices,
+            self.credit_companies,
+            self.payments,
             self.document_loader(),
             self.invoice_poster(actor),
+            self.payment_poster(actor),
+            SalePriceParser(),
             self.clock,
             self.uow,
             self._as(actor),
@@ -663,6 +680,7 @@ class World:
     def cancel_sales_invoice(self, actor: UUID | None = None) -> CancelSalesInvoiceHandler:
         return CancelSalesInvoiceHandler(
             self.invoices,
+            self.payments,
             self.document_loader(),
             self.poster(actor),
             self.clock,
@@ -671,10 +689,47 @@ class World:
         )
 
     def get_sales_invoice(self) -> GetSalesInvoiceHandler:
-        return GetSalesInvoiceHandler(self.document_loader())
+        return GetSalesInvoiceHandler(self.document_loader(), self.payments)
 
     def list_sales_invoices(self) -> ListSalesInvoicesHandler:
-        return ListSalesInvoicesHandler(self.invoices)
+        return ListSalesInvoicesHandler(self.invoices, self.payments)
+
+    # --- M5b credit sales & customer debt ---
+
+    def payment_poster(self, actor: UUID | None = None) -> PaymentPoster:
+        return PaymentPoster(self.payments, self.poster(actor), self.clock, self._as(actor))
+
+    def create_credit_company(self) -> CreateCreditCompanyHandler:
+        return CreateCreditCompanyHandler(self.credit_companies, self.clock, self.uow)
+
+    def update_credit_company(self) -> UpdateCreditCompanyHandler:
+        return UpdateCreditCompanyHandler(self.credit_companies, self.uow)
+
+    def list_credit_companies(self) -> ListCreditCompaniesHandler:
+        return ListCreditCompaniesHandler(self.credit_companies)
+
+    def record_payment(self, actor: UUID | None = None) -> RecordPaymentHandler:
+        return RecordPaymentHandler(
+            self.document_loader(),
+            self.payment_poster(actor),
+            self.payments,
+            SalePriceParser(),
+            self.uow,
+        )
+
+    def reverse_payment(self, actor: UUID | None = None) -> ReversePaymentHandler:
+        return ReversePaymentHandler(
+            self.payments, self.document_loader(), self.payment_poster(actor), self.uow
+        )
+
+    def get_customer_account(self) -> GetCustomerAccountHandler:
+        return GetCustomerAccountHandler(self.customers, self.invoices, self.clock)
+
+    def list_debtors(self) -> ListDebtorsHandler:
+        return ListDebtorsHandler(self.invoices, self.clock)
+
+    def balance_verifier(self) -> BalanceVerifier:
+        return BalanceVerifier(self.invoices, self.payments, self.transactions)
 
 
 def make_world(provisioner_fails: bool = False) -> World:
@@ -689,6 +744,11 @@ def make_world(provisioner_fails: bool = False) -> World:
         created_at=clock.now(),
     )
     tenants.by_id[tenant.id] = tenant
+    invoices = FakeSalesInvoiceRepository()
+    payments = FakePaymentRepository()
+    # The debt reads join both tables; neither fake can be built holding
+    # the other, so the join is wired up once the pair exists.
+    invoices.payments = payments
     return World(
         clock=clock,
         hasher=FakeHasher(),
@@ -706,7 +766,9 @@ def make_world(provisioner_fails: bool = False) -> World:
         unit_price_changes=FakeDeviceUnitPriceChangeRepository(),
         orders=FakePurchaseOrderRepository(),
         receipts=FakeGoodsReceiptRepository(),
-        invoices=FakeSalesInvoiceRepository(),
+        invoices=invoices,
+        credit_companies=FakeCreditCompanyRepository(),
+        payments=payments,
         document_numbers=FakeDocumentNumberRepository(),
         movements=FakeStockMovementRepository(),
         transactions=FakeFinancialTransactionRepository(),

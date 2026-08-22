@@ -17,6 +17,7 @@ from application.services.document_loader import DocumentLoader
 from application.services.document_numbering import DocumentNumberer
 from application.services.invoice_posting import InvoicePoster
 from application.services.ledger import LedgerPoster
+from application.services.payment_posting import PaymentPoster
 from application.services.product_repricer import ProductRepricer
 from application.services.receipt_posting import ReceiptPoster
 from application.services.sale_price import SalePriceParser
@@ -24,12 +25,14 @@ from application.services.slugs import SlugNormalizer
 from application.services.timezones import TimezoneValidator
 from application.services.token_issuer import TokenIssuer
 from application.services.verification import (
+    BalanceVerifier,
     Discrepancy,
     LedgerReconciler,
     ProjectionVerifier,
 )
 
 __all__ = [
+    "BalanceVerifier",
     "ClaimsFactory",
     "CostPoolReader",
     "DeviceUnitLoader",
@@ -41,6 +44,7 @@ __all__ = [
     "InvoicePoster",
     "LedgerPoster",
     "LedgerReconciler",
+    "PaymentPoster",
     "ProductRepricer",
     "ProjectionVerifier",
     "ReceiptPoster",

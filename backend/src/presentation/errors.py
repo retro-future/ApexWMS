@@ -33,7 +33,10 @@ from domain.errors import (
     DomainError,
     DuplicateScanError,
     InsufficientStockError,
+    NotACreditSaleError,
+    OverpaymentError,
     OverReceiptError,
+    PaymentAlreadyReversedError,
     PriceNotSetError,
     UnitNotSellableError,
     WrongLocationError,
@@ -65,6 +68,13 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (WrongLocationError, 409),
     (InsufficientStockError, 409),
     (PriceNotSetError, 409),
+    # And so is a payment the balance has moved out from under: paying
+    # 500 000 against a debt somebody else just cleared is a conflict, not
+    # a malformed request (§4.7). Terms that contradict each other are
+    # bad input, so they fall through to ``DomainError`` and 422.
+    (OverpaymentError, 409),
+    (NotACreditSaleError, 409),
+    (PaymentAlreadyReversedError, 409),
     (MissingTenantError, 400),
     (InvitationError, 400),
     (InvalidTimezoneError, 422),

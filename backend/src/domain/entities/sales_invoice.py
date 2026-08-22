@@ -15,6 +15,13 @@ What ``confirm`` checks here is only what lives on the aggregate.
 Re-resolving a price needs the live unit and the live catalog row, so that
 belongs to ``InvoicePoster`` — the same split ``GoodsReceipt`` keeps by
 doing no I/O in its own ``confirm``.
+
+The payment terms (§4.7) are the exception that proves the rule: which
+payment type, which credit company, and what som debt the customer agreed
+to are all facts about this invoice and nothing else, so they are checked
+here. ``debt`` is a plain column and the *balance* is not: what is still
+owed is ``debt − Σ payments``, derived every time it is asked for, because
+a stored counter is a number that can drift away from the rows behind it.
 """
 
 from dataclasses import dataclass, field
@@ -23,8 +30,10 @@ from uuid import UUID
 
 from domain.core import TenantEntity, UuidEntity
 from domain.entities.document import Document
-from domain.enums import TrackingType
+from domain.enums import PaymentType, TrackingType
 from domain.errors import (
+    AnonymousDebtError,
+    CreditTermsError,
     CurrencyMismatchError,
     DuplicateScanError,
     EmptyInvoiceError,
@@ -136,11 +145,39 @@ class SalesInvoice(Document):
     # needs to keep (FR-4.1).
     customer_id: UUID | None = None
     lines: list[SalesInvoiceLine] = field(default_factory=list)
+    # How this sale is paid for (§4.7). A draft carries the seller's
+    # intention; the confirm body states the terms that are actually struck.
+    payment_type: PaymentType = PaymentType.PAID_IN_FULL
+    credit_company_id: UUID | None = None
+    contract_ref: str | None = None
+    # Always som, whatever the lines are priced in, and never derived from
+    # them: the seller writes the figure the customer agreed to pay (§4.7).
+    debt: Money | None = None
+
+    def __post_init__(self) -> None:
+        self._assert_terms()
+
+    def set_terms(
+        self,
+        payment_type: PaymentType,
+        *,
+        credit_company_id: UUID | None = None,
+        contract_ref: str | None = None,
+        debt: Money | None = None,
+    ) -> None:
+        """State how this sale is being paid for (FR-11.1). Draft only."""
+        self.assert_editable()
+        self.payment_type = payment_type
+        self.credit_company_id = credit_company_id
+        self.contract_ref = contract_ref
+        self.debt = debt
+        self._assert_terms()
 
     def confirm(self, now: datetime, user_id: UUID) -> None:
         self.assert_editable()
         self._assert_has_lines()
         self._assert_no_unit_twice()
+        self._assert_terms()
         super().confirm(now, user_id)
 
     def subtotals(self) -> dict[Currency, Money]:
@@ -189,3 +226,53 @@ class SalesInvoice(Document):
                     f"{self.number} sells the same handset twice — one phone, one line"
                 )
             seen.add(line.device_unit_id)
+
+    def _assert_terms(self) -> None:
+        """Each payment type admits exactly one shape of terms (§4.7)."""
+        if self.payment_type is PaymentType.STORE_CREDIT:
+            self._assert_store_credit()
+            return
+
+        if self.debt is not None:
+            raise CreditTermsError(
+                f"{self.number} is {self.payment_type.value} and is settled at "
+                "confirm, so it carries no debt (FR-11.4)"
+            )
+        if self.payment_type is PaymentType.CREDIT_COMPANY:
+            if self.credit_company_id is None:
+                raise CreditTermsError(
+                    f"{self.number} is financed but names no credit company"
+                )
+            return
+
+        if self.credit_company_id is not None or self.contract_ref is not None:
+            raise CreditTermsError(
+                f"{self.number} is paid in full and names a credit company"
+            )
+
+    def _assert_store_credit(self) -> None:
+        if self.customer_id is None:
+            raise AnonymousDebtError(
+                f"{self.number} lends on store credit but names no customer — "
+                "a debt has to belong to somebody (§4.7)"
+            )
+        if self.credit_company_id is not None:
+            raise CreditTermsError(
+                f"{self.number} is on the store's own book, so no credit company "
+                "financed it"
+            )
+        if self.debt is None:
+            raise CreditTermsError(
+                f"{self.number} is on store credit but states no debt — the seller "
+                "enters the total som the customer will pay (FR-11.5)"
+            )
+        if self.debt.currency is not Currency.UZS:
+            raise CurrencyMismatchError(
+                f"{self.number}'s debt is {self.debt.currency.value} but all "
+                "customer debt is written in som (§4.7)"
+            )
+        if self.debt.is_zero or self.debt.is_negative:
+            raise CreditTermsError(
+                f"{self.number} owes {self.debt.format()} — a sale that opens no "
+                "debt is paid in full"
+            )

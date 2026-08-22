@@ -25,6 +25,7 @@ from application.ports.repository import AppendOnlyRepository, Repository
 from application.ports.security import PasswordHasher, TokenService
 from application.ports.tenancy import TenantScope, TenantWorkspace
 from application.ports.tenant import (
+    CreditCompanyRepository,
     CustomerRepository,
     DeviceUnitPriceChangeRepository,
     DeviceUnitRepository,
@@ -33,6 +34,7 @@ from application.ports.tenant import (
     FinancialTransactionRepository,
     GoodsReceiptRepository,
     LocationRepository,
+    PaymentRepository,
     ProductPriceChangeRepository,
     ProductRepository,
     PurchaseOrderRepository,
@@ -48,6 +50,7 @@ from application.ports.uow import UnitOfWork
 __all__ = [
     "AppendOnlyRepository",
     "Clock",
+    "CreditCompanyRepository",
     "CustomerRepository",
     "DeviceUnitPriceChangeRepository",
     "DeviceUnitRepository",
@@ -60,6 +63,7 @@ __all__ = [
     "LocationRepository",
     "MasterUnitOfWork",
     "PasswordHasher",
+    "PaymentRepository",
     "ProductPriceChangeRepository",
     "ProductRepository",
     "SalesInvoiceRepository",

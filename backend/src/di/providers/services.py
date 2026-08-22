@@ -20,6 +20,7 @@ from application.services import (
     DocumentNumberer,
     InvoicePoster,
     LedgerPoster,
+    PaymentPoster,
     ProductRepricer,
     ReceiptPoster,
     SalePriceParser,
@@ -48,6 +49,8 @@ class ApplicationServicesProvider(Provider):
         # --- M5 outbound ---
         CostPoolReader,
         InvoicePoster,
+        # --- M5b credit sales ---
+        PaymentPoster,
         SlugNormalizer,
         TimezoneValidator,
     )

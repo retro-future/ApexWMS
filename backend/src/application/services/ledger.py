@@ -27,10 +27,11 @@ to confirm at all are the document's business — by the time a ``Posting``
 arrives here, every judgement has been made.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
-from application.dtos import CurrentUser, Posting, PostingEntry
+from application.dtos import CurrentUser, MoneyEffect, Posting, PostingEntry
 from application.ports import (
     Clock,
     DeviceUnitRepository,
@@ -73,6 +74,41 @@ class LedgerPoster:
         occurred_at = self._clock.now()
         for entry in posting.entries:
             await self._post_entry(posting, entry, occurred_at)
+
+    async def post_money(
+        self,
+        document_type: DocumentType,
+        document_id: UUID,
+        effects: Sequence[MoneyEffect],
+        *,
+        location_id: UUID | None = None,
+    ) -> None:
+        """Record money that moved with no goods behind it (§4.7).
+
+        ``PostingEntry`` exists so nobody can describe a stock effect
+        without saying what it did to the money. A customer payment is the
+        genuine inverse — cash arrives and nothing leaves the shelf — and
+        there is no stock movement to hang it on. Naming that case here
+        keeps every ledger write inside this one service rather than
+        letting a caller reach the transaction repository directly.
+
+        Payments are the only caller. If a second one appears that *does*
+        move goods, it belongs in ``post``.
+        """
+        occurred_at = self._clock.now()
+        for effect in effects:
+            await self._transactions.add(
+                FinancialTransaction(
+                    occurred_at=occurred_at,
+                    txn_type=effect.txn_type,
+                    amount=effect.amount,
+                    document_type=document_type,
+                    document_id=document_id,
+                    location_id=location_id,
+                    user_id=self._current.user_id,
+                    note=effect.note,
+                )
+            )
 
     async def reverse(self, document_type: DocumentType, document_id: UUID) -> None:
         """Compensate everything *document_id* wrote (FR-4.8, FR-10.2).
