@@ -21,7 +21,11 @@ from uuid import UUID
 
 from domain.core import TenantEntity, UuidEntity
 from domain.enums import PaymentMethod
-from domain.errors import CurrencyMismatchError, InvalidMoneyError
+from domain.errors import (
+    CurrencyMismatchError,
+    InvalidMoneyError,
+    PaymentAlreadyReversedError,
+)
 from domain.value_objects import Currency, Money
 
 
@@ -64,7 +68,7 @@ class Payment(UuidEntity, TenantEntity):
         because the money really did change hands twice.
         """
         if self.is_reversal:
-            raise InvalidMoneyError(
+            raise PaymentAlreadyReversedError(
                 "a reversal is not itself reversed — record a fresh payment instead"
             )
         return Payment(

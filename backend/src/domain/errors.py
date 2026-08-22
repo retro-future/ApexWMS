@@ -68,6 +68,16 @@ class InvalidMovementError(DomainError):
     """
 
 
+class InvalidLineError(DomainError):
+    """A document line whose shape could not describe a real transaction.
+
+    A line for zero units, a serialized line naming no handset or claiming to
+    sell two, a quantity line naming one anyway (§4.1). Distinct from
+    ``InvalidMoneyError`` because the structure is what is wrong, not an
+    amount — a line can be malformed while every figure on it is valid money.
+    """
+
+
 class DocumentNotDraftError(DomainError):
     """An edit or a confirm aimed at a document that is no longer a draft (§4.4).
 

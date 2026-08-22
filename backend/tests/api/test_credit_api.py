@@ -432,6 +432,33 @@ class TestReversingAPayment:
 
         assert again.status_code == 409, again.text
 
+    async def test_reversing_a_reversal_is_a_conflict(self, client, settings, owner):
+        """FR-11.8: money comes back in as a fresh payment, not by undoing
+        the undo."""
+        customer_id = await a_customer(client, owner)
+        invoice_id = await a_scanned_invoice(client, settings, owner, customer_id=customer_id)
+        sale = await confirm(
+            client,
+            owner,
+            invoice_id,
+            paymentType="store_credit",
+            debt="7800000",
+            downPayment="800000",
+        )
+        payment_id = sale["payments"][0]["id"]
+        undone = await client.post(
+            f"/api/v1/payments/{payment_id}/reverse", headers=owner.auth
+        )
+        compensating = next(
+            p for p in undone.json()["data"]["payments"] if p["isReversal"]
+        )
+
+        again = await client.post(
+            f"/api/v1/payments/{compensating['id']}/reverse", headers=owner.auth
+        )
+
+        assert again.status_code == 409, again.text
+
 
 class TestCancellingAStoreCreditSale:
     """FR-11.11: the debt is void, the payments are not."""

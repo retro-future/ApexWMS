@@ -64,10 +64,6 @@ class CostPool:
     quantity: int
     value: Money
 
-    @classmethod
-    def empty(cls, currency: Currency) -> CostPool:
-        return cls(quantity=0, value=Money.zero(currency))
-
     def __post_init__(self) -> None:
         if self.quantity < 0:
             raise InvalidMovementError(
@@ -79,6 +75,10 @@ class CostPool:
                 f"an empty pool worth {self.value.format()} — value cannot outlive "
                 "the goods it belongs to"
             )
+
+    @classmethod
+    def empty(cls, currency: Currency) -> CostPool:
+        return cls(quantity=0, value=Money.zero(currency))
 
     @property
     def average_unit_cost(self) -> Money | None:

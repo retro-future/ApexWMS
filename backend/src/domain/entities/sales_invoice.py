@@ -37,6 +37,7 @@ from domain.errors import (
     CurrencyMismatchError,
     DuplicateScanError,
     EmptyInvoiceError,
+    InvalidLineError,
     InvalidMoneyError,
 )
 from domain.value_objects import Currency, Money
@@ -67,18 +68,18 @@ class SalesInvoiceLine(UuidEntity, TenantEntity):
 
     def __post_init__(self) -> None:
         if self.quantity <= 0:
-            raise InvalidMoneyError(f"a line for {self.quantity} units sells nothing")
+            raise InvalidLineError(f"a line for {self.quantity} units sells nothing")
         if self.tracking_type is TrackingType.SERIAL:
             if self.device_unit_id is None:
-                raise InvalidMoneyError("a serialized line must name the handset it sells")
+                raise InvalidLineError("a serialized line must name the handset it sells")
             if self.quantity != 1:
-                raise InvalidMoneyError(
+                raise InvalidLineError(
                     "a serialized line sells one named handset, so its quantity is 1"
                 )
         elif self.device_unit_id is not None:
-            raise InvalidMoneyError("a quantity line names no device unit (§4.1)")
+            raise InvalidLineError("a quantity line names no device unit (§4.1)")
         if self.price_approved_by is not None and self.override_price is None:
-            raise InvalidMoneyError(
+            raise InvalidLineError(
                 "a line records who approved a price only where a price was overridden"
             )
         for label, amount in (

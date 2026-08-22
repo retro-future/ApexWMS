@@ -23,6 +23,7 @@ from domain.errors import (
     DocumentNotConfirmedError,
     DocumentNotDraftError,
     DuplicateScanError,
+    InvalidLineError,
     InvalidMoneyError,
     ReceiptIncompleteError,
     ReceiptSourceError,
@@ -273,7 +274,7 @@ class TestOneCurrencyPerLine:
 
     def test_a_serialized_line_carries_no_line_cost(self):
         doc = receipt()
-        with pytest.raises(InvalidMoneyError, match="individually"):
+        with pytest.raises(InvalidLineError, match="individually"):
             serial_line(doc, unit_cost=usd("700"))
 
 

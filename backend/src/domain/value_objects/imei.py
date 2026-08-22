@@ -50,8 +50,9 @@ class IMEI:
     def parse(cls, raw: str) -> IMEI:
         """Parse operator input: tolerate surrounding whitespace and
         common scanner separators (spaces, hyphens) inside the code."""
-        cleaned = raw.strip().replace(" ", "").replace("-", "")
-        return cls(cleaned)
+        if not isinstance(raw, str):
+            raise InvalidIMEIError(f"IMEI must be a string, got {type(raw).__name__}")
+        return cls(raw.strip().replace(" ", "").replace("-", ""))
 
     def __str__(self) -> str:
         return self.value

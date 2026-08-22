@@ -22,6 +22,7 @@ from domain.errors import (
     DocumentNotDraftError,
     DuplicateScanError,
     EmptyInvoiceError,
+    InvalidLineError,
     InvalidMoneyError,
 )
 from domain.value_objects import Currency, Money
@@ -84,19 +85,19 @@ def invoice(
 
 class TestALineDescribesSomethingSellable:
     def test_a_serialized_line_must_name_the_handset_it_sells(self):
-        with pytest.raises(InvalidMoneyError):
+        with pytest.raises(InvalidLineError):
             phone_line(device_unit_id=None)
 
     def test_a_serialized_line_sells_exactly_one_handset(self):
-        with pytest.raises(InvalidMoneyError):
+        with pytest.raises(InvalidLineError):
             phone_line(quantity=2)
 
     def test_a_quantity_line_names_no_handset(self):
-        with pytest.raises(InvalidMoneyError):
+        with pytest.raises(InvalidLineError):
             case_line(device_unit_id=uuid4())
 
     def test_a_line_for_nothing_sells_nothing(self):
-        with pytest.raises(InvalidMoneyError):
+        with pytest.raises(InvalidLineError):
             case_line(quantity=0)
 
 
@@ -118,7 +119,7 @@ class TestAPriceIsPositiveAndInTheProductsCurrency:
     def test_an_approver_without_an_override_is_refused(self):
         """FR-4.5f: the name records who approved a difference — there is
         no difference to attribute when nobody overrode anything."""
-        with pytest.raises(InvalidMoneyError):
+        with pytest.raises(InvalidLineError):
             phone_line(price_approved_by=uuid4())
 
 

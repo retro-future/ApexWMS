@@ -28,6 +28,7 @@ from domain.enums import AcquisitionSource, DeviceCondition, TrackingType
 from domain.errors import (
     CurrencyMismatchError,
     DuplicateScanError,
+    InvalidLineError,
     InvalidMoneyError,
     ReceiptIncompleteError,
     ReceiptSourceError,
@@ -108,10 +109,10 @@ class GoodsReceiptLine(UuidEntity, TenantEntity):
 
     def __post_init__(self) -> None:
         if self.quantity <= 0:
-            raise InvalidMoneyError(f"a line for {self.quantity} units receives nothing")
+            raise InvalidLineError(f"a line for {self.quantity} units receives nothing")
         if self.unit_cost is not None:
             if self.is_serial:
-                raise InvalidMoneyError(
+                raise InvalidLineError(
                     "a serialized line prices each handset individually (FR-3.4b) "
                     "and carries no line cost"
                 )

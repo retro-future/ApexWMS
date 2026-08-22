@@ -13,7 +13,11 @@ import pytest
 
 from domain.entities import Payment
 from domain.enums import PaymentMethod
-from domain.errors import CurrencyMismatchError, InvalidMoneyError
+from domain.errors import (
+    CurrencyMismatchError,
+    InvalidMoneyError,
+    PaymentAlreadyReversedError,
+)
 from domain.value_objects import Currency, Money
 
 NOW = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
@@ -94,5 +98,5 @@ class TestReversingCompensates:
         is how money comes back in."""
         compensating = a_payment().reversed(NOW, uuid4())
 
-        with pytest.raises(InvalidMoneyError):
+        with pytest.raises(PaymentAlreadyReversedError):
             compensating.reversed(NOW, uuid4())

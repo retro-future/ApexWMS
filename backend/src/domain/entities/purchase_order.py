@@ -26,7 +26,12 @@ from uuid import UUID
 from domain.core import TenantEntity, UuidEntity
 from domain.entities.document import Document
 from domain.enums import TrackingType
-from domain.errors import CurrencyMismatchError, InvalidMoneyError, UnpricedOrderLineError
+from domain.errors import (
+    CurrencyMismatchError,
+    InvalidLineError,
+    InvalidMoneyError,
+    UnpricedOrderLineError,
+)
 from domain.value_objects import Currency, Money
 
 
@@ -45,7 +50,7 @@ class PurchaseOrderLine(UuidEntity, TenantEntity):
 
     def __post_init__(self) -> None:
         if self.quantity <= 0:
-            raise InvalidMoneyError(f"a line for {self.quantity} units orders nothing")
+            raise InvalidLineError(f"a line for {self.quantity} units orders nothing")
         if self.unit_cost is not None:
             if self.unit_cost.is_negative:
                 raise InvalidMoneyError("a unit cost may not be negative")
