@@ -22,6 +22,7 @@ import { useState } from "react";
 import { PriceUnitModal } from "@/app/(app)/receipts/PriceUnitModal";
 import { ScanConsole } from "@/app/(app)/receipts/ScanConsole";
 import { DetailError, DetailLoading } from "@/components/DetailStates";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
@@ -205,17 +206,8 @@ export default function ReceiptPage() {
         </Alert>
       )}
 
-      {actionError && (
-        <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-          {actionError}
-        </Alert>
-      )}
-
-      {confirmRefusal && (
-        <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-          {confirmRefusal}
-        </Alert>
-      )}
+      <ErrorAlert message={actionError} />
+      <ErrorAlert message={confirmRefusal} />
 
       {draft && !blockers.isReady && (
         <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>

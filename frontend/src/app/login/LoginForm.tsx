@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { messageFromDetail } from "@/lib/api";
 
 export function LoginForm({ notice }: { notice?: string }) {
@@ -62,11 +63,7 @@ export function LoginForm({ notice }: { notice?: string }) {
             {notice}
           </Alert>
         )}
-        {error && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {error}
-          </Alert>
-        )}
+        <ErrorAlert message={error} />
 
         <TextInput
           label={t("email")}

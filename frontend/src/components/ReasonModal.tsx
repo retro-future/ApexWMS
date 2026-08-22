@@ -1,9 +1,10 @@
 "use client";
 
-import { Alert, Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+
+import { ErrorAlert } from "@/components/ErrorAlert";
 
 /**
  * Confirming an irreversible act, with an optional note for the record.
@@ -41,11 +42,7 @@ export function ReasonModal({
   return (
     <Modal opened={opened} onClose={onClose} title={title} centered>
       <Stack gap="md">
-        {error && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {error}
-          </Alert>
-        )}
+        <ErrorAlert message={error} />
 
         {description && (
           <Text size="sm" c="dimmed">

@@ -1,20 +1,11 @@
 "use client";
 
-import {
-  Alert,
-  Button,
-  Card,
-  Group,
-  Select,
-  Stack,
-  Textarea,
-  Title,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Button, Card, Group, Select, Stack, Textarea, Title } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { useResourceCreate, useResourceList } from "@/hooks/use-resource";
 import { ApiError } from "@/lib/api";
 import { errorMessage, notifySuccess } from "@/lib/notify";
@@ -80,11 +71,7 @@ export function InvoiceForm() {
       <Stack gap="lg" maw={640}>
         <Title order={2}>{t("newTitle")}</Title>
 
-        {formError && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {formError}
-          </Alert>
-        )}
+        <ErrorAlert message={formError} />
 
         <Card withBorder radius="md" padding="lg">
           <Stack gap="md">

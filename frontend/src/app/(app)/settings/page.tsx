@@ -2,12 +2,13 @@
 
 import { Alert, Button, Card, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { DetailError, DetailLoading } from "@/components/DetailStates";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { useCan } from "@/components/MeProvider";
 import { apiGet, apiSend } from "@/lib/api";
 import { errorMessage, notifySuccess } from "@/lib/notify";
@@ -79,11 +80,7 @@ export default function SettingsPage() {
           </Alert>
         )}
 
-        {formError && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {formError}
-          </Alert>
-        )}
+        <ErrorAlert message={formError} />
 
         <Card withBorder radius="md" padding="lg">
           <TextInput

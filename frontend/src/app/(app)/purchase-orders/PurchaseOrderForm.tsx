@@ -2,7 +2,6 @@
 
 import {
   ActionIcon,
-  Alert,
   Button,
   Card,
   Group,
@@ -14,11 +13,12 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import { IconAlertCircle, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { MoneyInput } from "@/components/MoneyInput";
 import { ProductSelect } from "@/components/ProductSelect";
 import { TableScrollArea } from "@/components/TableScrollArea";
@@ -110,11 +110,7 @@ export function PurchaseOrderForm() {
       <Stack gap="lg" maw={960}>
         <Title order={2}>{t("newTitle")}</Title>
 
-        {formError && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {formError}
-          </Alert>
-        )}
+        <ErrorAlert message={formError} />
 
         <Card withBorder radius="md" padding="lg">
           <Stack gap="md">

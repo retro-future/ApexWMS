@@ -1,8 +1,9 @@
 "use client";
 
-import { Alert, Button, Group, Modal, Stack } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Button, Group, Modal, Stack } from "@mantine/core";
 import { useTranslations } from "next-intl";
+
+import { ErrorAlert } from "@/components/ErrorAlert";
 
 /** Chrome for the small create/edit dialogs the simpler resources use. */
 export function FormModal({
@@ -30,15 +31,7 @@ export function FormModal({
     <Modal opened={opened} onClose={onClose} title={title} centered>
       <form onSubmit={onSubmit} noValidate>
         <Stack gap="md">
-          {error && (
-            <Alert
-              variant="light"
-              color="red"
-              icon={<IconAlertCircle size={18} />}
-            >
-              {error}
-            </Alert>
-          )}
+          <ErrorAlert message={error} />
 
           {children}
 

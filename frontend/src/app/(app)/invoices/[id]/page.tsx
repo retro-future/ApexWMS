@@ -13,6 +13,7 @@ import { InvoiceLineRow } from "@/app/(app)/invoices/InvoiceLineRow";
 import { OverridePriceModal } from "@/app/(app)/invoices/OverridePriceModal";
 import { SellConsole } from "@/app/(app)/invoices/SellConsole";
 import { DetailError, DetailLoading } from "@/components/DetailStates";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
@@ -185,17 +186,8 @@ export default function InvoicePage() {
         </Alert>
       )}
 
-      {actionError && (
-        <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-          {actionError}
-        </Alert>
-      )}
-
-      {confirmRefusal && (
-        <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-          {confirmRefusal}
-        </Alert>
-      )}
+      <ErrorAlert message={actionError} />
+      <ErrorAlert message={confirmRefusal} />
 
       {draft && !blockers.isReady && (
         <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>

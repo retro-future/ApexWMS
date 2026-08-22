@@ -1,9 +1,8 @@
-import { Alert } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
 import { getTranslations } from "next-intl/server";
 
 import { AcceptInviteForm } from "@/app/accept-invite/AcceptInviteForm";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { ErrorAlert } from "@/components/ErrorAlert";
 
 export default async function AcceptInvitePage({
   searchParams,
@@ -18,13 +17,7 @@ export default async function AcceptInvitePage({
       title={t("acceptInviteTitle")}
       subtitle={token ? t("acceptInviteSubtitle") : undefined}
     >
-      {token ? (
-        <AcceptInviteForm token={token} />
-      ) : (
-        <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-          {t("missingToken")}
-        </Alert>
-      )}
+      {token ? <AcceptInviteForm token={token} /> : <ErrorAlert message={t("missingToken")} />}
     </AuthShell>
   );
 }

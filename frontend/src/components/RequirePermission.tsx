@@ -1,9 +1,8 @@
 "use client";
 
-import { Alert } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { useCan } from "@/components/MeProvider";
 
 /** The nav hides the button that leads here, but a pasted URL should say why, not 403 later. */
@@ -18,11 +17,7 @@ export function RequirePermission({
   const can = useCan();
 
   if (!can(permission)) {
-    return (
-      <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-        {t("forbidden")}
-      </Alert>
-    );
+    return <ErrorAlert message={t("forbidden")} />;
   }
 
   return <>{children}</>;

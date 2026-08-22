@@ -1,12 +1,12 @@
 "use client";
 
-import { Alert, Button, PasswordInput, Stack, TextInput } from "@mantine/core";
+import { Button, PasswordInput, Stack, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertCircle } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { messageFromDetail } from "@/lib/api";
 
 export function AcceptInviteForm({ token }: { token: string }) {
@@ -56,11 +56,7 @@ export function AcceptInviteForm({ token }: { token: string }) {
   return (
     <form onSubmit={form.onSubmit(submit)} noValidate>
       <Stack gap="md">
-        {error && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {error}
-          </Alert>
-        )}
+        <ErrorAlert message={error} />
 
         <TextInput
           label={`${t("fullName")} (${tCommon("optional")})`}

@@ -14,11 +14,12 @@ import {
   Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { useCan } from "@/components/MeProvider";
 import { useResourceCreate, useResourceUpdate } from "@/hooks/use-resource";
 import { ApiError } from "@/lib/api";
@@ -165,11 +166,7 @@ export function ProductForm({ product }: { product?: Product }) {
           )}
         </Stack>
 
-        {formError && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {formError}
-          </Alert>
-        )}
+        <ErrorAlert message={formError} />
 
         <Card withBorder radius="md" padding="lg">
           <Stack gap="md">

@@ -2,10 +2,11 @@
 
 import { Alert, Button, PasswordInput, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { useSignOut } from "@/hooks/use-sign-out";
 import { ApiError, apiSend } from "@/lib/api";
 
@@ -53,11 +54,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
             {t("mustChangePassword")}
           </Alert>
         )}
-        {error && (
-          <Alert variant="light" color="red" icon={<IconAlertCircle size={18} />}>
-            {error}
-          </Alert>
-        )}
+        <ErrorAlert message={error} />
 
         <PasswordInput
           label={t("currentPassword")}
