@@ -9,12 +9,12 @@ ledger's ``PAYMENT_RECEIVED`` rows.
 
 from uuid import UUID
 
+from application.dtos import Discrepancy
 from application.ports import (
     FinancialTransactionRepository,
     PaymentRepository,
     SalesInvoiceRepository,
 )
-from application.services.verification.discrepancy import Discrepancy
 from domain.entities import Payment
 from domain.enums import TransactionType
 from domain.value_objects import Currency, Money

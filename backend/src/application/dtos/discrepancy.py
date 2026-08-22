@@ -1,4 +1,4 @@
-"""What every audit in this package reports, in one shape.
+"""What every audit in ``application/services/verification`` reports, in one shape.
 
 The three verifiers check different things and share nothing else — but
 ``apexwms verify-*`` prints all of them the same way, so the record they

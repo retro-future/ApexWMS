@@ -16,6 +16,7 @@ context through the DI graph?
 from application.dtos.auth_tokens import AuthTokens
 from application.dtos.current_user import CurrentUser
 from application.dtos.customer_debt import CreditInvoiceDebt, DebtorSummary
+from application.dtos.discrepancy import Discrepancy
 from application.dtos.issued_claims import IssuedClaims
 from application.dtos.letterhead import Letterhead
 from application.dtos.line_input import LineInput
@@ -31,6 +32,7 @@ __all__ = [
     "CreditInvoiceDebt",
     "CurrentUser",
     "DebtorSummary",
+    "Discrepancy",
     "IssuedClaims",
     "Letterhead",
     "LineInput",

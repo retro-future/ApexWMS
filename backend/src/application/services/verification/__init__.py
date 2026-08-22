@@ -29,13 +29,11 @@ exercised against production is one nobody trusts.
 """
 
 from application.services.verification.balances import BalanceVerifier
-from application.services.verification.discrepancy import Discrepancy
 from application.services.verification.projections import ProjectionVerifier
 from application.services.verification.reconciliation import LedgerReconciler
 
 __all__ = [
     "BalanceVerifier",
-    "Discrepancy",
     "LedgerReconciler",
     "ProjectionVerifier",
 ]

@@ -36,7 +36,6 @@ from application.services.timezones import TimezoneValidator
 from application.services.token_issuer import TokenIssuer
 from application.services.verification import (
     BalanceVerifier,
-    Discrepancy,
     LedgerReconciler,
     ProjectionVerifier,
 )
@@ -47,7 +46,6 @@ __all__ = [
     "CostPoolReader",
     "DeviceUnitLoader",
     "DeviceUnitRepricer",
-    "Discrepancy",
     "DocumentLineBuilder",
     "DocumentLoader",
     "DocumentNumberer",

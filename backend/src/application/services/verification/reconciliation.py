@@ -5,13 +5,13 @@ is recomputed from stock and checked against what the financial ledger
 says the store should be holding — one figure per currency, never a sum.
 """
 
+from application.dtos import Discrepancy
 from application.ports import (
     DeviceUnitRepository,
     FinancialTransactionRepository,
     StockMovementRepository,
 )
 from application.services.cost_pools import INVENTORY_SIGN, CostPoolReader
-from application.services.verification.discrepancy import Discrepancy
 from domain.value_objects import Currency, Money
 
 

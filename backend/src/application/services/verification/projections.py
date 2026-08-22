@@ -6,6 +6,7 @@ the append-only rows that are supposed to imply it. A mismatch means
 something wrote a projection without writing the row behind it.
 """
 
+from application.dtos import Discrepancy
 from application.ports import (
     DeviceUnitPriceChangeRepository,
     DeviceUnitRepository,
@@ -14,7 +15,6 @@ from application.ports import (
     StockLevelRepository,
     StockMovementRepository,
 )
-from application.services.verification.discrepancy import Discrepancy
 from domain.entities import DeviceUnit
 from domain.services import UnitProjector
 from domain.value_objects import Money
