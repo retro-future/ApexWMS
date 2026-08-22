@@ -38,7 +38,8 @@ SuperAdmin provisioning and per-store settings. Deep dive:
 ## Catalog (M2)
 
 Products, locations, suppliers, customers — the `TenantCrudRepository`
-aggregates. Deep dive:
+aggregates. M5b's `CreditCompany` is a fifth one, listed under credit
+sales. Deep dive:
 [ledgers.md#repository-bases](../docs/architecture/ledgers.md).
 
 - Commands: `commands/create_product.py`, `update_product.py`,
@@ -109,14 +110,45 @@ to `SALE_REVENUE` + `COGS`, cancel to compensate, print. Deep dive:
   `infrastructure/documents/invoice_pdf.py`
 - Router: `presentation/routers/sales_invoices.py` (`/invoices`)
 
-## Reporting (M5)
+## Credit sales & customer debt (M5b)
 
-Reads over what the documents already wrote, all behind
-`Permission.Reporting.View` (Manager/Owner) and all read-only.
+`payment_type` on a sale, the credit-company reference list, som-denominated
+store-credit debt and the append-only payments that settle it. Deep dive:
+[documents.md](../docs/architecture/documents.md) for the terms on the
+invoice, [ledgers.md](../docs/architecture/ledgers.md) for money-only
+postings and `DocumentType.PAYMENT`.
+
+- Commands: `commands/create_credit_company.py`, `update_credit_company.py`,
+  `record_payment.py`, `reverse_payment.py`; the terms arrive on
+  `commands/confirm_sales_invoice.py`'s payload
+- Queries: `queries/get_credit_company.py`, `list_credit_companies.py`,
+  `get_customer_account.py`, `list_debtors.py`
+- Models: `models/credit_company.py`, `payment.py`, `customer_account.py`,
+  `debtor.py`
+- Carriers: `dtos/customer_debt.py` (`CreditInvoiceDebt`, `DebtorSummary` —
+  the joined read rows `SalesInvoiceRepository.credit_history_for` and
+  `list_debtors` build)
+- Services: `services/payment_posting.py` (`PaymentPoster` — the only
+  writer of a payment, and the reason FR-11.7 is structural),
+  `services/ledger.py`'s `post_money`, `services/verification.py`'s
+  `BalanceVerifier` (`apexwms verify-balances`)
+- Domain: `domain/entities/payment.py`, `credit_company.py`,
+  `domain/enums/payment_type.py`, `payment_method.py`
+- Routers: `presentation/routers/credit_companies.py`, `payments.py`, plus
+  `/invoices/{id}/payments`, `/customers/{id}/account` and
+  `/reports/debtors` on their existing routers
+
+## Reporting (M5, M5b)
+
+Reads over what the documents already wrote, all read-only. Price
+deviations sit behind `Permission.Reporting.View`; the debtor list takes
+`Permission.CustomerAccount.ViewAll` instead, because §2.1 grades "what
+does this customer owe" and "what is the whole book owed" differently.
 
 - Queries: `queries/list_price_deviations.py` (FR-9.7 — confirmed lines
-  charged something other than the resolved price, in both directions)
-- Models: `models/price_deviation.py`
+  charged something other than the resolved price, in both directions),
+  `queries/list_debtors.py` (FR-11.10 — oldest open debt first)
+- Models: `models/price_deviation.py`, `models/debtor.py`
 - Carrier: `dtos/price_deviation.py` (`PriceDeviation`, the joined read row
   `SalesInvoiceRepository.list_deviations` builds)
 - Router: `presentation/routers/reports.py` (`/reports`)

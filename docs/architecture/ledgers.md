@@ -22,6 +22,34 @@ none negotiable:
 - **Every aggregate is per currency.** `FinancialTransaction.amount` is a
   signed `Money` (PRD §4.6 defines the sign convention).
 
+## Money with no goods behind it
+
+`LedgerPoster.post_money` is the one way to write the money ledger without
+writing the stock one. A `PostingEntry` exists so a caller cannot describe
+a stock effect without saying what it did to the money; a customer payment
+(PRD §4.7) is the genuine inverse, and it has no movement to hang itself
+on. Naming that case as a method keeps every ledger write inside
+`LedgerPoster` rather than letting `PaymentPoster`
+(`application/services/payment_posting.py`) reach
+`FinancialTransactionRepository` directly. It does not commit, like
+everything else there.
+
+**A payment's ledger row names `(DocumentType.PAYMENT, payment.id)`, not
+the invoice it settles.** `DocumentType`'s seventh member is the only one
+that is not a `Document` — no lifecycle, no lines — and it earns its place
+because the enum is the vocabulary of *what caused a row*. Booking
+payments under the invoice would put them inside
+`LedgerPoster.reverse`'s blast radius, so cancelling a store-credit sale
+would silently reverse the money the customer handed over (PRD FR-11.11
+forbids exactly this). The alternative was a `PAYMENT_RECEIVED` carve-out
+inside `reverse`, in the one service the rule above says must not have
+one.
+
+FR-11.8's reversal is therefore not a `reverse()` call at all: it is a
+compensating negative `Payment` row naming the original through
+`reverses_payment_id`, which is `UNIQUE` so a payment cannot be reversed
+twice.
+
 ## Repository bases
 
 **A repository base is a convenience for the majority, not a
@@ -99,12 +127,21 @@ since both sides read it.
 
 ## Verification
 
-`apexwms verify-projections` and `apexwms verify-financials`
+`apexwms verify-projections`, `verify-financials` and `verify-balances`
 (`application/services/verification.py`) audit all of it, per tenant or
-fleet-wide. Both **report and never repair**: a sweep that quietly rewrote
-a projection would destroy the evidence of whatever wrote it wrong. Note
-`_INVENTORY_SIGN` there: PRD §4.6's signs describe *cash*, so `PURCHASE` and
-`SUPPLIER_RETURN_CREDIT` flip when read as inventory value.
+fleet-wide. All three **report and never repair**: a sweep that quietly
+rewrote a projection would destroy the evidence of whatever wrote it wrong.
+Note `_INVENTORY_SIGN` there: PRD §4.6's signs describe *cash*, so
+`PURCHASE` and `SUPPLIER_RETURN_CREDIT` flip when read as inventory value.
+
+`BalanceVerifier` is the odd one out, because customer balances have no
+cached projection to check against — nothing stores a balance, on the
+customer or the invoice (PRD §4.7). What it audits instead is that the two
+independent records of the same fact agree: the `payments` table against
+the money ledger's `PAYMENT_RECEIVED` rows, which `PaymentPoster` writes in
+one transaction and so can only diverge if something bypassed it. It also
+sweeps for a debt smaller than what has been collected against it, and for
+a settled sale (`PAID_IN_FULL`/`CREDIT_COMPANY`) carrying a payment at all.
 
 ## `cash_paid_minor` is inert
 

@@ -96,6 +96,35 @@ deliberate contrast to the receipt: every figure on an invoice is a price
 the customer is being asked for, and a Seller must see all of them. The
 receipt's figures are costs, and `SalesInvoiceData` carries none.
 
+## Payment terms sit on the invoice, and the balance does not
+
+`payment_type`, `credit_company_id`, `contract_ref` and `debt` are columns
+on `SalesInvoice`, and `_assert_terms` is the invariant over them — run
+from `__post_init__`, from `set_terms`, and again from `confirm`, so a
+repository read cannot produce an invalid invoice and a draft saved through
+some other path cannot confirm past the rule. All three are pure functions
+of the invoice, which is why they live here rather than in `InvoicePoster`
+alongside the price re-resolution that needs I/O.
+
+**`debt` is a column and the balance is not.** What the customer still owes
+is `debt − Σ payments`, recomputed on every read: by
+`SalesInvoiceData.from_entity`, by `SalesInvoiceRepository.credit_history_for`,
+and by `list_debtors`'s grouped query. There is no `balance` column on
+`customers` or on the invoice, and the entity in
+`domain/entities/customer.py` says so in its docstring. Same discipline as
+`stock_levels.quantity`, minus even the projection.
+
+`SalesInvoiceData` carries the payment rows, so the counter screen reads
+one response rather than two, and a *cancelled* invoice's `paidMinor` is
+the refund figure PRD FR-11.11 asks to surface — its debt is void because
+every balance read counts confirmed invoices only, while the payments are
+booked under their own document identity and survive
+`LedgerPoster.reverse` untouched (see [ledgers.md](ledgers.md)).
+
+`CreditCompany` is a `TenantCrudRepository` aggregate, a field-for-field
+twin of `Supplier`. It carries no money columns and will not grow any: the
+company pays the store in full at sale time (PRD §4.7).
+
 `GET /invoices/{id}/pdf` renders on demand and stores nothing
 (`infrastructure/documents/invoice_pdf.py`). A confirmed document is
 immutable and its lines carry their own snapshots, so the file is
