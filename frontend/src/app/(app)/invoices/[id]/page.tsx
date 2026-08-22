@@ -18,6 +18,7 @@ import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useCancelDocument } from "@/hooks/use-cancel-document";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useInvoiceQuote } from "@/hooks/use-invoice-quote";
@@ -56,7 +57,6 @@ export default function InvoicePage() {
 
   const [overriding, setOverriding] = useState<SalesInvoiceLine | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmRefusal, setConfirmRefusal] = useState<string | null>(null);
 
@@ -65,11 +65,7 @@ export default function InvoicePage() {
     id,
     { path: "/confirm" },
   );
-  const cancel = useDocumentAction<SalesInvoice, { reason: string | null }>(
-    "invoices",
-    id,
-    { path: "/cancel" },
-  );
+  const cancelDoc = useCancelDocument("invoices", id, setActionError);
 
   /**
    * A scan patches the cached document instead of refetching it: the scan
@@ -120,17 +116,6 @@ export default function InvoicePage() {
       // worklist and belongs on the page, not in a toast that vanishes.
       setConfirming(false);
       setConfirmRefusal(errorMessage(error, tCommon("retry")));
-    }
-  }
-
-  async function runCancel(reason: string | null) {
-    setActionError(null);
-    try {
-      await cancel.mutateAsync({ reason });
-      notifySuccess(tDoc("cancelled"));
-      setCancelling(false);
-    } catch (error) {
-      setActionError(errorMessage(error, tCommon("retry")));
     }
   }
 
@@ -186,7 +171,7 @@ export default function InvoicePage() {
             </Button>
           )}
           {invoice.status === "confirmed" && can(Permission.Document.Cancel) && (
-            <Button color="red" variant="light" onClick={() => setCancelling(true)}>
+            <Button color="red" variant="light" onClick={cancelDoc.open}>
               {tDoc("cancelAction")}
             </Button>
           )}
@@ -327,15 +312,15 @@ export default function InvoicePage() {
       )}
 
       <ReasonModal
-        opened={cancelling}
-        onClose={() => setCancelling(false)}
+        opened={cancelDoc.opened}
+        onClose={cancelDoc.close}
         title={t("cancelTitle")}
         description={t("cancelBody")}
         submitLabel={tDoc("cancelAction")}
         color="red"
-        busy={cancel.isPending}
+        busy={cancelDoc.busy}
         error={actionError}
-        onSubmit={runCancel}
+        onSubmit={cancelDoc.run}
       />
     </Stack>
   );

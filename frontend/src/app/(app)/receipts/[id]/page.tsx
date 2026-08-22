@@ -27,6 +27,7 @@ import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useCancelDocument } from "@/hooks/use-cancel-document";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import {
@@ -73,18 +74,13 @@ export default function ReceiptPage() {
     productId: string;
   } | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmRefusal, setConfirmRefusal] = useState<string | null>(null);
 
   const confirm = useDocumentAction<GoodsReceipt>("receipts", id, {
     path: "/confirm",
   });
-  const cancel = useDocumentAction<GoodsReceipt, { reason: string | null }>(
-    "receipts",
-    id,
-    { path: "/cancel" },
-  );
+  const cancelDoc = useCancelDocument("receipts", id, setActionError);
   const unscan = useDocumentAction<null, { imei: string }>("receipts", id, {
     method: "DELETE",
     path: (payload) => `/scan/${payload.imei}`,
@@ -155,17 +151,6 @@ export default function ReceiptPage() {
     }
   }
 
-  async function runCancel(reason: string | null) {
-    setActionError(null);
-    try {
-      await cancel.mutateAsync({ reason });
-      notifySuccess(tDoc("cancelled"));
-      setCancelling(false);
-    } catch (error) {
-      setActionError(errorMessage(error, tCommon("retry")));
-    }
-  }
-
   async function removeUnit(imei: string) {
     try {
       await unscan.mutateAsync({ imei });
@@ -207,7 +192,7 @@ export default function ReceiptPage() {
             </Button>
           )}
           {receipt.status === "confirmed" && can(Permission.Document.Cancel) && (
-            <Button color="red" variant="light" onClick={() => setCancelling(true)}>
+            <Button color="red" variant="light" onClick={cancelDoc.open}>
               {tDoc("cancelAction")}
             </Button>
           )}
@@ -452,15 +437,15 @@ export default function ReceiptPage() {
       />
 
       <ReasonModal
-        opened={cancelling}
-        onClose={() => setCancelling(false)}
+        opened={cancelDoc.opened}
+        onClose={cancelDoc.close}
         title={t("cancelTitle")}
         description={t("cancelBody")}
         submitLabel={tDoc("cancelAction")}
         color="red"
-        busy={cancel.isPending}
+        busy={cancelDoc.busy}
         error={actionError}
-        onSubmit={runCancel}
+        onSubmit={cancelDoc.run}
       />
     </Stack>
   );

@@ -15,6 +15,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useCancelDocument } from "@/hooks/use-cancel-document";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useProductLookup, useSupplierLookup } from "@/hooks/use-lookup";
@@ -45,17 +46,12 @@ export default function PurchaseOrderPage() {
 
   const [pricing, setPricing] = useState<PurchaseOrderLine | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const confirm = useDocumentAction<PurchaseOrder>("purchase-orders", id, {
     path: "/confirm",
   });
-  const cancel = useDocumentAction<PurchaseOrder, { reason: string | null }>(
-    "purchase-orders",
-    id,
-    { path: "/cancel" },
-  );
+  const cancelDoc = useCancelDocument("purchase-orders", id, setActionError);
 
   if (query.isLoading) return <DetailLoading />;
 
@@ -128,7 +124,7 @@ export default function PurchaseOrderPage() {
             </Button>
           )}
           {order.status === "confirmed" && can(Permission.Document.Cancel) && (
-            <Button color="red" variant="light" onClick={() => setCancelling(true)}>
+            <Button color="red" variant="light" onClick={cancelDoc.open}>
               {tDoc("cancelAction")}
             </Button>
           )}
@@ -250,17 +246,15 @@ export default function PurchaseOrderPage() {
       />
 
       <ReasonModal
-        opened={cancelling}
-        onClose={() => setCancelling(false)}
+        opened={cancelDoc.opened}
+        onClose={cancelDoc.close}
         title={t("cancelTitle")}
         description={t("cancelBody")}
         submitLabel={tDoc("cancelAction")}
         color="red"
-        busy={cancel.isPending}
+        busy={cancelDoc.busy}
         error={actionError}
-        onSubmit={(reason) =>
-          run(cancel, { reason }, tDoc("cancelled"), () => setCancelling(false))
-        }
+        onSubmit={cancelDoc.run}
       />
     </Stack>
   );
