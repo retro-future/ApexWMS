@@ -1,33 +1,16 @@
 "use client";
 
-import {
-  ActionIcon,
-  Anchor,
-  Button,
-  Group,
-  Switch,
-  Table,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Anchor, Button, Group, Switch, Table, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
 import { ACTIONS_COLUMN_WIDTH, ListShell } from "@/components/ListShell";
 import { useCan } from "@/components/MeProvider";
 import { StatusBadge } from "@/components/StatusBadge";
-import {
-  useResourceCreate,
-  useResourceList,
-  useResourceUpdate,
-} from "@/hooks/use-resource";
-import { ApiError } from "@/lib/api";
-import { errorMessage, notifySuccess } from "@/lib/notify";
+import { useCrudEntityList } from "@/hooks/use-crud-entity-list";
 import { Permission } from "@/lib/permissions";
 import type { Customer } from "@/lib/types";
 
@@ -47,24 +30,6 @@ export default function CustomersPage() {
   const manage = can(Permission.Customer.Manage);
   const account = can(Permission.CustomerAccount.View);
 
-  const [search, setSearch] = useState("");
-  const [debouncedSearch] = useDebouncedValue(search, 300);
-  const [showInactive, setShowInactive] = useState(false);
-  const [page, setPage] = useState(1);
-
-  const [opened, modal] = useDisclosure(false);
-  const [editing, setEditing] = useState<Customer | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const query = useResourceList<Customer>("customers", {
-    page,
-    search: debouncedSearch || undefined,
-    isActive: showInactive ? undefined : true,
-  });
-
-  const create = useResourceCreate<Customer, Record<string, unknown>>("customers");
-  const update = useResourceUpdate<Customer, Record<string, unknown>>("customers");
-
   const form = useForm<Values>({
     initialValues: EMPTY,
     validate: {
@@ -72,50 +37,19 @@ export default function CustomersPage() {
     },
   });
 
-  function open(customer: Customer | null) {
-    setEditing(customer);
-    setFormError(null);
-    form.setValues(
-      customer
-        ? {
-            fullName: customer.fullName,
-            phone: customer.phone ?? "",
-            isActive: customer.isActive,
-          }
-        : EMPTY,
-    );
-    modal.open();
-  }
-
-  async function submit(values: Values) {
-    setFormError(null);
-    const payload = {
+  const list = useCrudEntityList<Customer, Values>("customers", form, {
+    empty: EMPTY,
+    toValues: (customer) => ({
+      fullName: customer.fullName,
+      phone: customer.phone ?? "",
+      isActive: customer.isActive,
+    }),
+    toPayload: (values) => ({
       fullName: values.fullName.trim(),
       phone: values.phone.trim() || null,
-    };
-
-    try {
-      if (editing) {
-        await update.mutateAsync({
-          id: editing.id,
-          payload: { ...payload, isActive: values.isActive },
-        });
-        notifySuccess(tCommon("updated"));
-      } else {
-        await create.mutateAsync(payload);
-        notifySuccess(tCommon("created"));
-      }
-      modal.close();
-    } catch (err) {
-      if (err instanceof ApiError && err.isConflict) {
-        form.setFieldError("fullName", err.message);
-        return;
-      }
-      setFormError(errorMessage(err, tCommon("retry")));
-    }
-  }
-
-  const customers = query.data?.items ?? [];
+    }),
+    conflictField: "fullName",
+  });
 
   return (
     <>
@@ -124,31 +58,25 @@ export default function CustomersPage() {
         subtitle={t("subtitle")}
         action={
           manage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={() => open(null)}>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => list.open(null)}>
               {t("new")}
             </Button>
           )
         }
         search={{
-          value: search,
-          onChange: (value) => {
-            setSearch(value);
-            setPage(1);
-          },
+          value: list.search,
+          onChange: list.onSearchChange,
           placeholder: t("searchPlaceholder"),
         }}
-        showInactive={showInactive}
-        onShowInactiveChange={(value) => {
-          setShowInactive(value);
-          setPage(1);
-        }}
-        isLoading={query.isLoading}
-        error={query.error}
-        isEmpty={customers.length === 0}
-        total={query.data?.totalItems ?? 0}
-        page={page}
-        pagesCount={query.data?.pagesCount ?? 0}
-        onPageChange={setPage}
+        showInactive={list.showInactive}
+        onShowInactiveChange={list.onShowInactiveChange}
+        isLoading={list.isLoading}
+        error={list.error}
+        isEmpty={list.items.length === 0}
+        total={list.total}
+        page={list.page}
+        pagesCount={list.pagesCount}
+        onPageChange={list.setPage}
         head={
           <Table.Tr>
             <Table.Th>{t("fullName")}</Table.Th>
@@ -158,7 +86,7 @@ export default function CustomersPage() {
           </Table.Tr>
         }
       >
-        {customers.map((customer) => (
+        {list.items.map((customer) => (
           <Table.Tr key={customer.id}>
             <Table.Td>
               {/* The account is where their debt lives (§4.7) — nothing on
@@ -192,7 +120,7 @@ export default function CustomersPage() {
                   <ActionIcon
                     variant="subtle"
                     aria-label={tCommon("edit")}
-                    onClick={() => open(customer)}
+                    onClick={() => list.open(customer)}
                   >
                     <IconPencil size={16} />
                   </ActionIcon>
@@ -204,13 +132,13 @@ export default function CustomersPage() {
       </ListShell>
 
       <FormModal
-        opened={opened}
-        onClose={modal.close}
-        title={editing ? t("editTitle") : t("newTitle")}
-        onSubmit={form.onSubmit(submit)}
-        busy={create.isPending || update.isPending}
-        error={formError}
-        submitLabel={editing ? tCommon("save") : tCommon("create")}
+        opened={list.opened}
+        onClose={list.closeModal}
+        title={list.editing ? t("editTitle") : t("newTitle")}
+        onSubmit={form.onSubmit(list.submit)}
+        busy={list.busy}
+        error={list.formError}
+        submitLabel={list.editing ? tCommon("save") : tCommon("create")}
       >
         <TextInput
           label={t("fullName")}
@@ -222,7 +150,7 @@ export default function CustomersPage() {
           inputMode="tel"
           {...form.getInputProps("phone")}
         />
-        {editing && (
+        {list.editing && (
           <Switch
             label={tCommon("active")}
             checked={form.values.isActive}

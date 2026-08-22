@@ -11,22 +11,14 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
 import { ACTIONS_COLUMN_WIDTH, ListShell } from "@/components/ListShell";
 import { useCan } from "@/components/MeProvider";
 import { StatusBadge } from "@/components/StatusBadge";
-import {
-  useResourceCreate,
-  useResourceList,
-  useResourceUpdate,
-} from "@/hooks/use-resource";
-import { ApiError } from "@/lib/api";
-import { errorMessage, notifySuccess } from "@/lib/notify";
+import { useCrudEntityList } from "@/hooks/use-crud-entity-list";
 import { Permission } from "@/lib/permissions";
 import type { Supplier } from "@/lib/types";
 
@@ -54,24 +46,6 @@ export default function SuppliersPage() {
   // in with the catalog ("manage catalog (products, suppliers)").
   const manage = can(Permission.Catalog.Manage);
 
-  const [search, setSearch] = useState("");
-  const [debouncedSearch] = useDebouncedValue(search, 300);
-  const [showInactive, setShowInactive] = useState(false);
-  const [page, setPage] = useState(1);
-
-  const [opened, modal] = useDisclosure(false);
-  const [editing, setEditing] = useState<Supplier | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const query = useResourceList<Supplier>("suppliers", {
-    page,
-    search: debouncedSearch || undefined,
-    isActive: showInactive ? undefined : true,
-  });
-
-  const create = useResourceCreate<Supplier, Record<string, unknown>>("suppliers");
-  const update = useResourceUpdate<Supplier, Record<string, unknown>>("suppliers");
-
   const form = useForm<Values>({
     initialValues: EMPTY,
     validate: {
@@ -83,54 +57,23 @@ export default function SuppliersPage() {
     },
   });
 
-  function open(supplier: Supplier | null) {
-    setEditing(supplier);
-    setFormError(null);
-    form.setValues(
-      supplier
-        ? {
-            name: supplier.name,
-            contactName: supplier.contactName ?? "",
-            phone: supplier.phone ?? "",
-            email: supplier.email ?? "",
-            isActive: supplier.isActive,
-          }
-        : EMPTY,
-    );
-    modal.open();
-  }
-
-  async function submit(values: Values) {
-    setFormError(null);
-    const payload = {
+  const list = useCrudEntityList<Supplier, Values>("suppliers", form, {
+    empty: EMPTY,
+    toValues: (supplier) => ({
+      name: supplier.name,
+      contactName: supplier.contactName ?? "",
+      phone: supplier.phone ?? "",
+      email: supplier.email ?? "",
+      isActive: supplier.isActive,
+    }),
+    toPayload: (values) => ({
       name: values.name.trim(),
       contactName: values.contactName.trim() || null,
       phone: values.phone.trim() || null,
       email: values.email.trim() || null,
-    };
-
-    try {
-      if (editing) {
-        await update.mutateAsync({
-          id: editing.id,
-          payload: { ...payload, isActive: values.isActive },
-        });
-        notifySuccess(tCommon("updated"));
-      } else {
-        await create.mutateAsync(payload);
-        notifySuccess(tCommon("created"));
-      }
-      modal.close();
-    } catch (err) {
-      if (err instanceof ApiError && err.isConflict) {
-        form.setFieldError("name", err.message);
-        return;
-      }
-      setFormError(errorMessage(err, tCommon("retry")));
-    }
-  }
-
-  const suppliers = query.data?.items ?? [];
+    }),
+    conflictField: "name",
+  });
 
   return (
     <>
@@ -139,31 +82,25 @@ export default function SuppliersPage() {
         subtitle={t("subtitle")}
         action={
           manage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={() => open(null)}>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => list.open(null)}>
               {t("new")}
             </Button>
           )
         }
         search={{
-          value: search,
-          onChange: (value) => {
-            setSearch(value);
-            setPage(1);
-          },
+          value: list.search,
+          onChange: list.onSearchChange,
           placeholder: t("searchPlaceholder"),
         }}
-        showInactive={showInactive}
-        onShowInactiveChange={(value) => {
-          setShowInactive(value);
-          setPage(1);
-        }}
-        isLoading={query.isLoading}
-        error={query.error}
-        isEmpty={suppliers.length === 0}
-        total={query.data?.totalItems ?? 0}
-        page={page}
-        pagesCount={query.data?.pagesCount ?? 0}
-        onPageChange={setPage}
+        showInactive={list.showInactive}
+        onShowInactiveChange={list.onShowInactiveChange}
+        isLoading={list.isLoading}
+        error={list.error}
+        isEmpty={list.items.length === 0}
+        total={list.total}
+        page={list.page}
+        pagesCount={list.pagesCount}
+        onPageChange={list.setPage}
         head={
           <Table.Tr>
             <Table.Th>{t("name")}</Table.Th>
@@ -174,7 +111,7 @@ export default function SuppliersPage() {
           </Table.Tr>
         }
       >
-        {suppliers.map((supplier) => (
+        {list.items.map((supplier) => (
           <Table.Tr key={supplier.id}>
             <Table.Td>
               <Stack gap={0}>
@@ -207,7 +144,7 @@ export default function SuppliersPage() {
                   <ActionIcon
                     variant="subtle"
                     aria-label={tCommon("edit")}
-                    onClick={() => open(supplier)}
+                    onClick={() => list.open(supplier)}
                   >
                     <IconPencil size={16} />
                   </ActionIcon>
@@ -219,13 +156,13 @@ export default function SuppliersPage() {
       </ListShell>
 
       <FormModal
-        opened={opened}
-        onClose={modal.close}
-        title={editing ? t("editTitle") : t("newTitle")}
-        onSubmit={form.onSubmit(submit)}
-        busy={create.isPending || update.isPending}
-        error={formError}
-        submitLabel={editing ? tCommon("save") : tCommon("create")}
+        opened={list.opened}
+        onClose={list.closeModal}
+        title={list.editing ? t("editTitle") : t("newTitle")}
+        onSubmit={form.onSubmit(list.submit)}
+        busy={list.busy}
+        error={list.formError}
+        submitLabel={list.editing ? tCommon("save") : tCommon("create")}
       >
         <TextInput label={t("name")} data-autofocus {...form.getInputProps("name")} />
         <TextInput
@@ -242,7 +179,7 @@ export default function SuppliersPage() {
           type="email"
           {...form.getInputProps("email")}
         />
-        {editing && (
+        {list.editing && (
           <Switch
             label={tCommon("active")}
             checked={form.values.isActive}
