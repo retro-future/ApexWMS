@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -10,14 +9,12 @@ import {
   Group,
   List,
   Loader,
-  NumberInput,
   Stack,
   Table,
   Text,
-  Textarea,
   Title,
 } from "@mantine/core";
-import { IconAlertCircle, IconFileText, IconTrash } from "@tabler/icons-react";
+import { IconAlertCircle, IconFileText } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
@@ -25,11 +22,11 @@ import { useState } from "react";
 
 import { ConfirmSaleModal } from "@/app/(app)/invoices/ConfirmSaleModal";
 import { CreditPanel } from "@/app/(app)/invoices/CreditPanel";
+import { InvoiceLineRow } from "@/app/(app)/invoices/InvoiceLineRow";
+import { OverridePriceModal } from "@/app/(app)/invoices/OverridePriceModal";
 import { SellConsole } from "@/app/(app)/invoices/SellConsole";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
-import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
-import { MoneyInput } from "@/components/MoneyInput";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
@@ -45,8 +42,7 @@ import {
 } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
 import { isEditable } from "@/lib/documents";
-import { confirmBlockers, isSerial, quoteSubtotals, type QuoteMap } from "@/lib/invoices";
-import { formatMoney } from "@/lib/money";
+import { confirmBlockers, quoteSubtotals } from "@/lib/invoices";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
 import type { InvoiceScanResult, SalesInvoice, SalesInvoiceLine } from "@/lib/types";
@@ -278,7 +274,7 @@ export default function InvoicePage() {
                 </Table.Thead>
                 <Table.Tbody>
                   {invoice.lines.map((line) => (
-                    <LineRow
+                    <InvoiceLineRow
                       key={line.id}
                       line={line}
                       draft={draft}
@@ -360,247 +356,5 @@ export default function InvoicePage() {
         onSubmit={runCancel}
       />
     </Stack>
-  );
-}
-
-/**
- * One line, in both of the states it can be read in: a draft showing the
- * quote this screen assembled, and a confirmed invoice showing the snapshot
- * the server took at confirm (FR-4.5b).
- */
-function LineRow({
-  line,
-  invoiceId,
-  draft,
-  quotes,
-  productName,
-  approver,
-  onOverride,
-  onError,
-}: {
-  line: SalesInvoiceLine;
-  invoiceId: string;
-  draft: boolean;
-  quotes: QuoteMap;
-  productName: string | undefined;
-  approver: string | undefined;
-  onOverride: () => void;
-  onError: (message: string) => void;
-}) {
-  const t = useTranslations("invoices");
-  const tSell = useTranslations("invoices.sell");
-  const tDoc = useTranslations("documents");
-  const tCommon = useTranslations("common");
-  const can = useCan();
-
-  // Both close over this line, so the id stays in the URL where it belongs
-  // rather than riding along in a body the endpoint does not declare.
-  const remove = useDocumentAction<SalesInvoice>("invoices", invoiceId, {
-    method: "DELETE",
-    path: `/lines/${line.id}`,
-  });
-  const requantify = useDocumentAction<SalesInvoice, { quantity: number }>(
-    "invoices",
-    invoiceId,
-    { method: "PATCH", path: `/lines/${line.id}` },
-  );
-  const busy = remove.isPending || requantify.isPending;
-
-  async function run(action: Promise<unknown>, done?: () => void) {
-    try {
-      await action;
-      done?.();
-    } catch (error) {
-      onError(errorMessage(error, tCommon("retry")));
-    }
-  }
-
-  const quote = quotes.get(line.id);
-  const resolvedMinor = draft ? (quote?.resolvedMinor ?? null) : line.resolvedPriceMinor;
-  const charged = draft ? (quote?.chargedMinor ?? null) : line.chargedPriceMinor;
-  const deviates = draft
-    ? line.overridePriceMinor !== null && line.overridePriceMinor !== resolvedMinor
-    : line.isDeviation;
-
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Stack gap="3xs">
-          <Text size="sm">{productName ?? tCommon("none")}</Text>
-          {!isSerial(line) && (
-            <Text size="xs" c="dimmed">
-              {tSell("accessory")}
-            </Text>
-          )}
-        </Stack>
-      </Table.Td>
-      <Table.Td>
-        {draft && !isSerial(line) && can(Permission.Sales.Manage) ? (
-          <NumberInput
-            value={line.quantity}
-            onChange={(value) => run(requantify.mutateAsync({ quantity: Number(value) || 1 }))}
-            min={1}
-            allowDecimal={false}
-            disabled={busy}
-            w={90}
-            aria-label={tDoc("quantity")}
-          />
-        ) : (
-          line.quantity
-        )}
-      </Table.Td>
-      <Table.Td>
-        {resolvedMinor === null ? (
-          <Badge size="xs" variant="light" color="yellow">
-            {tSell("needsPrice")}
-          </Badge>
-        ) : (
-          <Text
-            size="sm"
-            td={deviates ? "line-through" : undefined}
-            c={deviates ? "dimmed" : undefined}
-          >
-            {formatMoney(resolvedMinor, line.currency)}
-          </Text>
-        )}
-      </Table.Td>
-      <Table.Td>
-        {charged === null ? (
-          tCommon("none")
-        ) : (
-          <Stack gap="3xs">
-            <Text size="sm" fw={deviates ? 600 : undefined}>
-              {formatMoney(charged, line.currency)}
-            </Text>
-            {deviates && (
-              <Text size="xs" c="dimmed">
-                {/* FR-4.5f: the approver is whoever overrode it, which need
-                    not be whoever confirmed the invoice. */}
-                {approver ? tDoc("approvedBy", { name: approver }) : t("approvedBySomeone")}
-                {line.priceNote && ` — ${line.priceNote}`}
-              </Text>
-            )}
-          </Stack>
-        )}
-      </Table.Td>
-      <Table.Td>
-        <Group gap="2xs" justify="flex-end" wrap="nowrap">
-          {draft && can(Permission.Pricing.Override) && (
-            <Button size="compact-sm" variant="subtle" onClick={onOverride}>
-              {tSell("override")}
-            </Button>
-          )}
-          {draft && can(Permission.Sales.Manage) && (
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              aria-label={tSell("remove")}
-              loading={busy}
-              onClick={() => run(remove.mutateAsync(undefined as never), () => notifySuccess(tSell("removed")))}
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          )}
-        </Group>
-      </Table.Td>
-    </Table.Tr>
-  );
-}
-
-/**
- * FR-4.5: an Owner or Manager charges something other than what the system
- * resolved, and the override is stamped with their name there and then.
- *
- * `price` and `note` always travel together. The server branches on which
- * keys arrived and then reads `price`, so a body carrying only a note would
- * clear the override — the two are one decision, not two fields.
- *
- * Clearing is its own action because it is not the same as pricing at zero:
- * it hands the line back to resolution, and drops the approver and the note
- * with it.
- */
-function OverridePriceModal({
-  invoiceId,
-  line,
-  resolvedMinor,
-  onClose,
-}: {
-  invoiceId: string;
-  line: SalesInvoiceLine;
-  resolvedMinor: number | null;
-  onClose: () => void;
-}) {
-  const tSell = useTranslations("invoices.sell");
-  const tCommon = useTranslations("common");
-
-  const [price, setPrice] = useState(line.overridePrice ?? "");
-  const [note, setNote] = useState(line.priceNote ?? "");
-  const [error, setError] = useState<string | null>(null);
-
-  const override = useDocumentAction<
-    SalesInvoice,
-    { price: string | null; note: string | null }
-  >("invoices", invoiceId, {
-    method: "PATCH",
-    path: () => `/lines/${line.id}`,
-  });
-
-  async function send(body: { price: string | null; note: string | null }) {
-    setError(null);
-    try {
-      await override.mutateAsync(body);
-      notifySuccess(tCommon("saved"));
-      onClose();
-    } catch (thrown) {
-      setError(errorMessage(thrown, tCommon("retry")));
-    }
-  }
-
-  return (
-    <FormModal
-      opened
-      onClose={onClose}
-      title={tSell("overrideTitle")}
-      onSubmit={(event) => {
-        event.preventDefault();
-        send({ price: price.trim() || null, note: note.trim() || null });
-      }}
-      busy={override.isPending}
-      error={error}
-      submitLabel={tCommon("save")}
-    >
-      <MoneyInput
-        label={tSell("overridePrice")}
-        description={
-          resolvedMinor === null
-            ? tSell("noResolvedPrice")
-            : tSell("resolvedHint", {
-                price: formatMoney(resolvedMinor, line.currency),
-              })
-        }
-        value={price}
-        onChange={setPrice}
-        currency={line.currency}
-        data-autofocus
-      />
-      <Textarea
-        label={tSell("overrideNote")}
-        description={tSell("overrideNoteHint")}
-        value={note}
-        onChange={(event) => setNote(event.currentTarget.value)}
-        autosize
-        minRows={2}
-      />
-      {line.overridePriceMinor !== null && (
-        <Button
-          variant="subtle"
-          color="red"
-          loading={override.isPending}
-          onClick={() => send({ price: null, note: null })}
-        >
-          {tSell("clearOverride")}
-        </Button>
-      )}
-    </FormModal>
   );
 }
