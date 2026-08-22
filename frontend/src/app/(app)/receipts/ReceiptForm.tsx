@@ -25,6 +25,7 @@ import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
 import { ProductSelect } from "@/components/ProductSelect";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useLineEditor, type EditableLine } from "@/hooks/use-line-editor";
 import { useSupplierLookup } from "@/hooks/use-lookup";
 import { useResourceCreate, useResourceItem, useResourceList } from "@/hooks/use-resource";
 import { ApiError } from "@/lib/api";
@@ -36,21 +37,9 @@ import type {
   Customer,
   GoodsReceipt,
   Location,
-  Product,
   PurchaseOrder,
   Supplier,
 } from "@/lib/types";
-
-type Line = {
-  key: string;
-  product: Product | null;
-  quantity: number;
-  unitCost: string;
-};
-
-function emptyLine(): Line {
-  return { key: crypto.randomUUID(), product: null, quantity: 1, unitCost: "" };
-}
 
 /**
  * FR-3.3, FR-3.3b: opening a receipt.
@@ -89,7 +78,7 @@ export function ReceiptForm() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const { lines, updateLine, addLine, removeLine, filled } = useLineEditor();
   const [formError, setFormError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
 
@@ -105,18 +94,12 @@ export function ReceiptForm() {
   );
   const canPrice = can(Permission.Pricing.Set);
 
-  function updateLine(key: string, patch: Partial<Line>) {
-    setLines((current) =>
-      current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
-    );
-  }
-
   /** A serialized line carries no line cost: each handset is priced as it is scanned. */
-  function costable(line: Line): boolean {
+  function costable(line: EditableLine): boolean {
     return canPrice && line.product?.trackingType === "quantity";
   }
 
-  function priceError(line: Line): string | null {
+  function priceError(line: EditableLine): string | null {
     if (!costable(line) || !line.unitCost.trim() || !line.product) return null;
     return isValidPriceInput(line.unitCost, line.product.currency)
       ? null
@@ -125,7 +108,6 @@ export function ReceiptForm() {
         : tDoc("priceHintUzs");
   }
 
-  const filled = lines.filter((line) => line.product !== null);
   const isValid =
     locationId !== null &&
     (source === "trade_in" || fromOrder || supplierId !== null) &&
@@ -278,7 +260,7 @@ export function ReceiptForm() {
                   variant="light"
                   size="xs"
                   leftSection={<IconPlus size={14} />}
-                  onClick={() => setLines((current) => [...current, emptyLine()])}
+                  onClick={addLine}
                 >
                   {t("addLine")}
                 </Button>
@@ -348,11 +330,7 @@ export function ReceiptForm() {
                             color="red"
                             aria-label={t("removeLine")}
                             disabled={lines.length === 1}
-                            onClick={() =>
-                              setLines((current) =>
-                                current.filter((row) => row.key !== line.key),
-                              )
-                            }
+                            onClick={() => removeLine(line.key)}
                           >
                             <IconTrash size={16} />
                           </ActionIcon>

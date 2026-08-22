@@ -22,24 +22,12 @@ import { useState } from "react";
 import { MoneyInput } from "@/components/MoneyInput";
 import { ProductSelect } from "@/components/ProductSelect";
 import { TableScrollArea } from "@/components/TableScrollArea";
+import { useLineEditor, type EditableLine } from "@/hooks/use-line-editor";
 import { useResourceCreate, useResourceList } from "@/hooks/use-resource";
 import { ApiError } from "@/lib/api";
 import { isValidPriceInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
-import type { Currency, Product, PurchaseOrder, Supplier } from "@/lib/types";
-
-type Line = {
-  /** Local row key; the server mints the real line id. */
-  key: string;
-  product: Product | null;
-  quantity: number;
-  /** Kept as typed text — a price is a string on the wire, never a float. */
-  unitCost: string;
-};
-
-function emptyLine(): Line {
-  return { key: crypto.randomUUID(), product: null, quantity: 1, unitCost: "" };
-}
+import type { Currency, PurchaseOrder, Supplier } from "@/lib/types";
 
 /**
  * FR-3.1: a Manager raises an order — supplier, and lines of product,
@@ -59,7 +47,7 @@ export function PurchaseOrderForm() {
 
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const { lines, updateLine, addLine, removeLine, filled } = useLineEditor();
   const [formError, setFormError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
 
@@ -72,13 +60,7 @@ export function PurchaseOrderForm() {
     "purchase-orders",
   );
 
-  function updateLine(key: string, patch: Partial<Line>) {
-    setLines((current) =>
-      current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
-    );
-  }
-
-  function priceError(line: Line): string | null {
+  function priceError(line: EditableLine): string | null {
     if (!line.unitCost.trim() || !line.product) return null;
     return isValidPriceInput(line.unitCost, line.product.currency)
       ? null
@@ -92,7 +74,6 @@ export function PurchaseOrderForm() {
     return currency === "USD" ? "0.00" : "0";
   }
 
-  const filled = lines.filter((line) => line.product !== null);
   const isValid =
     supplierId !== null &&
     filled.length > 0 &&
@@ -171,7 +152,7 @@ export function PurchaseOrderForm() {
                 variant="light"
                 size="xs"
                 leftSection={<IconPlus size={14} />}
-                onClick={() => setLines((current) => [...current, emptyLine()])}
+                onClick={addLine}
               >
                 {t("addLine")}
               </Button>
@@ -235,11 +216,7 @@ export function PurchaseOrderForm() {
                           color="red"
                           aria-label={t("removeLine")}
                           disabled={lines.length === 1}
-                          onClick={() =>
-                            setLines((current) =>
-                              current.filter((row) => row.key !== line.key),
-                            )
-                          }
+                          onClick={() => removeLine(line.key)}
                         >
                           <IconTrash size={16} />
                         </ActionIcon>
