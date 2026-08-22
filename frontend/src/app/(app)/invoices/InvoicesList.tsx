@@ -1,6 +1,6 @@
 "use client";
 
-import { Anchor, Button, Select, Table, Text } from "@mantine/core";
+import { Anchor, Badge, Button, Group, Select, Table, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
@@ -14,11 +14,13 @@ import { useCan } from "@/components/MeProvider";
 import { Subtotals } from "@/components/Subtotals";
 import { useCustomerLookup, useLocationLookup } from "@/hooks/use-lookup";
 import { useResourceList } from "@/hooks/use-resource";
+import { formatMoney } from "@/lib/money";
 import { Permission } from "@/lib/permissions";
 import type { SalesInvoice } from "@/lib/types";
 
 export function InvoicesList() {
   const t = useTranslations("invoices");
+  const tCredit = useTranslations("credit");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
   const can = useCan();
@@ -89,6 +91,7 @@ export function InvoicesList() {
           <Table.Th>{tCommon("status")}</Table.Th>
           <Table.Th>{t("lineCount")}</Table.Th>
           <Table.Th>{tDoc("subtotals")}</Table.Th>
+          <Table.Th>{tCredit("remaining")}</Table.Th>
         </Table.Tr>
       }
       isLoading={query.isLoading}
@@ -102,9 +105,20 @@ export function InvoicesList() {
       {invoices.map((invoice) => (
         <Table.Tr key={invoice.id}>
           <Table.Td>
-            <Anchor component={Link} href={`/invoices/${invoice.id}`} fw={500}>
-              {invoice.number}
-            </Anchor>
+            <Group gap="2xs" wrap="nowrap">
+              <Anchor component={Link} href={`/invoices/${invoice.id}`} fw={500}>
+                {invoice.number}
+              </Anchor>
+              {invoice.paymentType !== "paid_in_full" && (
+                <Badge size="xs" variant="light" color="grape">
+                  {tCredit(
+                    invoice.paymentType === "store_credit"
+                      ? "storeCredit"
+                      : "creditCompany",
+                  )}
+                </Badge>
+              )}
+            </Group>
           </Table.Td>
           <Table.Td>
             {/* A walk-in names nobody, and that is not missing data. */}
@@ -126,6 +140,19 @@ export function InvoicesList() {
           <Table.Td>
             {/* Empty on a draft: a draft holds no prices (FR-4.5b1). */}
             <Subtotals subtotals={invoice.subtotals} />
+          </Table.Td>
+          <Table.Td>
+            {/* Only store credit can owe anything: a financed sale was paid
+                in full by the company at confirm (FR-11.4). */}
+            {invoice.paymentType === "store_credit" ? (
+              <Text size="sm" fw={invoice.remainingMinor > 0 ? 600 : undefined}>
+                {formatMoney(invoice.remainingMinor, "UZS")}
+              </Text>
+            ) : (
+              <Text size="sm" c="dimmed">
+                {tCommon("none")}
+              </Text>
+            )}
           </Table.Td>
         </Table.Tr>
       ))}

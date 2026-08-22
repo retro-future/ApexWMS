@@ -2,6 +2,7 @@
 
 import {
   ActionIcon,
+  Anchor,
   Button,
   Group,
   Switch,
@@ -13,6 +14,7 @@ import { useForm } from "@mantine/form";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useState } from "react";
 
 import { FormModal } from "@/components/FormModal";
@@ -43,6 +45,7 @@ export default function CustomersPage() {
   const tCommon = useTranslations("common");
   const can = useCan();
   const manage = can(Permission.Customer.Manage);
+  const account = can(Permission.CustomerAccount.View);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebouncedValue(search, 300);
@@ -158,9 +161,22 @@ export default function CustomersPage() {
         {customers.map((customer) => (
           <Table.Tr key={customer.id}>
             <Table.Td>
-              <Text size="sm" fw={500}>
-                {customer.fullName}
-              </Text>
+              {/* The account is where their debt lives (§4.7) — nothing on
+                  this row can show it, because a balance spans invoices. */}
+              {account ? (
+                <Anchor
+                  component={Link}
+                  href={`/customers/${customer.id}`}
+                  size="sm"
+                  fw={500}
+                >
+                  {customer.fullName}
+                </Anchor>
+              ) : (
+                <Text size="sm" fw={500}>
+                  {customer.fullName}
+                </Text>
+              )}
             </Table.Td>
             <Table.Td>
               <Text size="sm" c={customer.phone ? undefined : "dimmed"}>

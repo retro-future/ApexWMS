@@ -7,7 +7,14 @@ import { useCan } from "@/components/MeProvider";
 import { useResourceList } from "@/hooks/use-resource";
 import { apiGet } from "@/lib/api";
 import { Permission } from "@/lib/permissions";
-import type { Customer, Employee, Location, Product, Supplier } from "@/lib/types";
+import type {
+  CreditCompany,
+  Customer,
+  Employee,
+  Location,
+  Product,
+  Supplier,
+} from "@/lib/types";
 
 /**
  * Documents reference their products, suppliers, locations and customers by
@@ -97,6 +104,15 @@ export function useCustomerLookup(): LookupMap<Customer> {
     "customers",
     (customer) => customer.fullName,
     can(Permission.Customer.View),
+  );
+}
+
+export function useCreditCompanyLookup(): LookupMap<CreditCompany> {
+  const can = useCan();
+  return useLookup<CreditCompany>(
+    "credit-companies",
+    (company) => company.name,
+    can(Permission.CreditCompany.View),
   );
 }
 

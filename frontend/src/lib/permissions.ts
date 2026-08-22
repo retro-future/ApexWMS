@@ -54,6 +54,24 @@ export const Permission = {
     /** Charging something other than what the system resolved (FR-4.5). */
     Override: "Permission.Pricing.Override",
   },
+  /** Letting a phone leave before it has been paid for (§4.7). */
+  CreditSale: {
+    Create: "Permission.CreditSale.Create",
+  },
+  CreditCompany: {
+    View: "Permission.CreditCompany.View",
+    Manage: "Permission.CreditCompany.Manage",
+  },
+  Payment: {
+    Record: "Permission.Payment.Record",
+    /** Manager and Owner: taking money is the counter's job, unwinding it is not. */
+    Reverse: "Permission.Payment.Reverse",
+  },
+  CustomerAccount: {
+    View: "Permission.CustomerAccount.View",
+    /** The whole book, not the customer in front of you (§2.1 note 1). */
+    ViewAll: "Permission.CustomerAccount.ViewAll",
+  },
   Reporting: {
     View: "Permission.Reporting.View",
   },

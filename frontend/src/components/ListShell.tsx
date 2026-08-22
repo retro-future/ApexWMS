@@ -39,6 +39,7 @@ export function ListShell({
   isLoading,
   error,
   isEmpty,
+  emptyMessage,
   total,
   page,
   pagesCount,
@@ -56,6 +57,8 @@ export function ListShell({
   isLoading: boolean;
   error?: unknown;
   isEmpty: boolean;
+  /** For a list where empty is good news rather than a failed search. */
+  emptyMessage?: string;
   total: number;
   page: number;
   pagesCount: number;
@@ -119,10 +122,12 @@ export function ListShell({
           {!isLoading && isEmpty && (
             <Center p="xl">
               <Stack gap="2xs" align="center">
-                <Text fw={500}>{t("noResults")}</Text>
-                <Text size="sm" c="dimmed">
-                  {t("noResultsHint")}
-                </Text>
+                <Text fw={500}>{emptyMessage ?? t("noResults")}</Text>
+                {!emptyMessage && (
+                  <Text size="sm" c="dimmed">
+                    {t("noResultsHint")}
+                  </Text>
+                )}
               </Stack>
             </Center>
           )}

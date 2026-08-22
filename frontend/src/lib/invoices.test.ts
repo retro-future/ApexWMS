@@ -54,6 +54,14 @@ function invoice(lines: SalesInvoiceLine[]): SalesInvoice {
     cancellationReason: null,
     lines,
     subtotals: [],
+    paymentType: "paid_in_full",
+    creditCompanyId: null,
+    contractRef: null,
+    debt: null,
+    debtMinor: null,
+    paidMinor: 0,
+    remainingMinor: 0,
+    payments: [],
   };
 }
 

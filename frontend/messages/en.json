@@ -40,6 +40,7 @@
     "products": "Products",
     "locations": "Locations",
     "suppliers": "Suppliers",
+    "creditCompanies": "Credit companies",
     "customers": "Customers",
     "staff": "Staff",
     "settings": "Settings",
@@ -55,7 +56,8 @@
     "outbound": "Outbound",
     "invoices": "Sales invoices",
     "reports": "Reports",
-    "priceDeviations": "Price deviations"
+    "priceDeviations": "Price deviations",
+    "debtors": "Debtors"
   },
   "auth": {
     "signInTitle": "Sign in",
@@ -139,6 +141,18 @@
     "email": "Email",
     "searchPlaceholder": "Search suppliers…"
   },
+  "creditCompanies": {
+    "title": "Credit companies",
+    "subtitle": "Who finances your customers' phones.",
+    "new": "New company",
+    "newTitle": "New credit company",
+    "editTitle": "Edit credit company",
+    "name": "Name",
+    "contactName": "Contact person",
+    "phone": "Phone",
+    "searchPlaceholder": "Search credit companies…",
+    "deactivateHint": "A deactivated company stays on the sales it already financed."
+  },
   "customers": {
     "title": "Customers",
     "subtitle": "A name and a phone number — enough to put on an invoice.",
@@ -147,7 +161,8 @@
     "editTitle": "Edit customer",
     "fullName": "Full name",
     "phone": "Phone",
-    "searchPlaceholder": "Search by name or phone…"
+    "searchPlaceholder": "Search by name or phone…",
+    "notFound": "This customer could not be loaded."
   },
   "staff": {
     "title": "Staff",
@@ -373,6 +388,64 @@
       "cameraTrigger": "Scan with camera"
     }
   },
+  "credit": {
+    "paymentType": "How is this being paid for?",
+    "paidInFull": "Paid in full",
+    "creditCompany": "Credit company",
+    "storeCredit": "Store credit",
+    "company": "Company",
+    "companyHint": "The company pays the store in full today. The customer owes them, not you.",
+    "contractRef": "Contract number",
+    "contractRefHint": "Their reference, so the sale can be matched later.",
+    "debt": "Debt",
+    "debtHint": "The som total the customer agreed to. No rate is stored anywhere — this figure is the agreement.",
+    "downPayment": "Down payment",
+    "downPaymentHint": "What they are paying now. It is recorded as the first payment.",
+    "somOnly": "A whole number of som.",
+    "remainingAfter": "Remaining after the down payment: {amount}",
+    "financedNotice": "Financed by {company}. They paid the store in full at the sale, so the customer owes the store nothing.",
+    "blocker": {
+      "customerRequired": "A debt needs a customer. Pick one before selling on store credit.",
+      "companyRequired": "Pick the credit company financing this sale.",
+      "debtRequired": "Enter the som debt the customer agreed to.",
+      "downPaymentTooLarge": "The down payment is larger than the debt.",
+      "overpayment": "That is more than the customer still owes."
+    },
+    "panelTitle": "Payments",
+    "panelHint": "The debt is what was agreed. Paid and remaining are counted from the payments below.",
+    "recordPayment": "Record payment",
+    "paid": "Paid",
+    "remaining": "Remaining",
+    "settled": "This sale is paid off.",
+    "refundDue": "This sale was cancelled, but {amount} is still with the store. Refund it by hand.",
+    "noPayments": "No payments yet.",
+    "date": "Date",
+    "amount": "Amount",
+    "method": "Method",
+    "methodHint": "How the money arrived. A label, not a card transaction.",
+    "methods": {
+      "cash": "Cash",
+      "transfer": "Transfer",
+      "card": "Card"
+    },
+    "note": "Note",
+    "takenBy": "Taken by",
+    "remainingIs": "Still owed: {amount}",
+    "paymentRecorded": "Payment recorded",
+    "reversal": "Reversal",
+    "reverse": "Reverse",
+    "reversed": "Payment reversed",
+    "balance": "Balance",
+    "invoice": "Invoice",
+    "age": "Age",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "phone": "Phone",
+    "openDebts": "Store credit",
+    "openDebtsHint": "Every store-credit sale to this customer, and what is still owed on each.",
+    "noOpenDebts": "Nothing was sold to this customer on store credit.",
+    "financedSales": "Financed sales",
+    "financedSalesHint": "Sold through a credit company. The company paid the store in full — the customer owes the store nothing on these."
+  },
   "deviceUnits": {
     "title": "Handset",
     "notFound": "No such handset in this store.",
@@ -433,6 +506,11 @@
     "from": "From",
     "to": "To",
     "note": "Note",
-    "unattributed": "Not recorded"
+    "unattributed": "Not recorded",
+    "debtorsTitle": "Debtors",
+    "debtorsSubtitle": "Everyone who still owes the store money on a store-credit sale, oldest debt first. Store credit has no due date, so the age of a debt is the only signal there is.",
+    "oldestDebt": "Oldest debt",
+    "openInvoices": "Open sales",
+    "noDebtors": "Nobody owes the store anything."
   }
 }

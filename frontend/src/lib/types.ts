@@ -328,7 +328,7 @@ export type SalesInvoice = {
   number: string;
   status: DocumentStatus;
   locationId: string;
-  /** Null for a walk-in. */
+  /** Null for a walk-in, and required once the sale is on store credit. */
   customerId: string | null;
   note: string | null;
   createdBy: string;
@@ -341,6 +341,21 @@ export type SalesInvoice = {
   lines: SalesInvoiceLine[];
   /** Empty on a draft, because a draft holds no prices. */
   subtotals: CurrencySubtotal[];
+  /** --- M5b: how this sale is paid for. Every debt figure is som. --- */
+  paymentType: PaymentType;
+  creditCompanyId: string | null;
+  contractRef: string | null;
+  /** The som total the seller wrote. Null unless this is store credit. */
+  debt: string | null;
+  debtMinor: number | null;
+  paidMinor: number;
+  /**
+   * `debt − Σ payments`, recomputed on every read and never stored. Zero on a
+   * cancelled sale, whose debt is void while its payments stand (FR-11.11) —
+   * which makes `paidMinor` the refund figure at that point.
+   */
+  remainingMinor: number;
+  payments: Payment[];
 };
 
 /**
@@ -354,6 +369,97 @@ export type InvoiceScanResult = {
   resolvedPriceMinor: number;
   productId: string;
   deviceUnitId: string | null;
+};
+
+/* ------------------------------------------------------------------ *
+ * M5b — credit sales and customer debt
+ * ------------------------------------------------------------------ */
+
+/**
+ * How a sale is paid for (§4.7). The goods and the revenue are identical in
+ * all three cases; what differs is who still owes the store money afterwards
+ * — nobody, nobody, the customer.
+ */
+export type PaymentType = "paid_in_full" | "credit_company" | "store_credit";
+
+/** A label on how the money arrived, not a processed transaction (§1.4). */
+export type PaymentMethod = "cash" | "transfer" | "card";
+
+export const PAYMENT_METHODS: PaymentMethod[] = ["cash", "transfer", "card"];
+
+export type CreditCompany = {
+  id: string;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+};
+
+/**
+ * Money received against a store-credit sale. Always som, so `amount` and
+ * `amountMinor` carry the same number — UZS has exponent 0.
+ *
+ * `amountMinor` is **signed**: a negative row is the compensating entry that
+ * reverses an earlier payment (FR-11.8), and the original stays beside it.
+ */
+export type Payment = {
+  id: string;
+  salesInvoiceId: string;
+  occurredAt: string;
+  amount: string;
+  amountMinor: number;
+  method: PaymentMethod;
+  userId: string;
+  note: string | null;
+  reversesPaymentId: string | null;
+  isReversal: boolean;
+};
+
+/** One non-cash sale on a customer's account (FR-11.9). */
+export type CreditInvoiceDebt = {
+  invoiceId: string;
+  invoiceNumber: string;
+  status: DocumentStatus;
+  paymentType: PaymentType;
+  confirmedAt: string | null;
+  /** Null on a financed sale: it opened no debt at all. */
+  debt: string | null;
+  debtMinor: number | null;
+  paid: string;
+  paidMinor: number;
+  remaining: string;
+  remainingMinor: number;
+  creditCompanyId: string | null;
+  contractRef: string | null;
+  daysSinceSale: number | null;
+};
+
+/**
+ * GET /customers/{id}/account. Two lists, deliberately separate: `openDebts`
+ * is money the store is waiting for, `financedSales` is money a credit
+ * company already paid. The balance counts only the first (§4.7).
+ */
+export type CustomerAccount = {
+  customerId: string;
+  fullName: string;
+  phone: string | null;
+  balance: string;
+  balanceMinor: number;
+  openDebts: CreditInvoiceDebt[];
+  financedSales: CreditInvoiceDebt[];
+};
+
+/** One row of FR-11.10's debtor list, oldest open debt first. */
+export type Debtor = {
+  customerId: string;
+  fullName: string;
+  phone: string | null;
+  balance: string;
+  balanceMinor: number;
+  oldestOpenAt: string;
+  daysSinceOldest: number;
+  openInvoiceCount: number;
 };
 
 /** One row of FR-9.7's report. `difference` is signed, in both directions. */

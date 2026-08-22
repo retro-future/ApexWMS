@@ -40,6 +40,7 @@
     "products": "Mahsulotlar",
     "locations": "Joylar",
     "suppliers": "Yetkazib beruvchilar",
+    "creditCompanies": "Kredit kompaniyalari",
     "customers": "Mijozlar",
     "staff": "Xodimlar",
     "settings": "Sozlamalar",
@@ -55,7 +56,8 @@
     "outbound": "Sotuv",
     "invoices": "Sotuv hisob-fakturalari",
     "reports": "Hisobotlar",
-    "priceDeviations": "Narx chetlanishlari"
+    "priceDeviations": "Narx chetlanishlari",
+    "debtors": "Qarzdorlar"
   },
   "auth": {
     "signInTitle": "Kirish",
@@ -139,6 +141,18 @@
     "email": "Elektron pochta",
     "searchPlaceholder": "Yetkazib beruvchilarni qidirish…"
   },
+  "creditCompanies": {
+    "title": "Kredit kompaniyalari",
+    "subtitle": "Mijozlaringizning telefonlarini kim moliyalashtiradi.",
+    "new": "Yangi kompaniya",
+    "newTitle": "Yangi kredit kompaniyasi",
+    "editTitle": "Kredit kompaniyasini tahrirlash",
+    "name": "Nomi",
+    "contactName": "Aloqa uchun shaxs",
+    "phone": "Telefon",
+    "searchPlaceholder": "Kredit kompaniyalarini qidirish…",
+    "deactivateHint": "O'chirilgan kompaniya u moliyalashtirgan sotuvlarda qolaveradi."
+  },
   "customers": {
     "title": "Mijozlar",
     "subtitle": "Ism va telefon raqami — hisob-faktura uchun shuning o'zi yetarli.",
@@ -147,7 +161,8 @@
     "editTitle": "Mijozni tahrirlash",
     "fullName": "To'liq ism",
     "phone": "Telefon",
-    "searchPlaceholder": "Ism yoki telefon bo'yicha qidirish…"
+    "searchPlaceholder": "Ism yoki telefon bo'yicha qidirish…",
+    "notFound": "Mijozni yuklab bo'lmadi."
   },
   "staff": {
     "title": "Xodimlar",
@@ -373,6 +388,64 @@
       "cameraTrigger": "Kamera bilan skanerlash"
     }
   },
+  "credit": {
+    "paymentType": "Bu sotuv qanday to'lanadi?",
+    "paidInFull": "To'liq to'lov",
+    "creditCompany": "Kredit kompaniyasi",
+    "storeCredit": "Do'kon nasiyasi",
+    "company": "Kompaniya",
+    "companyHint": "Kompaniya do'konga bugun to'liq to'laydi. Mijoz sizga emas, o'shalarga qarzdor bo'ladi.",
+    "contractRef": "Shartnoma raqami",
+    "contractRefHint": "Ularning raqami, keyin sotuvni solishtirish uchun.",
+    "debt": "Qarz",
+    "debtHint": "Mijoz rozi bo'lgan so'mdagi summa. Hech qayerda kurs saqlanmaydi — kelishuv shu summaning o'zi.",
+    "downPayment": "Boshlang'ich to'lov",
+    "downPaymentHint": "Hozir to'lanadigan summa. Birinchi to'lov sifatida yoziladi.",
+    "somOnly": "Butun so'm miqdori.",
+    "remainingAfter": "Boshlang'ich to'lovdan keyin qoladi: {amount}",
+    "financedNotice": "{company} moliyalashtirgan. Ular sotuv paytida do'konga to'liq to'lagan, mijoz do'konga qarzdor emas.",
+    "blocker": {
+      "customerRequired": "Qarzga mijoz kerak. Nasiyaga sotishdan oldin mijozni tanlang.",
+      "companyRequired": "Sotuvni moliyalashtiradigan kredit kompaniyasini tanlang.",
+      "debtRequired": "Mijoz rozi bo'lgan qarz summasini so'mda kiriting.",
+      "downPaymentTooLarge": "Boshlang'ich to'lov qarzdan katta.",
+      "overpayment": "Bu mijozning qolgan qarzidan ko'p."
+    },
+    "panelTitle": "To'lovlar",
+    "panelHint": "Qarz — kelishilgan summa. To'langan va qolgan quyidagi to'lovlardan hisoblanadi.",
+    "recordPayment": "To'lovni yozish",
+    "paid": "To'langan",
+    "remaining": "Qolgan",
+    "settled": "Bu sotuv to'liq to'langan.",
+    "refundDue": "Sotuv bekor qilindi, lekin {amount} do'konda qolgan. Uni qo'lda qaytaring.",
+    "noPayments": "Hozircha to'lovlar yo'q.",
+    "date": "Sana",
+    "amount": "Summa",
+    "method": "Usul",
+    "methodHint": "Pul qanday kelgani. Bu belgi, karta operatsiyasi emas.",
+    "methods": {
+      "cash": "Naqd",
+      "transfer": "O'tkazma",
+      "card": "Karta"
+    },
+    "note": "Izoh",
+    "takenBy": "Qabul qilgan",
+    "remainingIs": "Hali qarzi: {amount}",
+    "paymentRecorded": "To'lov yozildi",
+    "reversal": "Qaytarilgan",
+    "reverse": "Qaytarish",
+    "reversed": "To'lov qaytarildi",
+    "balance": "Balans",
+    "invoice": "Hisob-faktura",
+    "age": "Muddati",
+    "days": "{count} kun",
+    "phone": "Telefon",
+    "openDebts": "Do'kon nasiyasi",
+    "openDebtsHint": "Bu mijozga nasiyaga sotilgan har bir sotuv va ular bo'yicha qolgan summa.",
+    "noOpenDebts": "Bu mijozga nasiyaga hech narsa sotilmagan.",
+    "financedSales": "Kredit orqali sotilganlar",
+    "financedSalesHint": "Kredit kompaniyasi orqali sotilgan. Kompaniya do'konga to'liq to'lagan — mijoz bular bo'yicha do'konga qarzdor emas."
+  },
   "deviceUnits": {
     "title": "Apparat",
     "notFound": "Bu do'konda bunday apparat yo'q.",
@@ -433,6 +506,11 @@
     "from": "Dan",
     "to": "Gacha",
     "note": "Izoh",
-    "unattributed": "Yozilmagan"
+    "unattributed": "Yozilmagan",
+    "debtorsTitle": "Qarzdorlar",
+    "debtorsSubtitle": "Do'kon nasiyasi bo'yicha hali qarzi bor barcha mijozlar, eng eski qarz birinchi. Nasiyaning to'lash muddati yo'q, shuning uchun qarzning yoshi yagona ko'rsatkich.",
+    "oldestDebt": "Eng eski qarz",
+    "openInvoices": "Ochiq sotuvlar",
+    "noDebtors": "Do'konga hech kim qarzdor emas."
   }
 }

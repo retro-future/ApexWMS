@@ -24,6 +24,8 @@ import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { ConfirmSaleModal } from "@/app/(app)/invoices/ConfirmSaleModal";
+import { CreditPanel } from "@/app/(app)/invoices/CreditPanel";
 import { SellConsole } from "@/app/(app)/invoices/SellConsole";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FormModal } from "@/components/FormModal";
@@ -34,6 +36,7 @@ import { TableScrollArea } from "@/components/TableScrollArea";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useInvoiceQuote } from "@/hooks/use-invoice-quote";
 import {
+  useCreditCompanyLookup,
   useCustomerLookup,
   useEmployeeLookup,
   useLocationLookup,
@@ -50,6 +53,7 @@ import type { InvoiceScanResult, SalesInvoice, SalesInvoiceLine } from "@/lib/ty
 export default function InvoicePage() {
   const t = useTranslations("invoices");
   const tSell = useTranslations("invoices.sell");
+  const tCredit = useTranslations("credit");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
   const { id } = useParams<{ id: string }>();
@@ -61,6 +65,7 @@ export default function InvoicePage() {
   const customers = useCustomerLookup();
   const locations = useLocationLookup();
   const employees = useEmployeeLookup();
+  const creditCompanies = useCreditCompanyLookup();
   const { quotes } = useInvoiceQuote(query.data);
 
   const [overriding, setOverriding] = useState<SalesInvoiceLine | null>(null);
@@ -69,7 +74,11 @@ export default function InvoicePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmRefusal, setConfirmRefusal] = useState<string | null>(null);
 
-  const confirm = useDocumentAction<SalesInvoice>("invoices", id, { path: "/confirm" });
+  const confirm = useDocumentAction<SalesInvoice, Record<string, unknown>>(
+    "invoices",
+    id,
+    { path: "/confirm" },
+  );
   const cancel = useDocumentAction<SalesInvoice, { reason: string | null }>(
     "invoices",
     id,
@@ -119,11 +128,11 @@ export default function InvoicePage() {
   // quote. A confirmed invoice reports the server's own snapshot.
   const subtotals = draft ? quoteSubtotals(invoice, quotes) : invoice.subtotals;
 
-  async function runConfirm() {
+  async function runConfirm(terms: Record<string, unknown>) {
     setActionError(null);
     setConfirmRefusal(null);
     try {
-      await confirm.mutateAsync(undefined as never);
+      await confirm.mutateAsync(terms);
       notifySuccess(tDoc("confirmed"));
       setConfirming(false);
     } catch (error) {
@@ -152,6 +161,15 @@ export default function InvoicePage() {
           <Group gap="sm">
             <Title order={2}>{invoice.number}</Title>
             <DocumentStatusBadge status={invoice.status} />
+            {invoice.paymentType !== "paid_in_full" && (
+              <Badge variant="light" color="grape">
+                {tCredit(
+                  invoice.paymentType === "store_credit"
+                    ? "storeCredit"
+                    : "creditCompany",
+                )}
+              </Badge>
+            )}
           </Group>
           <Text size="sm" c="dimmed">
             {customers.get(invoice.customerId) ?? t("walkIn")}
@@ -286,6 +304,22 @@ export default function InvoicePage() {
         </Stack>
       </Card>
 
+      {/* A financed sale shows nothing here on purpose: the company paid the
+          store in full at confirm, so there is no balance to display and
+          attributing one to the customer would be a lie (§4.7). */}
+      {invoice.paymentType === "store_credit" && !draft && (
+        <CreditPanel invoice={invoice} />
+      )}
+
+      {invoice.paymentType === "credit_company" && !draft && (
+        <Text size="sm" c="dimmed">
+          {tCredit("financedNotice", {
+            company: creditCompanies.get(invoice.creditCompanyId) ?? tCommon("none"),
+          })}
+          {invoice.contractRef && ` · ${invoice.contractRef}`}
+        </Text>
+      )}
+
       {!draft && (
         <Text size="sm" c="dimmed">
           {tDoc("immutable")}
@@ -301,16 +335,16 @@ export default function InvoicePage() {
         />
       )}
 
-      <ReasonModal
-        opened={confirming}
-        onClose={() => setConfirming(false)}
-        title={t("confirmTitle")}
-        description={t("confirmBody")}
-        submitLabel={tDoc("confirmAction")}
-        busy={confirm.isPending}
-        error={actionError}
-        onSubmit={runConfirm}
-      />
+      {confirming && (
+        <ConfirmSaleModal
+          invoice={invoice}
+          quote={subtotals}
+          busy={confirm.isPending}
+          error={actionError}
+          onClose={() => setConfirming(false)}
+          onSubmit={runConfirm}
+        />
+      )}
 
       <ReasonModal
         opened={cancelling}

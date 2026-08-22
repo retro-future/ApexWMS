@@ -43,6 +43,14 @@ const invoice: SalesInvoice = {
   cancellationReason: null,
   lines: [],
   subtotals: [],
+  paymentType: "paid_in_full",
+  creditCompanyId: null,
+  contractRef: null,
+  debt: null,
+  debtMinor: null,
+  paidMinor: 0,
+  remainingMinor: 0,
+  payments: [],
 };
 
 const result: InvoiceScanResult = {
