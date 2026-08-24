@@ -462,6 +462,172 @@ export type Debtor = {
   openInvoiceCount: number;
 };
 
+/* ------------------------------------------------------------------ *
+ * M6 — the three documents that correct what the shelf actually holds
+ * ------------------------------------------------------------------ */
+
+/** Why goods are going back to the supplier (FR-5.1). */
+export type SupplierReturnReason = "defective" | "unsold" | "wrong_item" | "other";
+
+export const SUPPLIER_RETURN_REASONS: SupplierReturnReason[] = [
+  "defective",
+  "unsold",
+  "wrong_item",
+  "other",
+];
+
+/** Why stock is being destroyed or given up on (FR-6.5). */
+export type WriteOffReason = "damage" | "loss" | "theft" | "other";
+
+export const WRITE_OFF_REASONS: WriteOffReason[] = ["damage", "loss", "theft", "other"];
+
+/**
+ * What a count found for one handset (FR-6.3). Derived by the server from
+ * two booleans, never stored: expected and scanned is matched, expected and
+ * not scanned is missing, scanned and not expected is unexpected.
+ */
+export type CountOutcome = "matched" | "missing" | "unexpected";
+
+/**
+ * A line on either removal document. The two share one shape because what a
+ * line may say is identical in both — only the header differs.
+ *
+ * Neither payload carries money. What a removal is worth is the goods' book
+ * value, which the financial ledger holds and a `from_entity` must not read.
+ */
+export type RemovalLine = {
+  id: string;
+  productId: string;
+  /** Null on a quantity line — an accessory names no handset. */
+  deviceUnitId: string | null;
+  /**
+   * Null on a quantity line. Present rather than only the unit id because
+   * unscanning names the IMEI: the operator is holding the phone, not its
+   * primary key.
+   */
+  imei: string | null;
+  quantity: number;
+  currency: Currency;
+  trackingType: TrackingType;
+};
+
+export type SupplierReturn = {
+  id: string;
+  number: string;
+  status: DocumentStatus;
+  supplierId: string;
+  locationId: string;
+  reason: SupplierReturnReason;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  lines: RemovalLine[];
+  lineCount: number;
+};
+
+/** A write-off is a supplier return that names no counterparty. */
+export type WriteOff = {
+  id: string;
+  number: string;
+  status: DocumentStatus;
+  locationId: string;
+  reason: WriteOffReason;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  lines: RemovalLine[];
+  lineCount: number;
+};
+
+/**
+ * One handset on a count: a row the opening snapshot wrote, or one a scan
+ * added because nobody expected it.
+ *
+ * The cost fields are typed optional because the server *omits* them without
+ * `Permission.Cost.View` (FR-1.7) — it does not send them as null. So an
+ * absent cost means "not permitted to know", not "not priced".
+ */
+export type StockCountUnit = {
+  id: string;
+  imei: string;
+  /** Null for a handset the store has no row for at all. */
+  deviceUnitId: string | null;
+  productId: string | null;
+  expected: boolean;
+  scanned: boolean;
+  outcome: CountOutcome;
+  /** Unknown to the store entirely — confirming has to create it (FR-6.4b). */
+  isSurprise: boolean;
+  /** --- Permission.Cost.View only --- */
+  acquisitionCost?: string | null;
+  acquisitionCostMinor?: number | null;
+};
+
+/**
+ * One accessory level on a count.
+ *
+ * `countedQuantity` is null until somebody states a figure, and null is not
+ * zero: a shelf nobody looked at and a shelf found empty are different
+ * findings, and only the second books a loss.
+ */
+export type StockCountLine = {
+  id: string;
+  productId: string;
+  expectedQuantity: number;
+  countedQuantity: number | null;
+  /** Zero while `countedQuantity` is null. The report figure, not the posting. */
+  delta: number;
+};
+
+/**
+ * A count is opened, scanned, **closed**, then confirmed — one step more than
+ * `DocumentStatus` has values. The fourth lives here as `closedAt`, because
+ * only a count has a close, and a closed count is still a `draft` that has
+ * found discrepancies and applied none.
+ *
+ * This payload *is* FR-6.3's discrepancy report; there is no separate report
+ * endpoint, because every row carries the outcome it computed.
+ */
+export type StockCount = {
+  id: string;
+  number: string;
+  status: DocumentStatus;
+  locationId: string;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+  closedAt: string | null;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  units: StockCountUnit[];
+  lines: StockCountLine[];
+  matchedCount: number;
+  missingCount: number;
+  unexpectedCount: number;
+};
+
+/**
+ * One beep on a count. Deliberately narrow: a count holds the whole shelf,
+ * and re-serializing hundreds of rows per trigger-pull would spend §6's
+ * latency budget on rows nothing changed about.
+ *
+ * Exactly one of `unit` / `line` is set — an IMEI or a barcode, never both.
+ */
+export type CountScanResult = {
+  unit: StockCountUnit | null;
+  line: StockCountLine | null;
+  matchedCount: number;
+  missingCount: number;
+  unexpectedCount: number;
+};
+
 /** One row of FR-9.7's report. `difference` is signed, in both directions. */
 export type PriceDeviation = {
   invoiceId: string;
