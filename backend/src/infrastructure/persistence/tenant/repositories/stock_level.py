@@ -65,3 +65,16 @@ class SqlStockLevelRepository(TenantRepository):
         """Every level in the store — the on-hand accessory value (§4.6)
         and the projection half of ``verify-projections``."""
         return await self._many(select(StockLevelModel), self._to_entity)
+
+    async def list_for_location(self, location_id: UUID) -> list[StockLevel]:
+        """A stock count's opening snapshot of the quantity half (FR-6.1).
+
+        Ordered by product so the count reads the same way twice; a level
+        row has no sequence of its own.
+        """
+        return await self._many(
+            select(StockLevelModel)
+            .where(StockLevelModel.location_id == location_id)
+            .order_by(StockLevelModel.product_id),
+            self._to_entity,
+        )

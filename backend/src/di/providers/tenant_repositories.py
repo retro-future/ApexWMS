@@ -29,12 +29,15 @@ from application.ports import (
     ProductRepository,
     PurchaseOrderRepository,
     SalesInvoiceRepository,
+    StockCountRepository,
     StockLevelRepository,
     StockMovementRepository,
     SupplierRepository,
+    SupplierReturnRepository,
     TenantScope,
     TenantSettingsRepository,
     TenantUnitOfWork,
+    WriteOffRepository,
 )
 from infrastructure.config import Settings
 from infrastructure.persistence.tenant.repositories import (
@@ -52,10 +55,13 @@ from infrastructure.persistence.tenant.repositories import (
     SqlProductRepository,
     SqlPurchaseOrderRepository,
     SqlSalesInvoiceRepository,
+    SqlStockCountRepository,
     SqlStockLevelRepository,
     SqlStockMovementRepository,
     SqlSupplierRepository,
+    SqlSupplierReturnRepository,
     SqlTenantSettingsRepository,
+    SqlWriteOffRepository,
 )
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
 from infrastructure.tenancy import TenantEngineRegistry
@@ -147,6 +153,20 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def payments(self, session: TenantSession) -> PaymentRepository:
         return SqlPaymentRepository(session)
+
+    # --- M6 returns, counts and write-offs (PRD §5.5, §5.6) -------------
+
+    @provide
+    def supplier_returns(self, session: TenantSession) -> SupplierReturnRepository:
+        return SqlSupplierReturnRepository(session)
+
+    @provide
+    def write_offs(self, session: TenantSession) -> WriteOffRepository:
+        return SqlWriteOffRepository(session)
+
+    @provide
+    def stock_counts(self, session: TenantSession) -> StockCountRepository:
+        return SqlStockCountRepository(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:

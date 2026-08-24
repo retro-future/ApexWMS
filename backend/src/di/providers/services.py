@@ -13,6 +13,7 @@ from dishka import Provider, Scope, provide_all
 from application.services import (
     ClaimsFactory,
     CostPoolReader,
+    CountPoster,
     DeviceUnitLoader,
     DeviceUnitRepricer,
     DocumentLineBuilder,
@@ -23,6 +24,8 @@ from application.services import (
     PaymentPoster,
     ProductRepricer,
     ReceiptPoster,
+    RemovalPoster,
+    RemovalScanner,
     SalePriceParser,
     SlugNormalizer,
     TimezoneValidator,
@@ -51,6 +54,10 @@ class ApplicationServicesProvider(Provider):
         InvoicePoster,
         # --- M5b credit sales ---
         PaymentPoster,
+        # --- M6 returns, counts & write-offs ---
+        RemovalScanner,
+        RemovalPoster,
+        CountPoster,
         SlugNormalizer,
         TimezoneValidator,
     )

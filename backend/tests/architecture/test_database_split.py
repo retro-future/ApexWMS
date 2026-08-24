@@ -55,6 +55,14 @@ TENANT_TABLES = {
     # --- M5b credit sales & customer debt ---
     "credit_companies": entities.CreditCompany,
     "payments": entities.Payment,
+    # --- M6 returns, counts & write-offs ---
+    "supplier_returns": entities.SupplierReturn,
+    "supplier_return_lines": entities.SupplierReturnLine,
+    "write_offs": entities.WriteOff,
+    "write_off_lines": entities.WriteOffLine,
+    "stock_counts": entities.StockCount,
+    "stock_count_units": entities.StockCountUnit,
+    "stock_count_lines": entities.StockCountLine,
 }
 
 # Append-only tables: every row names its author (PRD §4.3 rule 3, §4.5b).

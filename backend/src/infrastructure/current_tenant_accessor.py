@@ -93,6 +93,7 @@ class CurrentTenantAccessor:
         claims = self._claims.get()
         requested = self._header_value()
 
+        # Tier 2: no X-Tenant header, fall back to the JWT tenant claim.
         if not requested:
             if claims is None or claims.tenant_id is None:
                 raise MissingTenantError(
@@ -104,6 +105,7 @@ class CurrentTenantAccessor:
                 raise TenantNotFoundError()
             return tenant
 
+        # Tier 1: X-Tenant header present, it wins over the claim.
         tenant = await self._by_slug_or_id(requested)
         if tenant is None:
             raise TenantNotFoundError()

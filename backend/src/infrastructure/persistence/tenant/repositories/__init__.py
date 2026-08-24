@@ -20,9 +20,12 @@ from .product_price_change import SqlProductPriceChangeRepository
 from .purchase_order import SqlPurchaseOrderRepository
 from .sales_invoice import SqlSalesInvoiceRepository
 from .settings import SETTINGS_ROW_ID, SqlTenantSettingsRepository
+from .stock_count import SqlStockCountRepository
 from .stock_level import SqlStockLevelRepository
 from .stock_movement import SqlStockMovementRepository
 from .supplier import SqlSupplierRepository
+from .supplier_return import SqlSupplierReturnRepository
+from .write_off import SqlWriteOffRepository
 
 __all__ = [
     "SETTINGS_ROW_ID",
@@ -40,10 +43,13 @@ __all__ = [
     "SqlProductRepository",
     "SqlPurchaseOrderRepository",
     "SqlSalesInvoiceRepository",
+    "SqlStockCountRepository",
     "SqlStockLevelRepository",
     "SqlStockMovementRepository",
     "SqlSupplierRepository",
+    "SqlSupplierReturnRepository",
     "SqlTenantSettingsRepository",
+    "SqlWriteOffRepository",
     "TenantCrudRepository",
     "TenantRepository",
 ]
