@@ -17,14 +17,22 @@ from application.commands.accept_invite import AcceptInviteHandler
 from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
 from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceHandler
+from application.commands.cancel_stock_count import CancelStockCountHandler
+from application.commands.cancel_supplier_return import CancelSupplierReturnHandler
+from application.commands.cancel_write_off import CancelWriteOffHandler
 from application.commands.change_device_unit_condition import (
     ChangeDeviceUnitConditionHandler,
 )
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
+from application.commands.close_stock_count import CloseStockCountHandler
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
 from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceHandler
+from application.commands.confirm_stock_count import ConfirmStockCountHandler
+from application.commands.confirm_supplier_return import ConfirmSupplierReturnHandler
+from application.commands.confirm_write_off import ConfirmWriteOffHandler
+from application.commands.count_stock_count_line import CountStockCountLineHandler
 from application.commands.create_credit_company import CreateCreditCompanyHandler
 from application.commands.create_customer import CreateCustomerHandler
 from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
@@ -34,9 +42,12 @@ from application.commands.create_purchase_order import CreatePurchaseOrderHandle
 from application.commands.create_sales_invoice import CreateSalesInvoiceHandler
 from application.commands.create_superadmin import CreateSuperAdminHandler
 from application.commands.create_supplier import CreateSupplierHandler
+from application.commands.create_supplier_return import CreateSupplierReturnHandler
 from application.commands.create_tenant import CreateTenantHandler
+from application.commands.create_write_off import CreateWriteOffHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
+from application.commands.open_stock_count import OpenStockCountHandler
 from application.commands.override_invoice_line_price import (
     OverrideInvoiceLinePriceHandler,
 )
@@ -51,8 +62,16 @@ from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
 from application.commands.reverse_payment import ReversePaymentHandler
 from application.commands.scan_invoice_line import ScanInvoiceLineHandler
 from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
+from application.commands.scan_stock_count_unit import ScanStockCountUnitHandler
+from application.commands.scan_supplier_return_line import ScanSupplierReturnLineHandler
+from application.commands.scan_write_off_line import ScanWriteOffLineHandler
 from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
+from application.commands.unscan_stock_count_unit import UnscanStockCountUnitHandler
+from application.commands.unscan_supplier_return_line import (
+    UnscanSupplierReturnLineHandler,
+)
+from application.commands.unscan_write_off_line import UnscanWriteOffLineHandler
 from application.commands.update_credit_company import UpdateCreditCompanyHandler
 from application.commands.update_customer import UpdateCustomerHandler
 from application.commands.update_location import UpdateLocationHandler
@@ -83,12 +102,16 @@ from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
 from application.queries.list_purchase_orders import ListPurchaseOrdersHandler
 from application.queries.list_sales_invoices import ListSalesInvoicesHandler
+from application.queries.list_stock_counts import ListStockCountsHandler
+from application.queries.list_supplier_returns import ListSupplierReturnsHandler
 from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
+from application.queries.list_write_offs import ListWriteOffsHandler
 from application.services import (
     BalanceVerifier,
     ClaimsFactory,
     CostPoolReader,
+    CountPoster,
     DeviceUnitLoader,
     DeviceUnitRepricer,
     DocumentLineBuilder,
@@ -99,6 +122,8 @@ from application.services import (
     PaymentPoster,
     ProductRepricer,
     ReceiptPoster,
+    RemovalPoster,
+    RemovalScanner,
     SalePriceParser,
     SlugNormalizer,
     TimezoneValidator,
@@ -128,9 +153,11 @@ from tests.application.fakes import (
     FakePurchaseOrderRepository,
     FakeRefreshTokenRepository,
     FakeSalesInvoiceRepository,
+    FakeStockCountRepository,
     FakeStockLevelRepository,
     FakeStockMovementRepository,
     FakeSupplierRepository,
+    FakeSupplierReturnRepository,
     FakeTenantRepository,
     FakeTenantScope,
     FakeTenantSettingsRepository,
@@ -139,6 +166,7 @@ from tests.application.fakes import (
     FakeUserAppRoleRepository,
     FakeUserRepository,
     FakeUserTenantAccessRepository,
+    FakeWriteOffRepository,
 )
 
 REFRESH_TTL = timedelta(days=30)
@@ -174,6 +202,9 @@ class World:
     invoices: FakeSalesInvoiceRepository
     credit_companies: FakeCreditCompanyRepository
     payments: FakePaymentRepository
+    returns: FakeSupplierReturnRepository
+    write_offs: FakeWriteOffRepository
+    counts: FakeStockCountRepository
     document_numbers: FakeDocumentNumberRepository
     scope: FakeTenantScope
     uow: FakeUnitOfWork
@@ -395,7 +426,14 @@ class World:
         return DocumentLineBuilder(self.products)
 
     def document_loader(self) -> DocumentLoader:
-        return DocumentLoader(self.orders, self.receipts, self.invoices)
+        return DocumentLoader(
+            self.orders,
+            self.receipts,
+            self.invoices,
+            self.returns,
+            self.write_offs,
+            self.counts,
+        )
 
     def receipt_poster(self, actor: UUID | None = None) -> ReceiptPoster:
         return ReceiptPoster(
@@ -728,6 +766,183 @@ class World:
     def list_debtors(self) -> ListDebtorsHandler:
         return ListDebtorsHandler(self.invoices, self.clock)
 
+    # --- M6 returns, counts & write-offs ---
+
+    def removal_poster(self, actor: UUID | None = None) -> RemovalPoster:
+        return RemovalPoster(
+            self.units, self.products, self.levels, self.cost_pools(), self.poster(actor)
+        )
+
+    def removal_scanner(self) -> RemovalScanner:
+        return RemovalScanner(self.device_unit_loader(), self.products)
+
+    def count_poster(self, actor: UUID | None = None) -> CountPoster:
+        return CountPoster(
+            self.units,
+            self.products,
+            self.levels,
+            self.cost_pools(),
+            self.poster(actor),
+            self.clock,
+        )
+
+    def create_supplier_return(
+        self, actor: UUID | None = None
+    ) -> CreateSupplierReturnHandler:
+        return CreateSupplierReturnHandler(
+            self.returns,
+            self.suppliers,
+            self.locations,
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def scan_supplier_return_line(self) -> ScanSupplierReturnLineHandler:
+        return ScanSupplierReturnLineHandler(
+            self.returns, self.removal_scanner(), self.document_loader(), self.uow
+        )
+
+    def unscan_supplier_return_line(self) -> UnscanSupplierReturnLineHandler:
+        return UnscanSupplierReturnLineHandler(
+            self.returns, self.units, self.document_loader(), self.uow
+        )
+
+    def confirm_supplier_return(
+        self, actor: UUID | None = None
+    ) -> ConfirmSupplierReturnHandler:
+        return ConfirmSupplierReturnHandler(
+            self.returns,
+            self.document_loader(),
+            self.removal_poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def cancel_supplier_return(
+        self, actor: UUID | None = None
+    ) -> CancelSupplierReturnHandler:
+        return CancelSupplierReturnHandler(
+            self.returns,
+            self.document_loader(),
+            self.poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def list_supplier_returns(self) -> ListSupplierReturnsHandler:
+        return ListSupplierReturnsHandler(self.returns)
+
+    def create_write_off(self, actor: UUID | None = None) -> CreateWriteOffHandler:
+        return CreateWriteOffHandler(
+            self.write_offs,
+            self.locations,
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def scan_write_off_line(self) -> ScanWriteOffLineHandler:
+        return ScanWriteOffLineHandler(
+            self.write_offs, self.removal_scanner(), self.document_loader(), self.uow
+        )
+
+    def unscan_write_off_line(self) -> UnscanWriteOffLineHandler:
+        return UnscanWriteOffLineHandler(
+            self.write_offs, self.units, self.document_loader(), self.uow
+        )
+
+    def confirm_write_off(self, actor: UUID | None = None) -> ConfirmWriteOffHandler:
+        return ConfirmWriteOffHandler(
+            self.write_offs,
+            self.document_loader(),
+            self.removal_poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def cancel_write_off(self, actor: UUID | None = None) -> CancelWriteOffHandler:
+        return CancelWriteOffHandler(
+            self.write_offs,
+            self.document_loader(),
+            self.poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def list_write_offs(self) -> ListWriteOffsHandler:
+        return ListWriteOffsHandler(self.write_offs)
+
+    def open_stock_count(self, actor: UUID | None = None) -> OpenStockCountHandler:
+        return OpenStockCountHandler(
+            self.counts,
+            self.units,
+            self.levels,
+            self.locations,
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def scan_stock_count_unit(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> ScanStockCountUnitHandler:
+        return ScanStockCountUnitHandler(
+            self.counts,
+            self.units,
+            self.products,
+            self.document_loader(),
+            self.uow,
+            self._as(actor, *permissions),
+        )
+
+    def unscan_stock_count_unit(self) -> UnscanStockCountUnitHandler:
+        return UnscanStockCountUnitHandler(self.counts, self.document_loader(), self.uow)
+
+    def count_stock_count_line(
+        self, actor: UUID | None = None
+    ) -> CountStockCountLineHandler:
+        return CountStockCountLineHandler(
+            self.counts, self.document_loader(), self.uow, self._as(actor)
+        )
+
+    def close_stock_count(self, actor: UUID | None = None) -> CloseStockCountHandler:
+        return CloseStockCountHandler(
+            self.counts, self.document_loader(), self.clock, self.uow, self._as(actor)
+        )
+
+    def confirm_stock_count(self, actor: UUID | None = None) -> ConfirmStockCountHandler:
+        return ConfirmStockCountHandler(
+            self.counts,
+            self.document_loader(),
+            self.count_poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def cancel_stock_count(self, actor: UUID | None = None) -> CancelStockCountHandler:
+        return CancelStockCountHandler(
+            self.counts,
+            self.document_loader(),
+            self.poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def list_stock_counts(
+        self, actor: UUID | None = None, *permissions: Permission
+    ) -> ListStockCountsHandler:
+        return ListStockCountsHandler(self.counts, self._as(actor, *permissions))
+
     def balance_verifier(self) -> BalanceVerifier:
         return BalanceVerifier(self.invoices, self.payments, self.transactions)
 
@@ -769,6 +984,9 @@ def make_world(provisioner_fails: bool = False) -> World:
         invoices=invoices,
         credit_companies=FakeCreditCompanyRepository(),
         payments=payments,
+        returns=FakeSupplierReturnRepository(),
+        write_offs=FakeWriteOffRepository(),
+        counts=FakeStockCountRepository(),
         document_numbers=FakeDocumentNumberRepository(),
         movements=FakeStockMovementRepository(),
         transactions=FakeFinancialTransactionRepository(),

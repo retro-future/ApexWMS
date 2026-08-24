@@ -44,7 +44,6 @@ from domain.entities import DeviceUnit, Product, SalesInvoice, SalesInvoiceLine
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
 from domain.errors import InsufficientStockError, UnitNotSellableError, WrongLocationError
 from domain.services import PriceResolver
-from domain.value_objects import Money
 
 
 class InvoicePoster:
@@ -124,22 +123,18 @@ class InvoicePoster:
             quantity_delta=-line.quantity,
             money=[
                 MoneyEffect(TransactionType.SALE_REVENUE, revenue),
-                MoneyEffect(TransactionType.COGS, -await self._cogs_for(invoice, line)),
+                # This line's share of the weighted-average pool, replayed
+                # from the ledger rather than read from a column, so the
+                # figure booked here is the one ``verify-financials``
+                # recomputes (§4.6).
+                MoneyEffect(
+                    TransactionType.COGS,
+                    -await self._pools.issue_value(
+                        line.product_id, invoice.location_id, line.quantity
+                    ),
+                ),
             ],
         )
-
-    async def _cogs_for(self, invoice: SalesInvoice, line: SalesInvoiceLine) -> Money:
-        """This line's share of the weighted-average pool (§4.6).
-
-        The pool is replayed rather than read from a column, so the figure
-        booked here is by construction the one ``verify-financials``
-        recomputes.
-        """
-        pool = await self._pools.pool_for(line.product_id, invoice.location_id)
-        if pool is None:
-            raise NotFoundError(f"product {line.product_id} does not exist in this store")
-        _, cost = pool.issue(line.quantity)
-        return cost
 
     async def _load_unit(self, line: SalesInvoiceLine) -> DeviceUnit:
         assert line.device_unit_id is not None

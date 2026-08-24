@@ -1,6 +1,6 @@
 """Ports over a tenant's own database: employees, settings, the M2 catalog,
 M3's ledgers and their projections, M4's documents, M5b's credit companies
-and payments, and the unit of work."""
+and payments, M6's returns, counts and write-offs, and the unit of work."""
 
 from application.ports.tenant.repositories import (
     CreditCompanyRepository,
@@ -17,10 +17,13 @@ from application.ports.tenant.repositories import (
     ProductRepository,
     PurchaseOrderRepository,
     SalesInvoiceRepository,
+    StockCountRepository,
     StockLevelRepository,
     StockMovementRepository,
     SupplierRepository,
+    SupplierReturnRepository,
     TenantSettingsRepository,
+    WriteOffRepository,
 )
 from application.ports.tenant.uow import TenantUnitOfWork
 
@@ -39,9 +42,12 @@ __all__ = [
     "ProductRepository",
     "SalesInvoiceRepository",
     "PurchaseOrderRepository",
+    "StockCountRepository",
     "StockLevelRepository",
     "StockMovementRepository",
     "SupplierRepository",
+    "SupplierReturnRepository",
     "TenantSettingsRepository",
     "TenantUnitOfWork",
+    "WriteOffRepository",
 ]

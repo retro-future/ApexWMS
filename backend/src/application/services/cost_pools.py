@@ -16,6 +16,7 @@ discrepancy in the check that exists to catch real ones.
 
 from uuid import UUID
 
+from application.errors import NotFoundError
 from application.ports import (
     FinancialTransactionRepository,
     ProductRepository,
@@ -56,6 +57,24 @@ class CostPoolReader:
         self._products = products
         self._movements = movements
         self._transactions = transactions
+
+    async def issue_value(
+        self, product_id: UUID, location_id: UUID, quantity: int
+    ) -> Money:
+        """What *quantity* of this accessory is carried at (§4.6).
+
+        The figure every document that takes accessories off a shelf books:
+        COGS on a sale, the credit on a supplier return, the loss on a
+        write-off, the shortage on a count. One implementation, so four
+        documents cannot disagree about what the same goods were worth —
+        the same reason ``pool_for`` has one caller in each direction rather
+        than a copy per use.
+        """
+        pool = await self.pool_for(product_id, location_id)
+        if pool is None:
+            raise NotFoundError(f"product {product_id} does not exist in this store")
+        _, value = pool.issue(quantity)
+        return value
 
     async def pool_for(self, product_id: UUID, location_id: UUID) -> CostPool | None:
         """Replay the pool from the two ledgers, or None if the product is gone.

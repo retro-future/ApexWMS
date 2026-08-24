@@ -40,13 +40,20 @@ from domain.entities import (
     RefreshTokenRecord,
     SalesInvoice,
     SalesInvoiceLine,
+    StockCount,
+    StockCountLine,
+    StockCountUnit,
     StockLevel,
     StockMovement,
     Supplier,
+    SupplierReturn,
+    SupplierReturnLine,
     Tenant,
     User,
     UserAppRole,
     UserTenantAccess,
+    WriteOff,
+    WriteOffLine,
 )
 from domain.enums import (
     AcquisitionSource,
@@ -54,10 +61,12 @@ from domain.enums import (
     DocumentStatus,
     DocumentType,
     PaymentType,
+    SupplierReturnReason,
     TenantRole,
     TenantStatus,
     TrackingType,
     TransactionType,
+    WriteOffReason,
 )
 from domain.value_objects import Currency, Money
 
@@ -360,6 +369,12 @@ class FakeStockLevelRepository(FakeRepository[StockLevel]):
 
     async def list_all(self) -> list[StockLevel]:
         return list(self.by_id.values())
+
+    async def list_for_location(self, location_id: UUID) -> list[StockLevel]:
+        return sorted(
+            (lv for lv in self.by_id.values() if lv.location_id == location_id),
+            key=lambda lv: str(lv.product_id),
+        )
 
 
 class FakeProductRepository(FakeRepository[Product]):
@@ -800,3 +815,105 @@ class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
             for product_id, quantity in receipt.received_quantities().items():
                 received[product_id] = received.get(product_id, 0) + quantity
         return received
+
+
+class FakeSupplierReturnRepository(FakeRepository[SupplierReturn]):
+    """The line methods are no-ops for the reason the receipt's scan methods
+    are: the handler already holds the aggregate and mutates it in place,
+    exactly as the SQL repository writes one row rather than rewriting the
+    whole document per beep."""
+
+    async def add_line(self, line: SupplierReturnLine) -> None:
+        return None
+
+    async def update_line(self, line: SupplierReturnLine) -> None:
+        return None
+
+    async def remove_line(self, line_id: UUID) -> None:
+        return None
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        supplier_id: UUID | None = None,
+        reason: SupplierReturnReason | None = None,
+    ) -> tuple[list[SupplierReturn], int]:
+        found = [
+            document
+            for document in self.by_id.values()
+            if _matches(search, document.number)
+            and (status is None or document.status is status)
+            and (supplier_id is None or document.supplier_id == supplier_id)
+            and (reason is None or document.reason is reason)
+        ]
+        return _page(sorted(found, key=lambda d: d.created_at, reverse=True), page, page_size)
+
+
+class FakeWriteOffRepository(FakeRepository[WriteOff]):
+    async def add_line(self, line: WriteOffLine) -> None:
+        return None
+
+    async def update_line(self, line: WriteOffLine) -> None:
+        return None
+
+    async def remove_line(self, line_id: UUID) -> None:
+        return None
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        location_id: UUID | None = None,
+        reason: WriteOffReason | None = None,
+    ) -> tuple[list[WriteOff], int]:
+        found = [
+            document
+            for document in self.by_id.values()
+            if _matches(search, document.number)
+            and (status is None or document.status is status)
+            and (location_id is None or document.location_id == location_id)
+            and (reason is None or document.reason is reason)
+        ]
+        return _page(sorted(found, key=lambda d: d.created_at, reverse=True), page, page_size)
+
+
+class FakeStockCountRepository(FakeRepository[StockCount]):
+    async def add_unit(self, unit: StockCountUnit) -> None:
+        return None
+
+    async def add_units(self, units: Sequence[StockCountUnit]) -> None:
+        return None
+
+    async def update_unit(self, unit: StockCountUnit) -> None:
+        return None
+
+    async def remove_unit(self, unit_id: UUID) -> None:
+        return None
+
+    async def add_lines(self, lines: Sequence[StockCountLine]) -> None:
+        return None
+
+    async def update_line(self, line: StockCountLine) -> None:
+        return None
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        location_id: UUID | None = None,
+    ) -> tuple[list[StockCount], int]:
+        found = [
+            count
+            for count in self.by_id.values()
+            if _matches(search, count.number)
+            and (status is None or count.status is status)
+            and (location_id is None or count.location_id == location_id)
+        ]
+        return _page(sorted(found, key=lambda c: c.created_at, reverse=True), page, page_size)

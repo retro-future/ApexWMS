@@ -39,11 +39,14 @@ from application.ports.tenant import (
     ProductRepository,
     PurchaseOrderRepository,
     SalesInvoiceRepository,
+    StockCountRepository,
     StockLevelRepository,
     StockMovementRepository,
     SupplierRepository,
+    SupplierReturnRepository,
     TenantSettingsRepository,
     TenantUnitOfWork,
+    WriteOffRepository,
 )
 from application.ports.uow import UnitOfWork
 
@@ -70,9 +73,11 @@ __all__ = [
     "PurchaseOrderRepository",
     "RefreshTokenRepository",
     "Repository",
+    "StockCountRepository",
     "StockLevelRepository",
     "StockMovementRepository",
     "SupplierRepository",
+    "SupplierReturnRepository",
     "TenantProvisioner",
     "TenantRepository",
     "TenantScope",
@@ -84,4 +89,5 @@ __all__ = [
     "UserAppRoleRepository",
     "UserRepository",
     "UserTenantAccessRepository",
+    "WriteOffRepository",
 ]

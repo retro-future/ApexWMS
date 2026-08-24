@@ -13,6 +13,7 @@ handler that first produced it (see ``.claude/rules/backend/cqrs-response-models
 
 from application.models.accept_invite import AcceptInviteData
 from application.models.auth_tokens import AuthTokensData
+from application.models.count_scan_result import CountScanResultData
 from application.models.create_superadmin import CreateSuperAdminData
 from application.models.create_tenant import CreateTenantData
 from application.models.credit_company import CreditCompanyData
@@ -44,13 +45,24 @@ from application.models.received_unit import ReceivedUnitData
 from application.models.sales_invoice import SalesInvoiceData, SalesInvoiceLineData
 from application.models.scan_lookup import ScanKind, ScanLookupData
 from application.models.scan_result import ScanResultData
+from application.models.stock_count import (
+    StockCountData,
+    StockCountLineData,
+    StockCountUnitData,
+)
 from application.models.supplier import SupplierData
+from application.models.supplier_return import (
+    SupplierReturnData,
+    SupplierReturnLineData,
+)
 from application.models.tenant_settings import TenantSettingsData
+from application.models.write_off import WriteOffData, WriteOffLineData
 
 __all__ = [
     "AcceptInviteData",
     "AuthTokensData",
     "CreateSuperAdminData",
+    "CountScanResultData",
     "CreateTenantData",
     "CreditCompanyData",
     "CreditInvoiceDebtData",
@@ -80,6 +92,13 @@ __all__ = [
     "SalesInvoiceLineData",
     "ScanLookupData",
     "ScanResultData",
+    "StockCountData",
+    "StockCountLineData",
+    "StockCountUnitData",
     "SupplierData",
+    "SupplierReturnData",
+    "SupplierReturnLineData",
     "TenantSettingsData",
+    "WriteOffData",
+    "WriteOffLineData",
 ]

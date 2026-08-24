@@ -39,16 +39,25 @@ from domain.entities import (
     ReceivedUnit,
     SalesInvoice,
     SalesInvoiceLine,
+    StockCount,
+    StockCountLine,
+    StockCountUnit,
     StockLevel,
     StockMovement,
     Supplier,
+    SupplierReturn,
+    SupplierReturnLine,
+    WriteOff,
+    WriteOffLine,
 )
 from domain.enums import (
     AcquisitionSource,
     DocumentStatus,
     DocumentType,
+    SupplierReturnReason,
     TrackingType,
     TransactionType,
+    WriteOffReason,
 )
 from domain.value_objects import Currency, Money
 
@@ -289,6 +298,11 @@ class StockLevelRepository(Repository[StockLevel, UUID], Protocol):
 
     async def list_all(self) -> list[StockLevel]: ...
 
+    async def list_for_location(self, location_id: UUID) -> list[StockLevel]:
+        """Every accessory this location holds — a stock count's opening
+        snapshot of the quantity half (FR-6.1)."""
+        ...
+
 
 # --- M4 documents (PRD §4.4, §5.3) ---------------------------------------
 
@@ -428,6 +442,109 @@ class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
         The reconciliation half of ``verify-balances``: confirmed
         store-credit debt minus everything collected against it.
         """
+        ...
+
+
+# --- M6 returns, counts and write-offs (PRD §4.4, §5.5, §5.6) ------------
+
+
+class SupplierReturnRepository(Repository[SupplierReturn, UUID], Protocol):
+    """A return and the lines scanned onto it (§4.4, §5.5).
+
+    ``add_line``/``remove_line`` exist for the reason every scan-driven
+    document's do: a scan is one row, and §6 gives the round trip 200ms.
+    """
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        supplier_id: UUID | None = None,
+        reason: SupplierReturnReason | None = None,
+    ) -> tuple[list[SupplierReturn], int]:
+        """*search* matches the document number."""
+        ...
+
+    async def add_line(self, line: SupplierReturnLine) -> None: ...
+
+    async def update_line(self, line: SupplierReturnLine) -> None:
+        """Bump an accessory line's quantity on a repeat barcode (§6)."""
+        ...
+
+    async def remove_line(self, line_id: UUID) -> None:
+        """Undo a scan while the return is still a draft (FR-3.12)."""
+        ...
+
+
+class WriteOffRepository(Repository[WriteOff, UUID], Protocol):
+    """A write-off and the lines scanned onto it (§4.4, §5.6)."""
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        location_id: UUID | None = None,
+        reason: WriteOffReason | None = None,
+    ) -> tuple[list[WriteOff], int]:
+        """*reason* is filterable because "what did theft cost us" is the
+        question the write-off report exists to answer (FR-6.5)."""
+        ...
+
+    async def add_line(self, line: WriteOffLine) -> None: ...
+
+    async def update_line(self, line: WriteOffLine) -> None: ...
+
+    async def remove_line(self, line_id: UUID) -> None: ...
+
+
+class StockCountRepository(Repository[StockCount, UUID], Protocol):
+    """A count, its expected quantities and every handset it knows about.
+
+    Two child collections rather than one, because the two tracking types
+    are counted differently: a phone is scanned or it is not, an accessory
+    has a number written against it (FR-6.2).
+    """
+
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        status: DocumentStatus | None = None,
+        location_id: UUID | None = None,
+    ) -> tuple[list[StockCount], int]: ...
+
+    async def add_unit(self, unit: StockCountUnit) -> None: ...
+
+    async def add_units(self, units: Sequence[StockCountUnit]) -> None:
+        """The opening snapshot, in one call (FR-6.1).
+
+        A count of a full shelf writes hundreds of these at once, and that
+        is a different operation from one beep of the scanner.
+        """
+        ...
+
+    async def update_unit(self, unit: StockCountUnit) -> None:
+        """Mark one handset scanned, or state what a surprise cost."""
+        ...
+
+    async def remove_unit(self, unit_id: UUID) -> None:
+        """Undo a scan of a handset the snapshot never expected.
+
+        Only ever an unexpected row: un-scanning an *expected* one leaves it
+        in the count as missing, which is a different act and belongs to
+        ``update_unit``.
+        """
+        ...
+
+    async def add_lines(self, lines: Sequence[StockCountLine]) -> None: ...
+
+    async def update_line(self, line: StockCountLine) -> None:
+        """Write the number somebody counted on a shelf (FR-6.2)."""
         ...
 
 
