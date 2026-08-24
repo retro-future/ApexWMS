@@ -21,14 +21,18 @@ from domain.entities.product import Product
 from domain.entities.product_price_change import ProductPriceChange
 from domain.entities.purchase_order import PurchaseOrder, PurchaseOrderLine
 from domain.entities.refresh_token import RefreshTokenRecord
+from domain.entities.removal_line import RemovalLine
 from domain.entities.sales_invoice import SalesInvoice, SalesInvoiceLine
+from domain.entities.stock_count import StockCount, StockCountLine, StockCountUnit
 from domain.entities.stock_level import StockLevel
 from domain.entities.stock_movement import StockMovement
 from domain.entities.supplier import Supplier
+from domain.entities.supplier_return import SupplierReturn, SupplierReturnLine
 from domain.entities.tenant import Tenant
 from domain.entities.user import User
 from domain.entities.user_app_role import UserAppRole
 from domain.entities.user_tenant_access import UserTenantAccess
+from domain.entities.write_off import WriteOff, WriteOffLine
 
 __all__ = [
     "CreditCompany",
@@ -50,13 +54,21 @@ __all__ = [
     "PurchaseOrderLine",
     "ReceivedUnit",
     "RefreshTokenRecord",
+    "RemovalLine",
     "SalesInvoice",
     "SalesInvoiceLine",
+    "StockCount",
+    "StockCountLine",
+    "StockCountUnit",
     "StockLevel",
     "StockMovement",
     "Supplier",
+    "SupplierReturn",
+    "SupplierReturnLine",
     "Tenant",
     "User",
     "UserAppRole",
     "UserTenantAccess",
+    "WriteOff",
+    "WriteOffLine",
 ]

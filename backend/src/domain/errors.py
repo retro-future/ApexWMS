@@ -120,12 +120,18 @@ class DuplicateScanError(DomainError):
 
 
 class UnpricedUnitError(DomainError):
-    """A receipt confirmed while a unit still lacks a cost or an asking price.
+    """Goods about to enter stock with nothing saying what they are worth.
 
-    Names **every** offending IMEI in one message (FR-3.10), so the gap is
-    closed in one pass rather than discovered one handset at a time. Unpriced
-    used stock never reaches the shelf: the second guard, at the invoice
-    line, exists because a unit can enter stock without a receipt at all.
+    Raised by a Goods Receipt confirmed while a unit lacks a cost or an
+    asking price (FR-3.10), and by a Stock Count confirmed while a surplus
+    has no value to book (FR-6.4b) — a surprise handset nobody has costed,
+    or an accessory found at a location whose pool is empty. Names **every**
+    offending IMEI or product in one message, so the gap is closed in one
+    pass rather than discovered one item at a time.
+
+    Unpriced used stock never reaches the shelf: the second guard, at the
+    invoice line, exists because a unit can enter stock without a receipt at
+    all.
     """
 
 
@@ -233,4 +239,39 @@ class PaymentAlreadyReversedError(DomainError):
 
     Reversing a reversal would re-apply the payment. The original stays in
     the ledger either way — a mistake is compensated, never deleted.
+    """
+
+
+class EmptyDocumentError(DomainError):
+    """A supplier return or write-off confirmed with nothing on it (§5.5, §5.6).
+
+    The outbound twin of ``EmptyInvoiceError``: no goods moved, so there is
+    nothing to book, and the document would still burn a number and appear
+    in the loss and return reports as an event that never happened.
+    """
+
+
+class UnitNotRemovableError(DomainError):
+    """A handset sent back or written off that is not on the shelf (FR-5.2).
+
+    States the status it actually holds. A phone already sold cannot also be
+    returned to the supplier, and the ledger would have it leaving the store
+    twice.
+    """
+
+
+class CountNotClosedError(DomainError):
+    """A stock count confirmed before its discrepancies were reported (FR-6.3).
+
+    Closing is what freezes the three lists; confirming applies exactly what
+    was reported. Without the close, the adjustments would be computed
+    against a count still being scanned.
+    """
+
+
+class CountAlreadyClosedError(DomainError):
+    """A scan or a count entered onto a count that has been closed (FR-6.3).
+
+    The whole value of the close is that the discrepancy report and the
+    adjustments describe the same shelf. A late scan would make them differ.
     """
