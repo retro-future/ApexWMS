@@ -139,6 +139,40 @@ postings and `DocumentType.PAYMENT`.
   `/invoices/{id}/payments`, `/customers/{id}/account` and
   `/reports/debtors` on their existing routers
 
+## Returns, counts & write-offs (M6)
+
+The three remaining document types from §4.4. Deep dive:
+[documents.md](../docs/architecture/documents.md) for the shared
+`RemovalLine` and the count's fourth step,
+[ledgers.md](../docs/architecture/ledgers.md) for what each adjustment is
+valued at.
+
+- Commands: `commands/create_supplier_return.py`,
+  `scan_supplier_return_line.py`, `unscan_supplier_return_line.py`,
+  `confirm_supplier_return.py`, `cancel_supplier_return.py`;
+  `create_write_off.py`, `scan_write_off_line.py`,
+  `unscan_write_off_line.py`, `confirm_write_off.py`, `cancel_write_off.py`;
+  `open_stock_count.py` (the FR-6.1 snapshot),
+  `scan_stock_count_unit.py`, `unscan_stock_count_unit.py`,
+  `count_stock_count_line.py`, `close_stock_count.py`,
+  `confirm_stock_count.py`, `cancel_stock_count.py`
+- Queries: `queries/get_supplier_return.py`, `list_supplier_returns.py`,
+  `get_write_off.py`, `list_write_offs.py`, `get_stock_count.py`,
+  `list_stock_counts.py`
+- Models: `models/supplier_return.py`, `write_off.py`, `stock_count.py`
+  (which *is* FR-6.3's discrepancy report), `count_scan_result.py`
+- Services: `services/removal_posting.py` (`RemovalPoster` — one service,
+  two documents, sign read from `TransactionType.ordinary_sign`),
+  `removal_scanning.py` (`RemovalScanner` — the checks both removal scans
+  share), `count_posting.py` (`CountPoster` — the only one that creates a
+  `DeviceUnit`), `cost_pools.py`'s `issue_value`
+- Domain: `domain/entities/removal_line.py` (shared by both removal
+  documents), `supplier_return.py`, `write_off.py`, `stock_count.py`,
+  `domain/enums/supplier_return_reason.py`, `write_off_reason.py`,
+  `count_outcome.py`
+- Routers: `presentation/routers/supplier_returns.py`, `write_offs.py`,
+  `stock_counts.py`
+
 ## Reporting (M5, M5b)
 
 Reads over what the documents already wrote, all read-only. Price

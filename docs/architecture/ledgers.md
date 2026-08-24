@@ -118,12 +118,19 @@ ledger's purchase values, in total per document rather than per unit
 (dividing a line's cost out and multiplying it back would introduce a
 rounding error that was never in the data).
 
-One replay, two callers, and that is the point: `InvoicePoster` books COGS
-from it at confirm, and `LedgerReconciler` recomputes on-hand value from it
+One replay, several callers, and that is the point: `issue_value` is what
+`InvoicePoster` books COGS from, what `RemovalPoster` values a return
+credit and a write-off loss from, and what `CountPoster` values a shortage
+from, while `LedgerReconciler` recomputes on-hand value from the same pool
 for PRD FR-10.7. Two implementations would let a sale be booked at one
 average and reconciled against another, showing up as a discrepancy in the
 check that exists to catch real ones. `INVENTORY_SIGN` lives there too,
 since both sides read it.
+
+A count *surplus* is the one figure that cannot come from `issue_value`:
+nothing is being taken out. It uses `CostPool.average_unit_cost`, and where
+the pool is empty there is no average and no stand-in for one, so
+`CountPoster` refuses the confirm rather than booking zero.
 
 ## Verification
 
