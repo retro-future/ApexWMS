@@ -2,8 +2,10 @@
 
 import { Box, NavLink, Stack, Text } from "@mantine/core";
 import {
+  IconArrowBackUp,
   IconBuildingWarehouse,
   IconChartBar,
+  IconChecklist,
   IconClipboardList,
   IconCreditCard,
   IconLayoutDashboard,
@@ -12,6 +14,7 @@ import {
   IconReceipt,
   IconScale,
   IconSettings,
+  IconTrashX,
   IconTruck,
   IconUsers,
   IconUsersGroup,
@@ -101,6 +104,29 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           label: t("invoices"),
           icon: IconReceipt,
           permission: Permission.Sales.View,
+        },
+      ],
+    },
+    {
+      title: t("adjustments"),
+      items: [
+        {
+          href: "/stock-counts",
+          label: t("stockCounts"),
+          icon: IconChecklist,
+          permission: Permission.StockCount.Run,
+        },
+        {
+          href: "/write-offs",
+          label: t("writeOffs"),
+          icon: IconTrashX,
+          permission: Permission.WriteOff.Manage,
+        },
+        {
+          href: "/supplier-returns",
+          label: t("supplierReturns"),
+          icon: IconArrowBackUp,
+          permission: Permission.SupplierReturn.View,
         },
       ],
     },

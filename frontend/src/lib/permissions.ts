@@ -72,6 +72,20 @@ export const Permission = {
     /** The whole book, not the customer in front of you (§2.1 note 1). */
     ViewAll: "Permission.CustomerAccount.ViewAll",
   },
+  SupplierReturn: {
+    View: "Permission.SupplierReturn.View",
+    Manage: "Permission.SupplierReturn.Manage",
+  },
+  StockCount: {
+    /** Open, scan, count and close. A Storekeeper holds this and nothing else in M6. */
+    Run: "Permission.StockCount.Run",
+    /** Applying the adjustments, which §5.6 keeps away from whoever ran the count. */
+    Confirm: "Permission.StockCount.Confirm",
+  },
+  WriteOff: {
+    /** There is no WriteOff.View — reading the list takes this too. */
+    Manage: "Permission.WriteOff.Manage",
+  },
   Reporting: {
     View: "Permission.Reporting.View",
   },
