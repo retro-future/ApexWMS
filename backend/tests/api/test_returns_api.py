@@ -1,0 +1,350 @@
+"""Supplier returns and write-offs against a real tenant database (PRD §5.5, §5.6).
+
+Everything here goes through HTTP. The two documents share a suite because
+they share a poster, and the thing most worth proving over a real database
+is that they still land in different terminal statuses and different
+financial categories — §5.10 reads them in different columns.
+"""
+
+import pytest
+
+from tests.api.ledger_helpers import PASSWORD
+
+API = "/api/v1"
+
+IMEIS = ["490154203237518", "356938035643809", "352099001761481"]
+
+
+@pytest.fixture
+async def store(client, create_tenant):
+    """A store with three phones and a box of cases in stock."""
+    owner = await create_tenant(password=PASSWORD)
+
+    async def post(path: str, body: dict) -> dict:
+        response = await client.post(f"{API}{path}", headers=owner.auth, json=body)
+        assert response.status_code == 201, response.text
+        return response.json()["data"]
+
+    location = await post("/locations", {"name": "Chilonzor shop"})
+    supplier = await post("/suppliers", {"name": "Tashkent Mobile"})
+    phone = await post(
+        "/products",
+        {
+            "sku": "IP15P-256",
+            "name": "iPhone 15 Pro 256GB",
+            "trackingType": "serial",
+            "currency": "USD",
+            "defaultSalePrice": "900.00",
+        },
+    )
+    case = await post(
+        "/products",
+        {
+            "sku": "CASE-SIL-1",
+            "name": "Silicone case",
+            "trackingType": "quantity",
+            "currency": "UZS",
+            "defaultSalePrice": "50000",
+            "barcode": "4006381333931",
+        },
+    )
+
+    receipt = await post(
+        "/receipts",
+        {
+            "locationId": location["id"],
+            "acquisitionSource": "supplier",
+            "supplierId": supplier["id"],
+            "lines": [
+                {"productId": phone["id"], "quantity": 3},
+                {"productId": case["id"], "quantity": 10, "unitCost": "30000"},
+            ],
+        },
+    )
+    for imei in IMEIS:
+        scanned = await client.post(
+            f"{API}/receipts/{receipt['id']}/scan",
+            headers=owner.auth,
+            json={"imei": imei, "acquisitionCost": "700.00"},
+        )
+        assert scanned.status_code == 200, scanned.text
+    confirmed = await client.post(
+        f"{API}/receipts/{receipt['id']}/confirm", headers=owner.auth, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+
+    return owner, {
+        "location": location["id"],
+        "supplier": supplier["id"],
+        "phone": phone["id"],
+        "case": case["id"],
+    }
+
+
+async def open_return(client, owner, ids, reason: str = "defective") -> dict:
+    response = await client.post(
+        f"{API}/supplier-returns",
+        headers=owner.auth,
+        json={
+            "supplierId": ids["supplier"],
+            "locationId": ids["location"],
+            "reason": reason,
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["data"]
+
+
+async def open_write_off(client, owner, ids, reason: str = "damage") -> dict:
+    response = await client.post(
+        f"{API}/write-offs",
+        headers=owner.auth,
+        json={"locationId": ids["location"], "reason": reason},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["data"]
+
+
+async def unit_by_imei(client, auth, imei: str) -> dict:
+    found = await client.get(f"{API}/scan/lookup", headers=auth, params={"code": imei})
+    assert found.status_code == 200, found.text
+    return found.json()["data"]["device"]
+
+
+class TestSendingGoodsBack:
+    async def test_scan_two_phones_back_and_confirm(self, client, store):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+        assert document["number"].startswith("SR-")
+
+        for imei in IMEIS[:2]:
+            beeped = await client.post(
+                f"{API}/supplier-returns/{document['id']}/scan",
+                headers=owner.auth,
+                json={"code": imei},
+            )
+            assert beeped.status_code == 200, beeped.text
+        assert beeped.json()["data"]["lineCount"] == 2
+
+        confirmed = await client.post(
+            f"{API}/supplier-returns/{document['id']}/confirm",
+            headers=owner.auth,
+            json={},
+        )
+
+        assert confirmed.status_code == 200, confirmed.text
+        assert confirmed.json()["data"]["status"] == "confirmed"
+        for imei in IMEIS[:2]:
+            assert (await unit_by_imei(client, owner.auth, imei))[
+                "status"
+            ] == "returned_to_supplier"
+
+    async def test_a_sold_handset_cannot_also_go_back(self, client, store):
+        """FR-5.2, refused on the scan that named it (§6)."""
+        owner, ids = store
+        invoice = await client.post(
+            f"{API}/invoices", headers=owner.auth, json={"locationId": ids["location"]}
+        )
+        await client.post(
+            f"{API}/invoices/{invoice.json()['data']['id']}/scan",
+            headers=owner.auth,
+            json={"code": IMEIS[0]},
+        )
+        sold = await client.post(
+            f"{API}/invoices/{invoice.json()['data']['id']}/confirm",
+            headers=owner.auth,
+            json={"paymentType": "paid_in_full"},
+        )
+        assert sold.status_code == 200, sold.text
+
+        document = await open_return(client, owner, ids)
+        refused = await client.post(
+            f"{API}/supplier-returns/{document['id']}/scan",
+            headers=owner.auth,
+            json={"code": IMEIS[0]},
+        )
+
+        assert refused.status_code == 409
+        assert "sold" in refused.json()["detail"]
+
+    async def test_a_scan_comes_off_a_draft(self, client, store):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+        await client.post(
+            f"{API}/supplier-returns/{document['id']}/scan",
+            headers=owner.auth,
+            json={"code": IMEIS[0]},
+        )
+
+        removed = await client.delete(
+            f"{API}/supplier-returns/{document['id']}/scan/{IMEIS[0]}",
+            headers=owner.auth,
+        )
+
+        assert removed.status_code == 200, removed.text
+        read = await client.get(
+            f"{API}/supplier-returns/{document['id']}", headers=owner.auth
+        )
+        assert read.json()["data"]["lineCount"] == 0
+
+    async def test_an_empty_return_will_not_confirm(self, client, store):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+
+        refused = await client.post(
+            f"{API}/supplier-returns/{document['id']}/confirm",
+            headers=owner.auth,
+            json={},
+        )
+
+        assert refused.status_code == 422
+
+    async def test_returns_are_filterable_by_reason(self, client, store):
+        """FR-5.1's closed set is what makes this a query rather than a trawl
+        through free-text notes."""
+        owner, ids = store
+        await open_return(client, owner, ids, reason="defective")
+        await open_return(client, owner, ids, reason="unsold")
+
+        listed = await client.get(
+            f"{API}/supplier-returns", headers=owner.auth, params={"reason": "unsold"}
+        )
+
+        assert listed.status_code == 200, listed.text
+        rows = listed.json()["data"]
+        assert len(rows) == 1
+        assert rows[0]["reason"] == "unsold"
+
+
+class TestWritingStockOff:
+    async def test_a_broken_phone_is_written_off(self, client, store):
+        owner, ids = store
+        document = await open_write_off(client, owner, ids, reason="damage")
+        assert document["number"].startswith("WO-")
+
+        await client.post(
+            f"{API}/write-offs/{document['id']}/scan",
+            headers=owner.auth,
+            json={"code": IMEIS[0]},
+        )
+        confirmed = await client.post(
+            f"{API}/write-offs/{document['id']}/confirm", headers=owner.auth, json={}
+        )
+
+        assert confirmed.status_code == 200, confirmed.text
+        assert (await unit_by_imei(client, owner.auth, IMEIS[0]))[
+            "status"
+        ] == "written_off"
+
+    async def test_a_box_of_cases_is_written_off_by_barcode(self, client, store):
+        owner, ids = store
+        document = await open_write_off(client, owner, ids, reason="damage")
+
+        for _ in range(3):
+            beeped = await client.post(
+                f"{API}/write-offs/{document['id']}/scan",
+                headers=owner.auth,
+                json={"code": "4006381333931"},
+            )
+            assert beeped.status_code == 200, beeped.text
+        # Three damaged cases are three items, not one line scanned thrice.
+        assert beeped.json()["data"]["lines"][0]["quantity"] == 3
+
+        confirmed = await client.post(
+            f"{API}/write-offs/{document['id']}/confirm", headers=owner.auth, json={}
+        )
+        assert confirmed.status_code == 200, confirmed.text
+
+    async def test_write_offs_are_filterable_by_reason(self, client, store):
+        """FR-6.5: "what did theft cost us this quarter" is the question."""
+        owner, ids = store
+        await open_write_off(client, owner, ids, reason="damage")
+        await open_write_off(client, owner, ids, reason="theft")
+
+        listed = await client.get(
+            f"{API}/write-offs", headers=owner.auth, params={"reason": "theft"}
+        )
+
+        assert listed.status_code == 200, listed.text
+        assert [row["reason"] for row in listed.json()["data"]] == ["theft"]
+
+    async def test_a_written_off_phone_that_turns_up_comes_back(self, client, store):
+        owner, ids = store
+        document = await open_write_off(client, owner, ids, reason="loss")
+        await client.post(
+            f"{API}/write-offs/{document['id']}/scan",
+            headers=owner.auth,
+            json={"code": IMEIS[0]},
+        )
+        await client.post(
+            f"{API}/write-offs/{document['id']}/confirm", headers=owner.auth, json={}
+        )
+
+        cancelled = await client.post(
+            f"{API}/write-offs/{document['id']}/cancel",
+            headers=owner.auth,
+            json={"reason": "found behind the counter"},
+        )
+
+        assert cancelled.status_code == 200, cancelled.text
+        back = await unit_by_imei(client, owner.auth, IMEIS[0])
+        assert back["status"] == "in_stock"
+        assert back["locationId"] == ids["location"]
+
+
+class TestNeitherIsASellersJob:
+    """§2.1: returning stock and writing it off are Owner/Manager calls."""
+
+    @pytest.fixture
+    async def seller(self, client, store):
+        owner, ids = store
+        invite = await client.post(
+            f"{API}/users/invite",
+            headers=owner.auth,
+            json={"email": "seller@example.com", "role": "tenant.seller"},
+        )
+        assert invite.status_code == 201, invite.text
+        accepted = await client.post(
+            f"{API}/auth/accept-invite",
+            json={"token": invite.json()["data"]["token"], "password": "sellerpass1"},
+        )
+        assert accepted.status_code == 201, accepted.text
+        login = await client.post(
+            f"{API}/auth/login",
+            json={"email": "seller@example.com", "password": "sellerpass1"},
+        )
+        token = login.json()["data"]["accessToken"]
+        return {"Authorization": f"Bearer {token}"}, ids
+
+    async def test_a_seller_cannot_open_a_return(self, client, seller):
+        auth, ids = seller
+
+        refused = await client.post(
+            f"{API}/supplier-returns",
+            headers=auth,
+            json={
+                "supplierId": ids["supplier"],
+                "locationId": ids["location"],
+                "reason": "defective",
+            },
+        )
+
+        assert refused.status_code == 403
+
+    async def test_a_seller_cannot_open_a_write_off(self, client, seller):
+        auth, ids = seller
+
+        refused = await client.post(
+            f"{API}/write-offs",
+            headers=auth,
+            json={"locationId": ids["location"], "reason": "theft"},
+        )
+
+        assert refused.status_code == 403
+
+    async def test_a_seller_cannot_even_read_the_loss_list(self, client, seller):
+        auth, _ = seller
+
+        refused = await client.get(f"{API}/write-offs", headers=auth)
+
+        assert refused.status_code == 403

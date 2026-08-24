@@ -22,8 +22,11 @@ from presentation.routers import (
     reports,
     sales_invoices,
     scan,
+    stock_counts,
+    supplier_returns,
     suppliers,
     users,
+    write_offs,
 )
 from presentation.routers import settings as settings_router
 
@@ -63,5 +66,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sales_invoices.router, prefix=API_PREFIX)
     app.include_router(credit_companies.router, prefix=API_PREFIX)
     app.include_router(payments.router, prefix=API_PREFIX)
+    app.include_router(supplier_returns.router, prefix=API_PREFIX)
+    app.include_router(write_offs.router, prefix=API_PREFIX)
+    app.include_router(stock_counts.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
     return app

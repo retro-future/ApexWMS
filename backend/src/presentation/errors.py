@@ -28,6 +28,8 @@ from application.errors import (
     TenantNotFoundError,
 )
 from domain.errors import (
+    CountAlreadyClosedError,
+    CountNotClosedError,
     DocumentNotConfirmedError,
     DocumentNotDraftError,
     DomainError,
@@ -38,6 +40,7 @@ from domain.errors import (
     OverReceiptError,
     PaymentAlreadyReversedError,
     PriceNotSetError,
+    UnitNotRemovableError,
     UnitNotSellableError,
     WrongLocationError,
 )
@@ -63,9 +66,15 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (OverReceiptError, 409),
     (DuplicateScanError, 409),
     # So is a handset that cannot be sold, and for the same reason: the
-    # goods, not the request, are what changed (§5.4).
+    # goods, not the request, are what changed (§5.4). A handset that cannot
+    # be returned or written off is the same thing seen from §5.5.
     (UnitNotSellableError, 409),
+    (UnitNotRemovableError, 409),
     (WrongLocationError, 409),
+    # And a count whose close has or has not happened yet: the same request
+    # would have succeeded on the other side of it (§5.6).
+    (CountNotClosedError, 409),
+    (CountAlreadyClosedError, 409),
     (InsufficientStockError, 409),
     (PriceNotSetError, 409),
     # And so is a payment the balance has moved out from under: paying
