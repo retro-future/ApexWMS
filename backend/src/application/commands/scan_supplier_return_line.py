@@ -55,7 +55,10 @@ class ScanSupplierReturnLineHandler(
         document.assert_editable()
 
         product, unit = await self._scanner.resolve(
-            request.code, location_id=document.location_id, number=document.number
+            request.code,
+            location_id=document.location_id,
+            number=document.number,
+            supplier_id=document.supplier_id,
         )
 
         if unit is not None:

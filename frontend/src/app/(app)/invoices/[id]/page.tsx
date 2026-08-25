@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, Badge, Button, Card, Group, List, Stack, Table, Text, Title } from "@mantine/core";
-import { IconAlertCircle, IconFileText } from "@tabler/icons-react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
@@ -16,6 +16,7 @@ import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { useCan } from "@/components/MeProvider";
+import { OpenPdfButton } from "@/components/OpenPdfButton";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
@@ -160,16 +161,7 @@ export default function InvoicePage() {
           )}
           {/* A draft holds no prices to print, and the server refuses it. */}
           {!draft && (
-            <Button
-              component="a"
-              href={`/api/backend/invoices/${invoice.id}/pdf`}
-              target="_blank"
-              rel="noreferrer"
-              variant="light"
-              leftSection={<IconFileText size={16} />}
-            >
-              {tDoc("openPdf")}
-            </Button>
+            <OpenPdfButton href={`/api/backend/invoices/${invoice.id}/pdf`} />
           )}
           {invoice.status === "confirmed" && can(Permission.Document.Cancel) && (
             <Button color="red" variant="light" onClick={cancelDoc.open}>

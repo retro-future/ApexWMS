@@ -26,6 +26,7 @@ from application.dtos.price_deviation import PriceDeviation
 from application.dtos.refresh_token_parts import RefreshTokenParts
 from application.dtos.rendered_document import RenderedDocument
 from application.dtos.requested_tenant import RequestedTenant
+from application.dtos.tenant_logo import TenantLogo
 
 __all__ = [
     "AuthTokens",
@@ -44,4 +45,5 @@ __all__ = [
     "RefreshTokenParts",
     "RenderedDocument",
     "RequestedTenant",
+    "TenantLogo",
 ]

@@ -104,6 +104,11 @@ export type InviteResult = {
 
 export type TenantSettings = {
   timezone: string;
+  /** The letterhead a printed document carries (FR-8.1). */
+  businessName: string | null;
+  address: string | null;
+  /** The image itself is served as bytes from /settings/tenant/logo. */
+  hasLogo: boolean;
 };
 
 /* ------------------------------------------------------------------ *

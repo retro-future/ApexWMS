@@ -66,6 +66,7 @@ from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
 from application.commands.scan_stock_count_unit import ScanStockCountUnitHandler
 from application.commands.scan_supplier_return_line import ScanSupplierReturnLineHandler
 from application.commands.scan_write_off_line import ScanWriteOffLineHandler
+from application.commands.set_tenant_logo import SetTenantLogoHandler
 from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
 from application.commands.unscan_stock_count_unit import UnscanStockCountUnitHandler
@@ -92,11 +93,14 @@ from application.queries.get_me import GetMeHandler
 from application.queries.get_product import GetProductHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_purchase_order import GetPurchaseOrderHandler
+from application.queries.get_purchase_order_pdf import GetPurchaseOrderPdfHandler
 from application.queries.get_sales_invoice import GetSalesInvoiceHandler
 from application.queries.get_sales_invoice_pdf import GetSalesInvoicePdfHandler
 from application.queries.get_stock_count import GetStockCountHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_supplier_return import GetSupplierReturnHandler
+from application.queries.get_supplier_return_pdf import GetSupplierReturnPdfHandler
+from application.queries.get_tenant_logo import GetTenantLogoHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.get_write_off import GetWriteOffHandler
 from application.queries.list_credit_companies import ListCreditCompaniesHandler
@@ -214,6 +218,11 @@ class HandlersProvider(Provider):
         CancelStockCountHandler,
         GetStockCountHandler,
         ListStockCountsHandler,
+        # --- M7 documents ---
+        GetPurchaseOrderPdfHandler,
+        GetSupplierReturnPdfHandler,
+        SetTenantLogoHandler,
+        GetTenantLogoHandler,
         # --- reporting ---
         ListPriceDeviationsHandler,
         ListDebtorsHandler,

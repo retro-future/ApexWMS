@@ -12,6 +12,7 @@ actually drives.
 import pytest
 
 from tests.api.ledger_helpers import PASSWORD
+from tests.api.pdf_helpers import PNG_BASE64, pdf_text
 
 API = "/api/v1"
 
@@ -81,6 +82,29 @@ async def scan(client, owner, receipt_id: str, imei: str, **fields):
         headers=owner.auth,
         json={"imei": imei, **fields},
     )
+
+
+async def a_confirmed_order(client, owner, ids) -> dict:
+    """Two phones in USD and ten cases in UZS — a mixed-currency order, so
+    the page has two subtotals to keep apart (§4.5 rule 4)."""
+    raised = await client.post(
+        f"{API}/purchase-orders",
+        headers=owner.auth,
+        json={
+            "supplierId": ids["supplier"],
+            "lines": [
+                {"productId": ids["phone"], "quantity": 2, "unitCost": "700.00"},
+                {"productId": ids["case"], "quantity": 10, "unitCost": "30000"},
+            ],
+        },
+    )
+    assert raised.status_code == 201, raised.text
+    order = raised.json()["data"]
+    confirmed = await client.post(
+        f"{API}/purchase-orders/{order['id']}/confirm", headers=owner.auth, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return order
 
 
 class TestTheDemo:
@@ -548,3 +572,92 @@ class TestPurchaseOrders:
 
         units = await client.get(f"{API}/receipts", headers=owner.auth)
         assert units.json()["totalItems"] == 0
+
+
+class TestTheOrderPrints:
+    async def test_a_confirmed_order_renders_a_pdf(self, client, store):
+        """FR-3.2, FR-8.1, FR-8.4: the order, its supplier and one subtotal
+        per currency."""
+        owner, ids = store
+        await client.put(
+            f"{API}/settings/tenant",
+            headers=owner.auth,
+            json={
+                "timezone": "Asia/Tashkent",
+                "businessName": "Apex Mobile",
+                "address": "12 Amir Temur, Tashkent",
+            },
+        )
+        order = await a_confirmed_order(client, owner, ids)
+
+        printed = await client.get(
+            f"{API}/purchase-orders/{order['id']}/pdf", headers=owner.auth
+        )
+
+        assert printed.status_code == 200, printed.text
+        assert printed.headers["content-type"] == "application/pdf"
+        page = pdf_text(printed.content)
+        assert order["number"] in page
+        assert "Apex Mobile" in page
+        assert "Tashkent Mobile" in page
+        assert "iPhone 15 Pro 256GB" in page
+        assert "$700.00" in page
+        assert "Total (USD)  $1,400.00" in page
+        assert "Total (UZS)  300 000 so'm" in page
+
+    async def test_a_draft_order_may_still_hold_no_cost(self, client, store):
+        """FR-3.1: a line may be raised before the supplier has quoted a
+        price, so there is nothing to print until confirm."""
+        owner, ids = store
+        raised = await client.post(
+            f"{API}/purchase-orders",
+            headers=owner.auth,
+            json={
+                "supplierId": ids["supplier"],
+                "lines": [{"productId": ids["phone"], "quantity": 2}],
+            },
+        )
+
+        printed = await client.get(
+            f"{API}/purchase-orders/{raised.json()['data']['id']}/pdf",
+            headers=owner.auth,
+        )
+
+        assert printed.status_code == 409, printed.text
+
+    async def test_it_regenerates_identically(self, client, store):
+        """FR-8.3."""
+        owner, ids = store
+        order = await a_confirmed_order(client, owner, ids)
+
+        first = await client.get(
+            f"{API}/purchase-orders/{order['id']}/pdf", headers=owner.auth
+        )
+        second = await client.get(
+            f"{API}/purchase-orders/{order['id']}/pdf", headers=owner.auth
+        )
+
+        assert first.content == second.content
+
+    async def test_the_letterhead_logo_reaches_the_page(self, client, store):
+        """FR-8.1's third element, and the only one that is not text."""
+        owner, ids = store
+        await client.put(
+            f"{API}/settings/tenant/logo",
+            headers=owner.auth,
+            json={"content": PNG_BASE64},
+        )
+        order = await a_confirmed_order(client, owner, ids)
+
+        printed = await client.get(
+            f"{API}/purchase-orders/{order['id']}/pdf", headers=owner.auth
+        )
+
+        assert printed.status_code == 200, printed.text
+        assert b"/Subtype /Image" in printed.content
+        # Still reproducible with an image on it — an embedded XObject is
+        # another place a wall clock could have crept in.
+        again = await client.get(
+            f"{API}/purchase-orders/{order['id']}/pdf", headers=owner.auth
+        )
+        assert printed.content == again.content

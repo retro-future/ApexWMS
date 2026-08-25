@@ -128,6 +128,7 @@ from application.services import (
     SlugNormalizer,
     TimezoneValidator,
     TokenIssuer,
+    UnitOriginGuard,
 )
 from domain.entities import Employee, Tenant, User, UserTenantAccess
 from domain.enums import TenantRole, TenantStatus
@@ -768,13 +769,23 @@ class World:
 
     # --- M6 returns, counts & write-offs ---
 
+    def unit_origin_guard(self) -> UnitOriginGuard:
+        return UnitOriginGuard(self.receipts)
+
     def removal_poster(self, actor: UUID | None = None) -> RemovalPoster:
         return RemovalPoster(
-            self.units, self.products, self.levels, self.cost_pools(), self.poster(actor)
+            self.units,
+            self.products,
+            self.levels,
+            self.cost_pools(),
+            self.poster(actor),
+            self.unit_origin_guard(),
         )
 
     def removal_scanner(self) -> RemovalScanner:
-        return RemovalScanner(self.device_unit_loader(), self.products)
+        return RemovalScanner(
+            self.device_unit_loader(), self.products, self.unit_origin_guard()
+        )
 
     def count_poster(self, actor: UUID | None = None) -> CountPoster:
         return CountPoster(

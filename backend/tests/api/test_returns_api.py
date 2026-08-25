@@ -9,6 +9,7 @@ financial categories — §5.10 reads them in different columns.
 import pytest
 
 from tests.api.ledger_helpers import PASSWORD
+from tests.api.pdf_helpers import pdf_text
 
 API = "/api/v1"
 
@@ -105,6 +106,22 @@ async def open_write_off(client, owner, ids, reason: str = "damage") -> dict:
     return response.json()["data"]
 
 
+async def a_confirmed_return(client, owner, ids) -> dict:
+    document = await open_return(client, owner, ids)
+    for imei in IMEIS[:2]:
+        beeped = await client.post(
+            f"{API}/supplier-returns/{document['id']}/scan",
+            headers=owner.auth,
+            json={"code": imei},
+        )
+        assert beeped.status_code == 200, beeped.text
+    confirmed = await client.post(
+        f"{API}/supplier-returns/{document['id']}/confirm", headers=owner.auth, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return document
+
+
 async def unit_by_imei(client, auth, imei: str) -> dict:
     found = await client.get(f"{API}/scan/lookup", headers=auth, params={"code": imei})
     assert found.status_code == 200, found.text
@@ -166,6 +183,26 @@ class TestSendingGoodsBack:
 
         assert refused.status_code == 409
         assert "sold" in refused.json()["detail"]
+
+    async def test_a_phone_from_another_supplier_is_refused(self, client, store):
+        """FR-5.2b, over a real receipt: origin is the receipt that stocked it."""
+        owner, ids = store
+        other = await client.post(
+            f"{API}/suppliers", headers=owner.auth, json={"name": "Samarkand Mobile"}
+        )
+        assert other.status_code == 201, other.text
+        document = await open_return(
+            client, owner, {**ids, "supplier": other.json()["data"]["id"]}
+        )
+
+        refused = await client.post(
+            f"{API}/supplier-returns/{document['id']}/scan",
+            headers=owner.auth,
+            json={"code": IMEIS[0]},
+        )
+
+        assert refused.status_code == 409, refused.text
+        assert "another supplier" in refused.json()["detail"]
 
     async def test_a_scan_comes_off_a_draft(self, client, store):
         owner, ids = store
@@ -290,6 +327,79 @@ class TestWritingStockOff:
         back = await unit_by_imei(client, owner.auth, IMEIS[0])
         assert back["status"] == "in_stock"
         assert back["locationId"] == ids["location"]
+
+
+class TestTheReturnNotePrints:
+    async def test_a_confirmed_return_renders_a_pdf(self, client, store):
+        """FR-5.3, FR-8.1, FR-8.2: the goods going back, named by IMEI."""
+        owner, ids = store
+        await client.put(
+            f"{API}/settings/tenant",
+            headers=owner.auth,
+            json={
+                "timezone": "Asia/Tashkent",
+                "businessName": "Apex Mobile",
+                "address": "12 Amir Temur, Tashkent",
+            },
+        )
+        document = await a_confirmed_return(client, owner, ids)
+
+        printed = await client.get(
+            f"{API}/supplier-returns/{document['id']}/pdf", headers=owner.auth
+        )
+
+        assert printed.status_code == 200, printed.text
+        assert printed.headers["content-type"] == "application/pdf"
+        page = pdf_text(printed.content)
+        assert document["number"] in page
+        assert "Apex Mobile" in page
+        assert "Tashkent Mobile" in page
+        assert "Chilonzor shop" in page
+        assert "defective" in page
+        assert IMEIS[0] in page
+        assert IMEIS[1] in page
+
+    async def test_the_note_carries_no_money(self, client, store):
+        """The credited value is a ledger row, not a figure on this page.
+
+        A return note quoting its own number would be a second opinion
+        about what the financial ledger already holds.
+        """
+        owner, ids = store
+        document = await a_confirmed_return(client, owner, ids)
+
+        printed = await client.get(
+            f"{API}/supplier-returns/{document['id']}/pdf", headers=owner.auth
+        )
+
+        page = pdf_text(printed.content)
+        assert "700" not in page
+        assert "$" not in page
+        assert "Total" not in page
+
+    async def test_a_draft_return_has_sent_nothing_back(self, client, store):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+
+        printed = await client.get(
+            f"{API}/supplier-returns/{document['id']}/pdf", headers=owner.auth
+        )
+
+        assert printed.status_code == 409, printed.text
+
+    async def test_it_regenerates_identically(self, client, store):
+        """FR-8.3."""
+        owner, ids = store
+        document = await a_confirmed_return(client, owner, ids)
+
+        first = await client.get(
+            f"{API}/supplier-returns/{document['id']}/pdf", headers=owner.auth
+        )
+        second = await client.get(
+            f"{API}/supplier-returns/{document['id']}/pdf", headers=owner.auth
+        )
+
+        assert first.content == second.content
 
 
 class TestNeitherIsASellersJob:

@@ -1,11 +1,10 @@
 """Resolving one beep onto a Supplier Return or a Write-Off (PRD §6, FR-5.2).
 
-Both documents take goods off the shelf, so both scans ask exactly the same
+Both documents take goods off the shelf, so both scans ask the same
 questions of a scanned string: is this an IMEI or a barcode, does the store
-hold the thing it names, and is it here rather than at another location.
-Only what each builds afterwards differs — a ``SupplierReturnLine`` or a
-``WriteOffLine`` — so the questions live here and the two handlers keep
-just their own line.
+hold the thing it names, and is it here rather than at another location. A
+return asks one more — did this handset come from the supplier it is going
+back to (FR-5.2b) — which a write-off cannot ask, having no supplier.
 
 The refusals happen **on the scan that caused them**, while the operator is
 still holding the phone (§6): a handset already sold cannot also be sent
@@ -22,6 +21,7 @@ from uuid import UUID
 from application.errors import NotFoundError
 from application.ports import ProductRepository
 from application.services.device_unit_loader import DeviceUnitLoader
+from application.services.unit_origin import UnitOriginGuard
 from domain.entities import DeviceUnit, Product
 from domain.enums import DeviceStatus, TrackingType
 from domain.errors import InvalidIMEIError, UnitNotRemovableError, WrongLocationError
@@ -29,22 +29,35 @@ from domain.value_objects import IMEI
 
 
 class RemovalScanner:
-    def __init__(self, units: DeviceUnitLoader, products: ProductRepository) -> None:
+    def __init__(
+        self,
+        units: DeviceUnitLoader,
+        products: ProductRepository,
+        origin: UnitOriginGuard,
+    ) -> None:
         self._units = units
         self._products = products
+        self._origin = origin
 
     async def resolve(
-        self, code: str, *, location_id: UUID, number: str
+        self, code: str, *, location_id: UUID, number: str, supplier_id: UUID | None
     ) -> tuple[Product, DeviceUnit | None]:
         """What this scanned string names, once it is known to be movable.
 
         Returns the catalog row and, for a serialized scan, the handset —
         ``None`` for an accessory, which has no per-unit identity (§4.1).
+
+        ``supplier_id`` is ``None`` for a write-off, which sends goods
+        nowhere and so has no origin to match (FR-5.2b).
         """
         found = await self._as_device(code)
         if found is not None:
             unit, product = found
             self._assert_removable(unit, location_id=location_id, number=number)
+            if supplier_id is not None:
+                await self._origin.assert_from_supplier(
+                    unit, supplier_id=supplier_id, number=number
+                )
             return product, unit
 
         product = await self._as_product(code)

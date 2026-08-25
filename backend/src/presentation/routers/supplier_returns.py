@@ -13,7 +13,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from application.commands.cancel_supplier_return import (
     CancelSupplierReturnCommand,
@@ -43,6 +43,10 @@ from application.models import SupplierReturnData
 from application.queries.get_supplier_return import (
     GetSupplierReturnHandler,
     GetSupplierReturnQuery,
+)
+from application.queries.get_supplier_return_pdf import (
+    GetSupplierReturnPdfHandler,
+    GetSupplierReturnPdfQuery,
 )
 from application.queries.list_supplier_returns import (
     ListSupplierReturnsHandler,
@@ -89,6 +93,30 @@ async def get_supplier_return(
     require(current, Permission.SUPPLIER_RETURN_VIEW)
     return await handler.handle(
         GetSupplierReturnQuery(supplier_return_id=supplier_return_id)
+    )
+
+
+@router.get("/{supplier_return_id}/pdf", response_class=Response)
+async def get_supplier_return_pdf(
+    supplier_return_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetSupplierReturnPdfHandler],
+) -> Response:
+    """FR-5.3, FR-8.1: the note that travels with the goods.
+
+    No cost gate, unlike the order's: there is no money on this page (see
+    ``infrastructure/documents/supplier_return_pdf.py``).
+    """
+    require(current, Permission.SUPPLIER_RETURN_VIEW)
+    result = await handler.handle(
+        GetSupplierReturnPdfQuery(supplier_return_id=supplier_return_id)
+    )
+    assert result.data is not None
+    rendered = result.data
+    return Response(
+        content=rendered.content,
+        media_type=rendered.content_type,
+        headers={"Content-Disposition": f'inline; filename="{rendered.filename}"'},
     )
 
 

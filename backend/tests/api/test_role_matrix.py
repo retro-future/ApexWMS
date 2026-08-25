@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+from tests.api.pdf_helpers import PNG_BASE64
+
 ROLES = ["tenant.manager", "tenant.storekeeper", "tenant.seller"]
 
 
@@ -132,6 +134,26 @@ async def test_the_owner_can_write_tenant_settings(client, tenant_with_roles):
     )
     assert resp.status_code == 200
     assert resp.json()["data"]["timezone"] == "Europe/Berlin"
+
+
+@pytest.mark.parametrize("role", ROLES)
+async def test_only_the_owner_can_set_the_letterhead_logo(
+    client, tenant_with_roles, role
+):
+    """FR-8.1: the logo is a tenant setting, and those are the Owner's."""
+    _, tokens, _ = tenant_with_roles
+
+    denied = await client.put(
+        "/api/v1/settings/tenant/logo",
+        headers=tokens[role],
+        json={"content": PNG_BASE64},
+    )
+    assert denied.status_code == 403
+
+    unchanged = await client.get(
+        "/api/v1/settings/tenant", headers=tokens["tenant.owner"]
+    )
+    assert unchanged.json()["data"]["hasLogo"] is False
 
 
 # --- M2 catalog (PRD §2.1: "Manage locations", "Manage catalog") ----------
@@ -410,6 +432,50 @@ async def test_a_storekeeper_cannot_even_read_purchase_orders(
 
     assert (
         await client.get("/api/v1/purchase-orders", headers=tokens[role])
+    ).status_code == 403
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_neither_can_print_an_order_full_of_costs(
+    client, tenant_with_roles, open_receipt, role
+):
+    """FR-1.7: the order's page is a list of unit costs."""
+    owner, tokens, _ = tenant_with_roles
+    _, supplier_id, product_id = open_receipt
+
+    raised = await client.post(
+        "/api/v1/purchase-orders",
+        headers=owner.auth,
+        json={
+            "supplierId": supplier_id,
+            "lines": [{"productId": product_id, "quantity": 1, "unitCost": "700.00"}],
+        },
+    )
+    order = raised.json()["data"]
+    await client.post(
+        f"/api/v1/purchase-orders/{order['id']}/confirm", headers=owner.auth, json={}
+    )
+
+    assert (
+        await client.get(
+            f"/api/v1/purchase-orders/{order['id']}/pdf", headers=tokens[role]
+        )
+    ).status_code == 403
+    assert (
+        await client.get(
+            f"/api/v1/purchase-orders/{order['id']}/pdf", headers=owner.auth
+        )
+    ).status_code == 200
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_neither_can_print_a_supplier_return(client, tenant_with_roles, role):
+    _, tokens, _ = tenant_with_roles
+
+    assert (
+        await client.get(
+            f"/api/v1/supplier-returns/{uuid4()}/pdf", headers=tokens[role]
+        )
     ).status_code == 403
 
 

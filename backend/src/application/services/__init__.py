@@ -38,6 +38,7 @@ from application.services.sale_price import SalePriceParser
 from application.services.slugs import SlugNormalizer
 from application.services.timezones import TimezoneValidator
 from application.services.token_issuer import TokenIssuer
+from application.services.unit_origin import UnitOriginGuard
 from application.services.verification import (
     BalanceVerifier,
     LedgerReconciler,
@@ -67,4 +68,5 @@ __all__ = [
     "SlugNormalizer",
     "TimezoneValidator",
     "TokenIssuer",
+    "UnitOriginGuard",
 ]

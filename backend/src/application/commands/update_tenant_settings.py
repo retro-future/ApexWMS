@@ -30,12 +30,15 @@ class UpdateTenantSettingsHandler(
         self, request: UpdateTenantSettingsCommand
     ) -> ResultWithData[TenantSettingsData]:
         self._timezones.validate(request.timezone)
-        letterhead = Letterhead(
-            business_name=request.business_name, address=request.address
-        )
         await self._settings.set_timezone(request.timezone)
-        await self._settings.set_letterhead(letterhead)
+        await self._settings.set_letterhead(
+            Letterhead(business_name=request.business_name, address=request.address)
+        )
         await self._uow.commit()
+        # Read back rather than map what was just written: the logo is not
+        # part of this command, and the response has to report whether one
+        # is there.
+        stored = await self._settings.get_letterhead()
         return ResultWithData[TenantSettingsData].succeed_with_data(
-            TenantSettingsData.from_entity(request.timezone, letterhead)
+            TenantSettingsData.from_entity(request.timezone, stored)
         )

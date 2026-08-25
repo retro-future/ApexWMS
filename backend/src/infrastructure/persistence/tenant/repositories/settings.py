@@ -6,7 +6,7 @@ rather than ``TenantCrudRepository``, which is what that base is for.
 
 from sqlalchemy import select
 
-from application.dtos import Letterhead
+from application.dtos import Letterhead, TenantLogo
 from infrastructure.persistence.tenant.models import TenantSettingsModel
 
 from .base import TenantRepository
@@ -40,7 +40,12 @@ class SqlTenantSettingsRepository(TenantRepository):
         row = await self._row(TenantSettingsModel, SETTINGS_ROW_ID)
         if row is None:
             raise LookupError(_ROW_MISSING)
-        return Letterhead(business_name=row.business_name, address=row.address)
+        logo = None
+        if row.logo is not None and row.logo_content_type is not None:
+            logo = TenantLogo(content=row.logo, content_type=row.logo_content_type)
+        return Letterhead(
+            business_name=row.business_name, address=row.address, logo=logo
+        )
 
     async def set_letterhead(self, letterhead: Letterhead) -> None:
         row = await self._row(TenantSettingsModel, SETTINGS_ROW_ID)
@@ -48,3 +53,10 @@ class SqlTenantSettingsRepository(TenantRepository):
             raise LookupError(_ROW_MISSING)
         row.business_name = letterhead.business_name
         row.address = letterhead.address
+
+    async def set_logo(self, logo: TenantLogo | None) -> None:
+        row = await self._row(TenantSettingsModel, SETTINGS_ROW_ID)
+        if row is None:
+            raise LookupError(_ROW_MISSING)
+        row.logo = None if logo is None else logo.content
+        row.logo_content_type = None if logo is None else logo.content_type

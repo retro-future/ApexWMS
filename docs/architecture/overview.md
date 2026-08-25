@@ -73,6 +73,7 @@ Layering and multi-tenancy invariants are enforced by tests, not just convention
 | PyJWT                   | Access/refresh token issuance                  |
 | argon2-cffi              | Password hashing                             |
 | PostgreSQL 16            | Database (one MasterDB + one DB per tenant)  |
+| fpdf2                    | Document PDFs (PRD §11 records why, not WeasyPrint) |
 | pytest + pytest-asyncio  | Test suite (`asyncio_mode = "auto"`)         |
 | testcontainers           | Postgres-backed integration tests            |
 | ruff                     | Lint (does not type-check)                   |
@@ -94,7 +95,7 @@ Every collaborator a handler needs (`UserRepository`, `UnitOfWork`, `Clock`, ...
 
 ### Document lifecycle
 
-`PurchaseOrder`, `GoodsReceipt`, and future document types share one `DRAFT → CONFIRMED → CANCELLED` lifecycle from a common `Document` base; each subclass states its own confirm invariants. See [documents.md](documents.md).
+All six document types share one `DRAFT → CONFIRMED → CANCELLED` lifecycle from a common `Document` base; each subclass states its own confirm invariants, and three of them render to a PDF. See [documents.md](documents.md).
 
 ## Next steps
 
@@ -103,5 +104,5 @@ Every collaborator a handler needs (`UserRepository`, `UnitOfWork`, `Clock`, ...
 - [tenant-resolution.md](tenant-resolution.md) — request-time tenant resolution
 - [value-objects.md](value-objects.md) — `Money`, `IMEI`, `CostPool`
 - [ledgers.md](ledgers.md) — the two ledgers, repository bases, verification
-- [documents.md](documents.md) — document lifecycle (M4)
+- [documents.md](documents.md) — document lifecycle, and the three that print
 - [milestones.md](milestones.md) — delivery status (PRD §10)

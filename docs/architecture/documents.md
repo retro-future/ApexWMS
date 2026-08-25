@@ -152,6 +152,18 @@ replayed cost pool — and computing it needs repository reads, which a
 `from_entity` must not do. Storing it on the line instead would be a
 second opinion about a figure the financial ledger already holds.
 
+FR-5.2b's origin check is `UnitOriginGuard`
+(`application/services/unit_origin.py`) rather than a rule on
+`SupplierReturn.confirm()`, for the reason `SalesInvoice.confirm()` is thin:
+the answer lives in a second row — `device_units.source_document_id` read
+back through `GoodsReceiptRepository.supplier_of` — and an aggregate does no
+I/O. Both `RemovalScanner` and `RemovalPoster` take the supplier as an
+explicit `UUID | None` parameter and skip the check when it is `None`, which
+is how one scanner and one poster keep serving the write-off too. At the
+poster it is not a race like the status and location re-checks, since a
+unit's origin never changes; it is what catches a draft opened before the
+rule existed.
+
 `RemovalLine.imei` is carried by the repository's join, the way `currency`
 and `tracking_type` already are, and the join onto `device_units` is outer
 because a quantity line names no handset. It is on the line rather than left
@@ -218,12 +230,56 @@ at zero. `verify-financials` sums on-hand `acquisition_cost` to recompute
 inventory value, so a zero would either drift or dilute every later
 weighted average.
 
-`GET /invoices/{id}/pdf` renders on demand and stores nothing
-(`infrastructure/documents/invoice_pdf.py`). A confirmed document is
-immutable and its lines carry their own snapshots, so the file is
-byte-stable; a stored blob would be a cache of something that cannot
-change. A `DRAFT` is refused with `DocumentNotConfirmedError`, and a
-`CANCELLED` invoice still prints, marked as such. The renderer reaches no
-repository — the caller passes in what each line reads as — and
-`APEXWMS_PDF_FONT_PATH` swaps fpdf2's Latin-1 core font for a Unicode face
-where a store needs Cyrillic.
+## Three of them print
+
+`GET /{id}/pdf` on an invoice, a purchase order and a supplier return
+renders on demand and stores nothing. A confirmed document is immutable and
+its lines carry their own snapshots, so a stored blob would be a cache of
+something that cannot change. Each is refused while `DRAFT` with
+`DocumentNotConfirmedError`, and each still prints once `CANCELLED`, marked
+as such by `DocumentPage.cancellation`.
+
+**Byte-stability is a property of the renderer, not of the document.** fpdf2
+writes the wall clock into the PDF's `/CreationDate`, which alone is enough
+to make two renders of the same invoice differ (PRD FR-8.3);
+`DocumentPage.start` pins it to `confirmed_at` instead.
+`test_sales_api.py::TestTheInvoicePrints` asserts the stamped date against
+the value the API reports, because two renders one after another would
+match even with the bug.
+
+`DocumentPage` (`infrastructure/documents/page.py`) holds everything that
+does not vary by document — the letterhead, the heading, the line table, the
+per-currency footer, the cancellation mark — and each renderer composes it
+rather than inheriting it, so `PdfSupplierReturnRenderer` says it has no
+subtotal block by not calling for one. `DocumentPageFactory` is the
+APP-scope half: resolving `APEXWMS_PDF_FONT_PATH` (which swaps fpdf2's
+Latin-1 core font for a Unicode face where a store needs Cyrillic) touches
+the filesystem once, while the mutable `FPDF` behind a page cannot be
+shared.
+
+No renderer reaches a repository. What a line reads as, and the supplier and
+location names in a header, are looked up by the query handler and passed
+in — see `application/ports/documents.py`.
+
+**The order's page is the one that carries costs**, so its route requires
+`Permission.COST_VIEW` alongside `PURCHASE_ORDER_VIEW`. Both are Manager
+grants today, which makes the second check a no-op; it is there so the page
+states its own sensitivity rather than resting on the grant table. The
+return note requires no such gate because it carries no money at all, for
+the reason `application/models/supplier_return.py` gives.
+
+The letterhead logo lives in `tenant_settings` as bytes rather than in a
+file store, set through `PUT /settings/tenant/logo` as base64 and validated
+by sniffing the magic bytes — the stated content type is whatever the client
+typed. `set_letterhead` deliberately writes only the text columns, so a
+settings write carrying no image cannot drop one.
+
+**Base64 rather than multipart is a constraint of the proxy, not a
+preference.** `frontend/src/app/api/backend/[...path]/route.ts` reads the
+request body with `request.text()` so it can replay it after a token
+refresh, which would corrupt real binary; the response direction reads
+`arrayBuffer()` and forwards `Content-Type` and `Content-Disposition`, which
+is what lets `OpenPdfButton` be a plain anchor rather than a fetch — the
+proxy is same-origin and the session is an httpOnly cookie, so a top-level
+navigation carries it and the browser renders the PDF itself.
+`proxy.test.ts` holds both halves.

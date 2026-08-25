@@ -20,6 +20,7 @@ import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { useCan } from "@/components/MeProvider";
+import { OpenPdfButton } from "@/components/OpenPdfButton";
 import { ReasonModal } from "@/components/ReasonModal";
 import { RemovalLinesTable } from "@/components/RemovalLinesTable";
 import { RemovalScanConsole } from "@/components/scan/RemovalScanConsole";
@@ -143,6 +144,13 @@ export default function SupplierReturnPage() {
             <Button disabled={!ready} onClick={() => setConfirming(true)}>
               {tDoc("confirmAction")}
             </Button>
+          )}
+          {/* Nothing has left the shelf while it is a draft, and the server
+              refuses it. No cost gate: this note carries no money. */}
+          {!draft && (
+            <OpenPdfButton
+              href={`/api/backend/supplier-returns/${supplierReturn.id}/pdf`}
+            />
           )}
           {supplierReturn.status === "confirmed" &&
             can(Permission.Document.Cancel) && (

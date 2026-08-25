@@ -34,6 +34,51 @@ async def _execute(settings, tenant_id: str, statement: str) -> None:
         await engine.dispose()
 
 
+async def _delivered_phone(client, owner) -> tuple[str, str]:
+    """One phone in stock through a confirmed supplier receipt.
+
+    Returns ``(supplier_id, location_id)``.
+    """
+
+    async def post(path: str, body: dict) -> dict:
+        response = await client.post(f"/api/v1{path}", headers=owner.auth, json=body)
+        assert response.status_code == 201, response.text
+        return response.json()["data"]
+
+    location = await post("/locations", {"name": "Chilonzor shop"})
+    supplier = await post("/suppliers", {"name": "Tashkent Mobile"})
+    product = await post(
+        "/products",
+        {
+            "sku": f"IP15P-{uuid4().hex[:6]}",
+            "name": "iPhone 15 Pro",
+            "trackingType": "serial",
+            "currency": "USD",
+            "defaultSalePrice": "900.00",
+        },
+    )
+    receipt = await post(
+        "/receipts",
+        {
+            "locationId": location["id"],
+            "acquisitionSource": "supplier",
+            "supplierId": supplier["id"],
+            "lines": [{"productId": product["id"], "quantity": 1}],
+        },
+    )
+    scanned = await client.post(
+        f"/api/v1/receipts/{receipt['id']}/scan",
+        headers=owner.auth,
+        json={"imei": PHONE_IMEI, "acquisitionCost": "380.00"},
+    )
+    assert scanned.status_code == 200, scanned.text
+    confirmed = await client.post(
+        f"/api/v1/receipts/{receipt['id']}/confirm", headers=owner.auth, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return supplier["id"], location["id"]
+
+
 async def _sold_on_credit(client, settings, owner) -> str:
     """A $600 phone on store credit for 7 800 000 so'm, 800 000 down."""
     from tests.api.test_credit_api import a_customer, a_scanned_invoice, confirm
@@ -344,27 +389,26 @@ class TestM6DocumentsReconcile:
         assert await _verify(settings, "verify-financials", None) == 0
 
     async def test_a_returned_handset_reconciles(self, client, settings, owner):
-        location_id = str((await receive_phone(client, settings, owner))[2])
-        supplier = await client.post(
-            "/api/v1/suppliers", headers=owner.auth, json={"name": "Tashkent Mobile"}
-        )
-        assert supplier.status_code == 201, supplier.text
+        # Through the real M4 receipt rather than ``receive_phone``: FR-5.2b
+        # reads the receipt back to prove the handset came from this supplier.
+        supplier_id, location_id = await _delivered_phone(client, owner)
         document = await client.post(
             "/api/v1/supplier-returns",
             headers=owner.auth,
             json={
-                "supplierId": supplier.json()["data"]["id"],
+                "supplierId": supplier_id,
                 "locationId": location_id,
                 "reason": "defective",
             },
         )
         assert document.status_code == 201, document.text
         document_id = document.json()["data"]["id"]
-        await client.post(
+        scanned = await client.post(
             f"/api/v1/supplier-returns/{document_id}/scan",
             headers=owner.auth,
             json={"code": PHONE_IMEI},
         )
+        assert scanned.status_code == 200, scanned.text
         confirmed = await client.post(
             f"/api/v1/supplier-returns/{document_id}/confirm", headers=owner.auth, json={}
         )

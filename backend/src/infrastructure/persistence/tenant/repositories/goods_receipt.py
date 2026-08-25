@@ -164,6 +164,12 @@ class SqlGoodsReceiptRepository(TenantRepository):
             received[product_id] = received.get(product_id, 0) + quantity
         return received
 
+    async def supplier_of(self, receipt_id: UUID) -> UUID | None:
+        stmt = select(GoodsReceiptModel.supplier_id).where(
+            GoodsReceiptModel.id == receipt_id
+        )
+        return await self._session.scalar(stmt)
+
     async def _lines_for(
         self, receipt_ids: list[UUID]
     ) -> defaultdict[UUID, list[GoodsReceiptLine]]:

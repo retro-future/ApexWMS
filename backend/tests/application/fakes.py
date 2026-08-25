@@ -9,6 +9,7 @@ for MasterDB, ``FakeEmployeeRepository`` for one store's database, and
 import hashlib
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -18,6 +19,7 @@ from application.dtos import (
     Letterhead,
     OwnerSeed,
     RefreshTokenParts,
+    TenantLogo,
 )
 from application.errors import ProvisioningFailedError, TenantNotActiveError
 from domain.core import Entity
@@ -647,7 +649,16 @@ class FakeTenantSettingsRepository:
         return self.letterhead
 
     async def set_letterhead(self, letterhead: Letterhead) -> None:
-        self.letterhead = letterhead
+        # Text only, mirroring the real repository: the logo has its own
+        # setter so a settings write cannot drop one.
+        self.letterhead = replace(
+            self.letterhead,
+            business_name=letterhead.business_name,
+            address=letterhead.address,
+        )
+
+    async def set_logo(self, logo: TenantLogo | None) -> None:
+        self.letterhead = replace(self.letterhead, logo=logo)
 
 
 class FakeUnitOfWork:
@@ -815,6 +826,10 @@ class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
             for product_id, quantity in receipt.received_quantities().items():
                 received[product_id] = received.get(product_id, 0) + quantity
         return received
+
+    async def supplier_of(self, receipt_id: UUID) -> UUID | None:
+        receipt = self.by_id.get(receipt_id)
+        return None if receipt is None else receipt.supplier_id
 
 
 class FakeSupplierReturnRepository(FakeRepository[SupplierReturn]):

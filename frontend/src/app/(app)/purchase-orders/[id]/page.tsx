@@ -12,6 +12,7 @@ import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
+import { OpenPdfButton } from "@/components/OpenPdfButton";
 import { ReasonModal } from "@/components/ReasonModal";
 import { Subtotals } from "@/components/Subtotals";
 import { TableScrollArea } from "@/components/TableScrollArea";
@@ -122,6 +123,11 @@ export default function PurchaseOrderPage() {
             <Button onClick={() => setConfirming(true)}>
               {tDoc("confirmAction")}
             </Button>
+          )}
+          {/* A draft's lines may still hold no cost, and the server refuses
+              it. Cost.View because this page is a list of unit costs. */}
+          {!draft && can(Permission.Cost.View) && (
+            <OpenPdfButton href={`/api/backend/purchase-orders/${order.id}/pdf`} />
           )}
           {order.status === "confirmed" && can(Permission.Document.Cancel) && (
             <Button color="red" variant="light" onClick={cancelDoc.open}>

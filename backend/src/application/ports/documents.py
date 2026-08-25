@@ -1,15 +1,25 @@
 """Rendering a document to a file the store can hand over (PRD §5.8).
 
-A port rather than a direct call so ``application`` never learns what a PDF
+Ports rather than direct calls so ``application`` never learns what a PDF
 library is: the handler asks for bytes, and whether those came from fpdf2,
 a template engine or a print service is ``infrastructure``'s business.
+
+One Protocol per document type rather than one generic renderer, because
+what each page needs genuinely differs — an order names its supplier, a
+return names its supplier and the shelf the goods left, and an invoice
+needs neither.
+
+Every ``render`` takes *descriptions*, mapping a line id to the text to
+print for it. Passed in rather than looked up: a renderer that could reach
+a repository would be doing a handler's job, and what a line reads as (a
+model name, an IMEI beneath it) is a choice the caller has already made.
 """
 
 from typing import Protocol
 from uuid import UUID
 
 from application.dtos import Letterhead
-from domain.entities import SalesInvoice
+from domain.entities import PurchaseOrder, SalesInvoice, SupplierReturn
 
 
 class InvoiceRenderer(Protocol):
@@ -17,12 +27,29 @@ class InvoiceRenderer(Protocol):
 
     def render(
         self, invoice: SalesInvoice, letterhead: Letterhead, descriptions: dict[UUID, str]
-    ) -> bytes:
-        """*descriptions* maps a line id to the text to print for it.
+    ) -> bytes: ...
 
-        Passed in rather than looked up here: a renderer that could reach a
-        repository would be doing a handler's job, and what a line reads as
-        (a model name, an IMEI beneath it) is a choice the caller has
-        already made.
-        """
-        ...
+
+class PurchaseOrderRenderer(Protocol):
+    """FR-3.2: the order as the supplier sees it."""
+
+    def render(
+        self,
+        order: PurchaseOrder,
+        letterhead: Letterhead,
+        supplier: str | None,
+        descriptions: dict[UUID, str],
+    ) -> bytes: ...
+
+
+class SupplierReturnRenderer(Protocol):
+    """FR-5.3: the note that travels with the goods."""
+
+    def render(
+        self,
+        document: SupplierReturn,
+        letterhead: Letterhead,
+        supplier: str | None,
+        location: str | None,
+        descriptions: dict[UUID, str],
+    ) -> bytes: ...

@@ -19,7 +19,9 @@ Per line, in this order and for a reason:
    be ``IN_STOCK`` at the document's location (FR-5.2) — the scan checked
    it, but a draft reserves nothing and the phone can be sold from under it.
    An accessory line is checked against the level, whole: half a confirmed
-   write-off is a document the ledgers could not describe.
+   write-off is a document the ledgers could not describe. A return also
+   re-proves each handset's origin (FR-5.2b), which is not a race but a
+   guard against a draft opened before that rule existed.
 2. The line is valued at what the goods are carried at (§4.6): a phone's
    own ``acquisition_cost``, an accessory's share of the weighted-average
    pool replayed from the ledger.
@@ -30,11 +32,14 @@ sold on the tenth line rolls back the nine before it.
 """
 
 
+from uuid import UUID
+
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import NotFoundError
 from application.ports import DeviceUnitRepository, ProductRepository, StockLevelRepository
 from application.services.cost_pools import CostPoolReader
 from application.services.ledger import LedgerPoster
+from application.services.unit_origin import UnitOriginGuard
 from domain.entities import RemovalLine, SupplierReturn, WriteOff
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
 from domain.errors import InsufficientStockError, UnitNotRemovableError, WrongLocationError
@@ -49,21 +54,25 @@ class RemovalPoster:
         levels: StockLevelRepository,
         pools: CostPoolReader,
         poster: LedgerPoster,
+        origin: UnitOriginGuard,
     ) -> None:
         self._units = units
         self._products = products
         self._levels = levels
         self._pools = pools
         self._poster = poster
+        self._origin = origin
 
     async def send_back(self, document: SupplierReturn) -> None:
         """FR-5.3: goods go back to the supplier and the store is credited."""
+        assert document.supplier_id is not None  # SupplierReturn.confirm() said so.
         await self._post(
             document_type=DocumentType.SUPPLIER_RETURN,
             document=document,
             movement_type=MovementType.SUPPLIER_RETURN,
             new_status=DeviceStatus.RETURNED_TO_SUPPLIER,
             txn_type=TransactionType.SUPPLIER_RETURN_CREDIT,
+            supplier_id=document.supplier_id,
         )
 
     async def write_off(self, document: WriteOff) -> None:
@@ -74,6 +83,8 @@ class RemovalPoster:
             movement_type=MovementType.WRITE_OFF,
             new_status=DeviceStatus.WRITTEN_OFF,
             txn_type=TransactionType.WRITE_OFF_LOSS,
+            # Goods go nowhere, so nothing has an origin to match (FR-5.2b).
+            supplier_id=None,
         )
 
     async def _post(
@@ -84,10 +95,11 @@ class RemovalPoster:
         movement_type: MovementType,
         new_status: DeviceStatus,
         txn_type: TransactionType,
+        supplier_id: UUID | None,
     ) -> None:
         entries: list[PostingEntry] = []
         for line in document.lines:
-            value = await self._book_value(document, line)
+            value = await self._book_value(document, line, supplier_id)
             entries.append(
                 PostingEntry(
                     movement_type=movement_type,
@@ -114,18 +126,24 @@ class RemovalPoster:
         )
 
     async def _book_value(
-        self, document: SupplierReturn | WriteOff, line: RemovalLine
+        self,
+        document: SupplierReturn | WriteOff,
+        line: RemovalLine,
+        supplier_id: UUID | None,
     ) -> Money:
         """What the goods on this line are carried at, unsigned (§4.6)."""
         if line.is_serial:
-            return await self._serial_value(document, line)
+            return await self._serial_value(document, line, supplier_id)
         await self._assert_in_stock(document, line)
         return await self._pools.issue_value(
             line.product_id, document.location_id, line.quantity
         )
 
     async def _serial_value(
-        self, document: SupplierReturn | WriteOff, line: RemovalLine
+        self,
+        document: SupplierReturn | WriteOff,
+        line: RemovalLine,
+        supplier_id: UUID | None,
     ) -> Money:
         assert line.device_unit_id is not None
         unit = await self._units.get(line.device_unit_id)
@@ -143,6 +161,12 @@ class RemovalPoster:
             raise WrongLocationError(
                 f"IMEI {unit.imei} has moved and is no longer held at "
                 f"{document.number}'s location"
+            )
+        # Not a race like the two above — a unit's origin never changes.
+        # This catches a draft opened before FR-5.2b existed.
+        if supplier_id is not None:
+            await self._origin.assert_from_supplier(
+                unit, supplier_id=supplier_id, number=document.number
             )
         # Specific identification: this phone's own cost, not a model of
         # what phones like it cost (§4.6).

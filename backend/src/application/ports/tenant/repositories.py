@@ -20,6 +20,7 @@ from application.dtos import (
     DebtorSummary,
     Letterhead,
     PriceDeviation,
+    TenantLogo,
 )
 from application.ports.repository import AppendOnlyRepository, Repository
 from domain.entities import (
@@ -87,7 +88,14 @@ class TenantSettingsRepository(Protocol):
         """The store's own details, for the top of a printed document (FR-8.1)."""
         ...
 
-    async def set_letterhead(self, letterhead: Letterhead) -> None: ...
+    async def set_letterhead(self, letterhead: Letterhead) -> None:
+        """Writes the text only. The logo has its own setter, so a settings
+        write that carries no image cannot silently drop one."""
+        ...
+
+    async def set_logo(self, logo: TenantLogo | None) -> None:
+        """``None`` clears it."""
+        ...
 
 
 class ProductRepository(Repository[Product, UUID], Protocol):
@@ -367,6 +375,15 @@ class GoodsReceiptRepository(Repository[GoodsReceipt, UUID], Protocol):
         """Product → quantity received against this order, confirmed receipts
         only. FR-3.9's pending/partial/complete is this against what was
         ordered; a draft receipt has received nothing."""
+        ...
+
+    async def supplier_of(self, receipt_id: UUID) -> UUID | None:
+        """Who delivered this receipt — ``None`` for a trade-in (FR-3.3b).
+
+        A header column rather than the aggregate, because FR-5.2b asks this
+        of one unit at a time and loading every line to read it would put a
+        fifty-line receipt through the database per beep.
+        """
         ...
 
 

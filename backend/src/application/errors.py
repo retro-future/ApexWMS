@@ -66,6 +66,15 @@ class InvalidTimezoneError(ApplicationError):
     """Not an IANA timezone name."""
 
 
+class InvalidLogoError(ApplicationError):
+    """The uploaded letterhead image is unusable (FR-8.1).
+
+    Refused before it reaches the settings row, because the first thing to
+    discover a bad image otherwise would be a PDF render, which is a
+    download failing for whoever is standing at the counter.
+    """
+
+
 class DuplicateSkuError(ApplicationError):
     """Another product in this store already owns that SKU."""
 

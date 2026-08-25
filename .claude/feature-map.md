@@ -173,6 +173,34 @@ valued at.
 - Routers: `presentation/routers/supplier_returns.py`, `write_offs.py`,
   `stock_counts.py`
 
+## Documents on paper (M7)
+
+The three document types §5.8 says a store hands over, and the letterhead
+they carry. Deep dive:
+[documents.md](../docs/architecture/documents.md)'s "Three of them print".
+
+- Commands: `commands/set_tenant_logo.py` (base64 in, magic bytes sniffed),
+  and the text half on `update_tenant_settings.py`
+- Queries: `queries/get_sales_invoice_pdf.py`, `get_purchase_order_pdf.py`,
+  `get_supplier_return_pdf.py`, `get_tenant_logo.py`
+- Models: `models/tenant_settings.py` (`hasLogo`, never the bytes)
+- Carriers: `dtos/letterhead.py`, `tenant_logo.py`,
+  `dtos/rendered_document.py` (bytes on their way to a raw `Response`)
+- Rendering: ports in `application/ports/documents.py`;
+  `infrastructure/documents/page.py` (`DocumentPage` — the shared page, and
+  the `confirmed_at` creation date FR-8.3 rests on, plus
+  `DocumentPageFactory` at APP scope), `invoice_pdf.py`,
+  `purchase_order_pdf.py`, `supplier_return_pdf.py`
+- Routers: `GET /{id}/pdf` on `sales_invoices.py`, `purchase_orders.py` and
+  `supplier_returns.py`; `GET`/`PUT /settings/tenant/logo` on `settings.py`
+- Tests: `tests/api/pdf_helpers.py`'s `pdf_text` inflates the content
+  streams so a print test can assert the IMEI is really on the page
+- Screens: `frontend/src/components/OpenPdfButton.tsx` (a plain anchor —
+  same-origin proxy, httpOnly cookie), used by the invoice, purchase order
+  and supplier return detail pages; `frontend/src/app/(app)/settings/page.tsx`
+  (letterhead and logo); `frontend/src/lib/letterhead.ts` (the client-side
+  type and size checks, as a courtesy)
+
 ## Reporting (M5, M5b)
 
 Reads over what the documents already wrote, all read-only. Price

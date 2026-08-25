@@ -19,7 +19,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from application.commands.cancel_purchase_order import (
     CancelPurchaseOrderCommand,
@@ -45,6 +45,10 @@ from application.models import PurchaseOrderData
 from application.queries.get_purchase_order import (
     GetPurchaseOrderHandler,
     GetPurchaseOrderQuery,
+)
+from application.queries.get_purchase_order_pdf import (
+    GetPurchaseOrderPdfHandler,
+    GetPurchaseOrderPdfQuery,
 )
 from application.queries.list_purchase_orders import (
     ListPurchaseOrdersHandler,
@@ -90,6 +94,31 @@ async def get_purchase_order(
     require(current, Permission.PURCHASE_ORDER_VIEW)
     return await handler.handle(
         GetPurchaseOrderQuery(purchase_order_id=purchase_order_id)
+    )
+
+
+@router.get("/{purchase_order_id}/pdf", response_class=Response)
+async def get_purchase_order_pdf(
+    purchase_order_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetPurchaseOrderPdfHandler],
+) -> Response:
+    """FR-3.2, FR-8.1: the order on paper, with the store's letterhead.
+
+    ``COST_VIEW`` on top of the order's own read permission: this page is a
+    list of unit costs, and saying so beats resting on the fact that
+    everyone holding ``PurchaseOrder.View`` happens to hold both today.
+    """
+    require(current, Permission.PURCHASE_ORDER_VIEW, Permission.COST_VIEW)
+    result = await handler.handle(
+        GetPurchaseOrderPdfQuery(purchase_order_id=purchase_order_id)
+    )
+    assert result.data is not None
+    rendered = result.data
+    return Response(
+        content=rendered.content,
+        media_type=rendered.content_type,
+        headers={"Content-Disposition": f'inline; filename="{rendered.filename}"'},
     )
 
 

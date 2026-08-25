@@ -50,7 +50,12 @@ class ScanWriteOffLineHandler(
         document.assert_editable()
 
         product, unit = await self._scanner.resolve(
-            request.code, location_id=document.location_id, number=document.number
+            request.code,
+            location_id=document.location_id,
+            number=document.number,
+            # A write-off sends goods nowhere, so nothing has an origin to
+            # match against (FR-5.2b).
+            supplier_id=None,
         )
 
         if unit is not None:

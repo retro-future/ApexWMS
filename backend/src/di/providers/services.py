@@ -30,6 +30,7 @@ from application.services import (
     SlugNormalizer,
     TimezoneValidator,
     TokenIssuer,
+    UnitOriginGuard,
 )
 
 
@@ -55,6 +56,7 @@ class ApplicationServicesProvider(Provider):
         # --- M5b credit sales ---
         PaymentPoster,
         # --- M6 returns, counts & write-offs ---
+        UnitOriginGuard,
         RemovalScanner,
         RemovalPoster,
         CountPoster,

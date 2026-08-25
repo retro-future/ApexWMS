@@ -10,7 +10,11 @@ generic interfaces, ``master/`` the tenant registry and identity,
 """
 
 from application.ports.clock import Clock
-from application.ports.documents import InvoiceRenderer
+from application.ports.documents import (
+    InvoiceRenderer,
+    PurchaseOrderRenderer,
+    SupplierReturnRenderer,
+)
 from application.ports.master import (
     InvitationRepository,
     MasterUnitOfWork,
@@ -70,6 +74,7 @@ __all__ = [
     "ProductPriceChangeRepository",
     "ProductRepository",
     "SalesInvoiceRepository",
+    "PurchaseOrderRenderer",
     "PurchaseOrderRepository",
     "RefreshTokenRepository",
     "Repository",
@@ -77,6 +82,7 @@ __all__ = [
     "StockLevelRepository",
     "StockMovementRepository",
     "SupplierRepository",
+    "SupplierReturnRenderer",
     "SupplierReturnRepository",
     "TenantProvisioner",
     "TenantRepository",

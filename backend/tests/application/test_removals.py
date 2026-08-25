@@ -24,8 +24,9 @@ from application.commands.create_write_off import CreateWriteOffCommand
 from application.commands.scan_supplier_return_line import ScanSupplierReturnLineCommand
 from application.commands.scan_write_off_line import ScanWriteOffLineCommand
 from application.commands.unscan_write_off_line import UnscanWriteOffLineCommand
-from domain.entities import Supplier
+from domain.entities import GoodsReceipt, Supplier
 from domain.enums import (
+    AcquisitionSource,
     DeviceStatus,
     DocumentStatus,
     DocumentType,
@@ -37,6 +38,7 @@ from domain.enums import (
 )
 from domain.errors import (
     InsufficientStockError,
+    UnitNotFromSupplierError,
     UnitNotRemovableError,
     WrongLocationError,
 )
@@ -59,6 +61,28 @@ def a_supplier(world: World) -> Supplier:
     supplier = Supplier(name="Shenzhen Wholesale", is_active=True, created_at=world.clock.now())
     world.suppliers.by_id[supplier.id] = supplier
     return supplier
+
+
+async def delivered(world: World, product, location, supplier: Supplier, **overrides):
+    """A handset on the shelf with the supplier receipt that put it there.
+
+    FR-5.2b reads that receipt back, so a return cannot be tested with the
+    bare ``in_stock`` helper the sales tests share.
+    """
+    unit = await in_stock(world, product, location, **overrides)
+    receipt = GoodsReceipt(
+        number=f"GR-{uuid4().hex[:8]}",
+        status=DocumentStatus.CONFIRMED,
+        created_by=uuid4(),
+        created_at=world.clock.now(),
+        acquisition_source=AcquisitionSource.SUPPLIER,
+        supplier_id=supplier.id,
+        location_id=location.id,
+    )
+    world.receipts.by_id[receipt.id] = receipt
+    unit.source_document_type = DocumentType.GOODS_RECEIPT
+    unit.source_document_id = receipt.id
+    return unit
 
 
 async def opened_return(world: World, location, supplier, **overrides):
@@ -121,8 +145,9 @@ class TestSendingAHandsetBack:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        unit = await in_stock(world, product, location, cost="380")
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        unit = await delivered(world, product, location, supplier, cost="380")
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
 
         await world.confirm_supplier_return().handle(
@@ -138,8 +163,9 @@ class TestSendingAHandsetBack:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        await in_stock(world, product, location, cost="380")
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        await delivered(world, product, location, supplier, cost="380")
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
 
         await world.confirm_supplier_return().handle(
@@ -155,8 +181,9 @@ class TestSendingAHandsetBack:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        await in_stock(world, product, location, cost="380")
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        await delivered(world, product, location, supplier, cost="380")
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
 
         await world.confirm_supplier_return().handle(
@@ -224,8 +251,9 @@ class TestOnlyStockOnTheShelfMayGoBack:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        unit = await in_stock(world, product, location)
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        unit = await delivered(world, product, location, supplier)
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
 
         unit.status = DeviceStatus.SOLD
@@ -240,8 +268,9 @@ class TestOnlyStockOnTheShelfMayGoBack:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        unit = await in_stock(world, product, location)
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        unit = await delivered(world, product, location, supplier)
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
         unit.status = DeviceStatus.SOLD
         unit.location_id = None
@@ -276,14 +305,98 @@ class TestOnlyStockOnTheShelfMayGoBack:
             )
 
 
+class TestOnlyThisSuppliersGoodsGoBackToIt:
+    """FR-5.2b: origin is proven by the receipt that put the unit in stock."""
+
+    async def test_another_suppliers_handset_is_refused_at_the_scan(self):
+        world = make_world()
+        location = a_place(world)
+        product = catalogued(world)
+        await delivered(world, product, location, a_supplier(world))
+        document = await opened_return(world, location, a_supplier(world))
+
+        with pytest.raises(UnitNotFromSupplierError, match="another supplier"):
+            await scan_return(world, document, PHONE_IMEI)
+
+    async def test_a_trade_in_handset_is_refused(self):
+        """A trade-in names no supplier at all (FR-3.3b), so there is nobody
+        to send it back to."""
+        world = make_world()
+        location = a_place(world)
+        product = catalogued(world)
+        unit = await in_stock(world, product, location)
+        receipt = GoodsReceipt(
+            number="GR-2026-0009",
+            status=DocumentStatus.CONFIRMED,
+            created_by=uuid4(),
+            created_at=world.clock.now(),
+            acquisition_source=AcquisitionSource.TRADE_IN,
+            location_id=location.id,
+        )
+        world.receipts.by_id[receipt.id] = receipt
+        unit.source_document_type = DocumentType.GOODS_RECEIPT
+        unit.source_document_id = receipt.id
+        document = await opened_return(world, location, a_supplier(world))
+
+        with pytest.raises(UnitNotFromSupplierError, match="another supplier"):
+            await scan_return(world, document, PHONE_IMEI)
+
+    async def test_a_handset_a_count_discovered_is_refused(self):
+        """FR-6.4b creates a unit with no receipt behind it."""
+        world = make_world()
+        location = a_place(world)
+        product = catalogued(world)
+        unit = await in_stock(world, product, location)
+        unit.source_document_type = DocumentType.STOCK_COUNT
+        unit.source_document_id = uuid4()
+        document = await opened_return(world, location, a_supplier(world))
+
+        with pytest.raises(UnitNotFromSupplierError, match="supplier delivery"):
+            await scan_return(world, document, PHONE_IMEI)
+
+    async def test_a_draft_holding_a_foreign_handset_fails_the_confirm(self):
+        """A line added before the rule existed is caught at the confirm, and
+        neither ledger is written."""
+        world = make_world()
+        location = a_place(world)
+        product = catalogued(world)
+        supplier = a_supplier(world)
+        unit = await delivered(world, product, location, supplier)
+        document = await opened_return(world, location, supplier)
+        await scan_return(world, document, PHONE_IMEI)
+
+        unit.source_document_id = uuid4()
+
+        with pytest.raises(UnitNotFromSupplierError):
+            await world.confirm_supplier_return().handle(
+                ConfirmSupplierReturnCommand(supplier_return_id=document.id)
+            )
+
+        assert entries_for(world, DocumentType.SUPPLIER_RETURN, document.id) == []
+        assert money_for(world, DocumentType.SUPPLIER_RETURN, document.id) == []
+
+    async def test_a_write_off_takes_a_handset_whatever_its_origin(self):
+        world = make_world()
+        location = a_place(world)
+        product = catalogued(world)
+        await in_stock(world, product, location)
+        document = await opened_write_off(world, location)
+
+        result = await scan_write_off(world, document, PHONE_IMEI)
+
+        assert result.data is not None
+        assert result.data.line_count == 1
+
+
 class TestScanningARemoval:
     async def test_a_repeat_imei_is_a_no_op(self):
         """Scanners double-fire, and one phone is one line (§6)."""
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        await in_stock(world, product, location)
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        await delivered(world, product, location, supplier)
+        document = await opened_return(world, location, supplier)
 
         await scan_return(world, document, PHONE_IMEI)
         result = await scan_return(world, document, PHONE_IMEI)
@@ -398,8 +511,9 @@ class TestCancellingCompensates:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        unit = await in_stock(world, product, location)
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        unit = await delivered(world, product, location, supplier)
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
         await world.confirm_supplier_return().handle(
             ConfirmSupplierReturnCommand(supplier_return_id=document.id)
@@ -483,8 +597,9 @@ class TestTheDocumentsAreNotInterchangeable:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        await in_stock(world, product, location)
-        document = await opened_return(world, location, a_supplier(world))
+        supplier = a_supplier(world)
+        await delivered(world, product, location, supplier)
+        document = await opened_return(world, location, supplier)
         await scan_return(world, document, PHONE_IMEI)
 
         await world.confirm_supplier_return().handle(
@@ -513,10 +628,11 @@ class TestTheDocumentsAreNotInterchangeable:
         world = make_world()
         location = a_place(world)
         product = catalogued(world)
-        returned = await in_stock(world, product, location, imei=PHONE_IMEI)
+        supplier = a_supplier(world)
+        returned = await delivered(world, product, location, supplier, imei=PHONE_IMEI)
         scrapped = await in_stock(world, product, location, imei=OTHER_IMEI)
 
-        first = await opened_return(world, location, a_supplier(world))
+        first = await opened_return(world, location, supplier)
         await scan_return(world, first, PHONE_IMEI)
         await world.confirm_supplier_return().handle(
             ConfirmSupplierReturnCommand(supplier_return_id=first.id)

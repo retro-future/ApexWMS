@@ -9,6 +9,7 @@ which is the state FR-4.2b exists to refuse at the counter and the one the
 receiving surface deliberately will not produce.
 """
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -20,7 +21,8 @@ from infrastructure.persistence.tenant.repositories import (
     SqlStockMovementRepository,
 )
 from infrastructure.types import TenantSession
-from tests.api.ledger_helpers import receive_phone, tenant_url, usd
+from tests.api.ledger_helpers import PHONE_IMEI, receive_phone, tenant_url, usd
+from tests.api.pdf_helpers import pdf_text
 
 
 async def ledger_rows(settings, owner, unit_id):
@@ -340,27 +342,36 @@ class TestWhoMaySell:
         assert still.json()["data"]["status"] == "confirmed"
 
 
+async def a_sold_phone(client, settings, owner) -> dict:
+    """A confirmed invoice for one handset, under a store with a letterhead."""
+    unit_id, _, location_id = await receive_phone(client, settings, owner)
+    await price_unit(client, owner, unit_id, "520")
+    await client.put(
+        "/api/v1/settings/tenant",
+        headers=owner.auth,
+        json={
+            "timezone": "Asia/Tashkent",
+            "businessName": "Apex Mobile",
+            "address": "12 Amir Temur, Tashkent",
+        },
+    )
+    invoice = await open_invoice(client, owner, location_id)
+    await client.post(
+        f"/api/v1/invoices/{invoice['id']}/scan",
+        headers=owner.auth,
+        json={"code": PHONE_IMEI},
+    )
+    confirmed = await client.post(
+        f"/api/v1/invoices/{invoice['id']}/confirm", headers=owner.auth
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return invoice
+
+
 class TestTheInvoicePrints:
     async def test_a_confirmed_sale_renders_a_pdf(self, client, settings, owner):
-        """FR-8.1: a real invoice with an IMEI on it."""
-        unit_id, _, location_id = await receive_phone(client, settings, owner)
-        await price_unit(client, owner, unit_id, "520")
-        await client.put(
-            "/api/v1/settings/tenant",
-            headers=owner.auth,
-            json={
-                "timezone": "Asia/Tashkent",
-                "businessName": "Apex Mobile",
-                "address": "12 Amir Temur, Tashkent",
-            },
-        )
-        invoice = await open_invoice(client, owner, location_id)
-        await client.post(
-            f"/api/v1/invoices/{invoice['id']}/scan",
-            headers=owner.auth,
-            json={"code": "490154203237518"},
-        )
-        await client.post(f"/api/v1/invoices/{invoice['id']}/confirm", headers=owner.auth)
+        """FR-8.1, FR-8.2: a real invoice with an IMEI on it."""
+        invoice = await a_sold_phone(client, settings, owner)
 
         printed = await client.get(
             f"/api/v1/invoices/{invoice['id']}/pdf", headers=owner.auth
@@ -369,6 +380,60 @@ class TestTheInvoicePrints:
         assert printed.status_code == 200, printed.text
         assert printed.headers["content-type"] == "application/pdf"
         assert printed.content.startswith(b"%PDF")
+        page = pdf_text(printed.content)
+        assert PHONE_IMEI in page
+        assert invoice["number"] in page
+        assert "Apex Mobile" in page
+        assert "$520.00" in page
+
+    async def test_regenerating_it_produces_the_same_file(
+        self, client, settings, owner
+    ):
+        """FR-8.3: immutable once confirmed, byte for byte.
+
+        The one that fails if the renderer ever stamps the wall clock into
+        the page instead of the confirm timestamp — which is what fpdf2
+        does by default.
+        """
+        invoice = await a_sold_phone(client, settings, owner)
+
+        first = await client.get(
+            f"/api/v1/invoices/{invoice['id']}/pdf", headers=owner.auth
+        )
+        second = await client.get(
+            f"/api/v1/invoices/{invoice['id']}/pdf", headers=owner.auth
+        )
+
+        assert first.content == second.content
+        # Equal renders one after another prove little on their own — the
+        # wall clock barely moves. What makes the file stable a month from
+        # now is the date coming off the document.
+        read = await client.get(f"/api/v1/invoices/{invoice['id']}", headers=owner.auth)
+        confirmed = datetime.fromisoformat(read.json()["data"]["confirmedAt"])
+        stamped = confirmed.astimezone(UTC).strftime("D:%Y%m%d%H%M%SZ")
+        assert f"/CreationDate ({stamped})".encode() in first.content
+
+    async def test_a_cancelled_sale_still_prints_and_says_so(
+        self, client, settings, owner
+    ):
+        """FR-8.3: cancellation marks the file, it does not remove it."""
+        invoice = await a_sold_phone(client, settings, owner)
+        cancelled = await client.post(
+            f"/api/v1/invoices/{invoice['id']}/cancel",
+            headers=owner.auth,
+            json={"reason": "customer changed their mind"},
+        )
+        assert cancelled.status_code == 200, cancelled.text
+
+        printed = await client.get(
+            f"/api/v1/invoices/{invoice['id']}/pdf", headers=owner.auth
+        )
+
+        assert printed.status_code == 200, printed.text
+        page = pdf_text(printed.content)
+        assert "CANCELLED" in page
+        assert "customer changed their mind" in page
+        assert PHONE_IMEI in page
 
     async def test_a_draft_has_no_prices_to_print(self, client, settings, owner):
         _, _, location_id = await receive_phone(client, settings, owner)

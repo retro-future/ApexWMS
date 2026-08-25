@@ -16,6 +16,7 @@ from application.errors import (
     DuplicateImeiError,
     DuplicateNameError,
     DuplicateSkuError,
+    InvalidLogoError,
     InvalidSlugError,
     InvalidTimezoneError,
     InvitationError,
@@ -40,6 +41,7 @@ from domain.errors import (
     OverReceiptError,
     PaymentAlreadyReversedError,
     PriceNotSetError,
+    UnitNotFromSupplierError,
     UnitNotRemovableError,
     UnitNotSellableError,
     WrongLocationError,
@@ -70,6 +72,7 @@ _STATUS: list[tuple[type[Exception], int]] = [
     # be returned or written off is the same thing seen from §5.5.
     (UnitNotSellableError, 409),
     (UnitNotRemovableError, 409),
+    (UnitNotFromSupplierError, 409),
     (WrongLocationError, 409),
     # And a count whose close has or has not happened yet: the same request
     # would have succeeded on the other side of it (§5.6).
@@ -88,6 +91,7 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (InvitationError, 400),
     (InvalidTimezoneError, 422),
     (InvalidSlugError, 422),
+    (InvalidLogoError, 422),
     (ProvisioningFailedError, 500),
     (ApplicationError, 400),
     (DomainError, 422),

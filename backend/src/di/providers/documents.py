@@ -1,18 +1,46 @@
 """Document rendering (APP scope).
 
-The renderer is stateless once its font is chosen, and choosing it means
-touching the filesystem — so it is built once for the process rather than
-per request, like the other APP-scope collaborators.
+A renderer is stateless once its font is chosen, and choosing it means
+touching the filesystem — so the factory that resolves it is built once for
+the process, like the other APP-scope collaborators, and hands each render
+its own mutable page.
 """
 
 from dishka import Provider, Scope, provide
 
-from application.ports import InvoiceRenderer
+from application.ports import (
+    InvoiceRenderer,
+    PurchaseOrderRenderer,
+    SupplierReturnRenderer,
+)
 from infrastructure.config import Settings
-from infrastructure.documents import PdfInvoiceRenderer
+from infrastructure.documents import (
+    DocumentPageFactory,
+    PdfInvoiceRenderer,
+    PdfPurchaseOrderRenderer,
+    PdfSupplierReturnRenderer,
+)
 
 
 class DocumentsProvider(Provider):
-    @provide(scope=Scope.APP)
-    def invoice_renderer(self, settings: Settings) -> InvoiceRenderer:
-        return PdfInvoiceRenderer(settings.pdf_font_path)
+    scope = Scope.APP
+
+    @provide
+    def pages(self, settings: Settings) -> DocumentPageFactory:
+        return DocumentPageFactory(settings.pdf_font_path)
+
+    @provide
+    def invoice_renderer(self, pages: DocumentPageFactory) -> InvoiceRenderer:
+        return PdfInvoiceRenderer(pages)
+
+    @provide
+    def purchase_order_renderer(
+        self, pages: DocumentPageFactory
+    ) -> PurchaseOrderRenderer:
+        return PdfPurchaseOrderRenderer(pages)
+
+    @provide
+    def supplier_return_renderer(
+        self, pages: DocumentPageFactory
+    ) -> SupplierReturnRenderer:
+        return PdfSupplierReturnRenderer(pages)

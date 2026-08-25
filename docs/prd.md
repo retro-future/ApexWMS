@@ -721,6 +721,7 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 
 - **FR-5.1** A Manager creates a Supplier Return, scans the IMEIs of units being sent back, and states a reason (defective, unsold, wrong item).
 - **FR-5.2** Only units currently `IN_STOCK` may be added.
+- **FR-5.2b** A unit may only be added to a return whose supplier is the one that delivered it — proven by the Goods Receipt that put the unit in stock. A unit taken in as a trade-in and a unit a Stock Count discovered are both refused: neither names a supplier. Accessory (quantity) lines are not checked, because a quantity line records no origin. Refused on the scan, and re-checked at confirm.
 - **FR-5.3** Confirming marks units `RETURNED_TO_SUPPLIER`, writes `−` movements, and generates the Return-to-Supplier PDF.
 
 ### 5.6 Stock Counts & Write-Offs
@@ -1034,6 +1035,7 @@ The bulk route exists because the ageing report (FR-9.4) and the needs-pricing w
 | `GET` | `/reports/month-end?year=&month=&location=` | Manager |
 | `GET` | `/reports/month-end/pdf?year=&month=&location=` | Manager |
 | `GET` / `PUT` | `/settings/tenant` | read: any · write: Owner (timezone, letterhead) |
+| `GET` / `PUT` | `/settings/tenant/logo` | read: any · write: Owner (base64 PNG/JPEG; an empty body clears it) |
 
 ---
 
@@ -1115,7 +1117,7 @@ Each milestone is independently demoable.
 | **A draft invoice quoting a price the store has abandoned** | Medium | A draft can sit open while the handset in it is marked down. Freezing the scan-time price would charge the customer a withdrawn price *and* write a deviation nobody made into FR-9.7, poisoning the one report meant to surface human decisions. Resolved by re-resolving every un-overridden line at confirm (FR-4.5b1); explicit overrides survive. |
 | **Month boundaries & timezone** | Medium | Period math runs in the tenant's timezone (FR-10.8), so a tenant timezone setting must land in M1. Without it, a late-night sale slips into the wrong month and the report is quietly wrong. |
 | **Month-end report performance** at scale | Low (v1) | v1 computes opening/closing live from the full ledger — fine at MVP volumes. If a tenant's ledger grows large, add stored month-end snapshots (opening = prior stored closing) as a v2 optimization; correctness is unaffected either way. |
-| **PDF library choice** | Low | **Open question.** WeasyPrint (HTML/CSS templates — far easier to iterate on, but a heavier system dependency: cairo/pango) vs ReportLab (pure Python, no system deps, but layouts are written in code). Leaning WeasyPrint; decide at M7. |
+| **PDF library choice** | Low | **Decided: fpdf2.** WeasyPrint's HTML/CSS templates would have been easier to iterate on, but it needs Cairo and Pango — a build problem on Windows and in a slim container, for pages that are a letterhead, a table and a per-currency footer. fpdf2 is pure Python, so layouts are written in code as ReportLab's would have been, and `DocumentPage` is where that code lives once for all three documents. One catch worth recording: it stamps the wall clock into `/CreationDate`, which FR-8.3 forbids, so the creation date is pinned to the document's `confirmed_at`. |
 | **Python 3.14 wheel availability** across the dependency set | Medium | asyncpg 0.31+ ships cp314 wheels. **Verify the full set at M0** — psycopg3 is the drop-in fallback driver, and SQLAlchemy's async layer needs greenlet, which must also have 3.14 wheels. |
 | **Currency exponent mismatch (USD=2, UZS=0)** | **High** | The classic 100× corruption bug. Mitigated structurally: exponent lives on the `Money` value object, never in call sites; a bare int is not money. Round-trip tests for both currencies land in M0, before any money is persisted. |
 | **UZS integer overflow** | Medium | `BIGINT` everywhere for `amount_minor` — a 32-bit int overflows at ~175 phones' worth of som. Enforced at the schema level. |

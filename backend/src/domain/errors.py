@@ -260,6 +260,15 @@ class UnitNotRemovableError(DomainError):
     """
 
 
+class UnitNotFromSupplierError(DomainError):
+    """A handset sent back to a supplier it never came from (FR-5.2b).
+
+    Origin is proven by the goods receipt that put the unit in stock, so a
+    trade-in and a handset a stock count discovered are refused too: neither
+    can name a supplier at all.
+    """
+
+
 class CountNotClosedError(DomainError):
     """A stock count confirmed before its discrepancies were reported (FR-6.3).
 
