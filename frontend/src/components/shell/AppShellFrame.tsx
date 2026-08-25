@@ -11,6 +11,8 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { UserMenu } from "@/components/shell/UserMenu";
 import type { Me } from "@/lib/types";
 
+import classes from "./AppShellFrame.module.css";
+
 export function AppShellFrame({
   me,
   children,
@@ -53,7 +55,7 @@ export function AppShellFrame({
           </Group>
         </AppShell.Header>
 
-        <AppShell.Navbar p="md">
+        <AppShell.Navbar p="md" className={classes.navbar}>
           <NavLinks onNavigate={close} />
         </AppShell.Navbar>
 
