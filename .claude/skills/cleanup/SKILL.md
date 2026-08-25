@@ -89,3 +89,54 @@ After all phases: run the full gate once more, then exercise the affected flows 
 - Any fix that changes externally observable behavior (error rendering, empty states, wire formats, CLI output, labels).
 
 Everything else - including net-simplifying pattern/architecture changes that preserve behavior and the public surface - proceeds without asking.
+
+## Project-specific calibration (ApexWMS)
+
+Concrete answers for step 1 ("Read the project's conventions FIRST") in this repo, so calibration doesn't have to be re-derived from scratch each run.
+
+- **Size thresholds**: the canonical table lives in `.claude/rules/code-quality.md` (paths `**/*`) - Python CQRS handlers, domain entities/services, application services, repositories, routers, and React/Next components/hooks/`lib/*.ts` modules. Read it fresh rather than assuming a number.
+- **Verification gate, in order**: backend from `backend/` - `uv run ruff check src tests` -> `uv run ty check` (a real gate, not advisory - the only thing that catches a `MasterSession`/`TenantSession` mixup) -> `uv run pytest`. Frontend from `frontend/` - `pnpm typecheck && pnpm lint` -> `pnpm test`.
+- **Split mechanisms specific to this stack** (Python has no `partial class`, so a class always lives in one file):
+  - CQRS command/query modules (`application/commands|queries/*.py`): logic shared across handlers moves to a DI-injected class in `application/services/` (registered in `di/providers/`); logic used by exactly one handler stays a private method on that handler class - see `.claude/rules/backend/handler-helpers.md`.
+  - Domain entities (`domain/entities/*.py`): extract a self-validating value into `domain/value_objects/`, or a second responsibility into its own `domain/services/*.py` class the entity delegates to.
+  - Application services: split along workflow seams, e.g. `removal_posting.py` (posting) vs `removal_scanning.py` (shared scan checks) rather than one large file.
+  - Repositories: pull a read-only joined query into its own method or a dedicated read path (e.g. `SalesInvoiceRepository.list_deviations`) instead of growing every CRUD method in place.
+  - React/Next: split a large page/detail component into the component (layout + hookups), a custom hook (`use*.ts`) for state/effects/derived data, sub-components for repeated blocks, and pure helpers in a sibling `lib/*.ts` module.
+- **Duplication patterns known to recur here**: same scan/unscan validation across removal document types -> a shared service like `RemovalScanner`; same joined read query pasted across queries -> a repository method; same permission-check chain across routers -> a shared dependency; same ledger-posting shape (sign, category, document reference) per document type -> the relevant `*Poster` service; same `useCan()` + loading/empty-state shell across list pages -> a shared wrapper component; same Mantine form validators across create/update forms -> a shared validator in `frontend/src/lib/`; hand-rolled money/date formatting in components -> `frontend/src/lib/` formatting helpers.
+- **Conventions to never simplify away** here (treat a finding that touches these as a convention violation to preserve, not an improvement to make):
+  - The CQRS command/query + handler shape, even for a one-line operation - don't collapse a handler into a bare function call.
+  - `domain/value_objects/` frozen dataclasses (`Money`, `IMEI`, `CostPool`) - don't unwrap to a plain value even when a call site only reads one field.
+  - Append-only ledger writes via `LedgerPoster` - never write `stock_movements`/`financial_transactions` directly, and `LedgerPoster` never commits; the calling handler owns the transaction.
+  - The `NewType`-wrapped `MasterSession`/`TenantSession` split - this is the one thing `ty check` enforces; don't unwrap it "for convenience".
+  - Flat `Permission` enum checks, frontend and backend - never reintroduce role-name checks.
+  - The shared `Document` lifecycle (`DRAFT -> CONFIRMED -> CANCELLED`) - don't give one document type its own parallel status machine; a document needing one more step gets a field like the stock count's `closed_at`, not a new status.
+  - `OpenPdfButton` as a plain anchor, not a fetch - a fetch+blob "modernization" would require token plumbing the BFF proxy exists to avoid.
+- **Generated/hands-off paths**: never refactor Alembic migration files after they're applied, `frontend/src/lib/types.ts` where it mirrors a generated schema, or `frontend/messages/*.json` - regenerate or hand-edit through their normal source, not through this skill's phases.
+
+### Simplification smell -> action, with this repo's concrete shape
+
+Each Hunt lens above is deliberately stack-neutral; these are the same smells translated to a literal action in this codebase, for when a finding needs a one-line fix rather than a phase.
+
+- **One-implementation port with no fake substitution** - a `Protocol` in `application/ports/` with a single infrastructure implementation, never substituted in `tests/application/fakes.py`. Action: usually keep it (ports crossing the clean-architecture boundary earn their seam even with one impl) - check `.claude/rules/backend/` before collapsing it away.
+- **Factory with one producer** - a helper whose only job is `return Foo(...)`. Action: inline the constructor at the call site.
+- **Pass-through service** - a class in `application/services/` that calls exactly one other service/repository with no transformation or extra behavior. Action: delete it, depend on the thing it wrapped.
+- **`if x is None` for a value `ty check` already proves non-optional** - Action: delete the check.
+- **Re-validating a request body Pydantic already validated** - Action: delete the duplicated check; validation lives at the boundary.
+- **`try/except` catching a type the call cannot raise, or re-raising the same exception** - Action: delete the block.
+- **Settings field in `infrastructure/config.py`/`.env.example` with no reader** - Action: remove from both, and check deployment docs before deleting (may be prod-only).
+- **`async def` with no `await`** that isn't required by an `IRequestHandler`/port signature - Action: make it sync, update the caller.
+- **Sequential `await`s "fixed" into `asyncio.gather`** - verify first: within one unit of work the shared `AsyncSession` usually can't be used concurrently, so this "optimization" is often wrong here.
+- **Comments restating the identifier, referencing a fixed bug/old milestone, or `# removed code` markers** - Action: delete; git history has it. Multi-paragraph docstrings get trimmed to the one non-obvious fact per `CLAUDE.md`'s own comment policy.
+- **Hand-rolled date/currency/money formatting in a component** - Action: route through `frontend/src/lib/` formatting helpers instead.
+- **`useEffect` doing pure data derivation** - Action: compute inline or with `useMemo`, drop the effect.
+- **Permission checks re-implemented ad hoc instead of `useCan()`** - Action: use `useCan()` (`src/lib/permissions.ts`); never gate on role names.
+
+### Example commit boundaries
+
+```
+refactor: drop unused allow_zero_value param on confirm_stock_count
+refactor: extract shared scan validation into RemovalScanner
+refactor: split count_posting.py by shortage/surplus concern
+```
+
+One phase's changes can span several commits like this rather than one - each independently reviewable, ordered simplify -> dedupe -> split -> polish to match the phase order above.
