@@ -68,7 +68,9 @@ Deep dive: [ledgers.md](../docs/architecture/ledgers.md),
   `device_unit_repricer.py`, `product_repricer.py`, `device_unit_loader.py`,
   `sale_price.py`
 - Domain: `domain/services/pricing.py` (`PriceResolver`),
-  `projection.py` (`UnitProjector`), `domain/value_objects/cost_pool.py`
+  `projection.py` (`UnitProjector`), `domain/value_objects/cost_pool.py`,
+  `currency_totals.py` (`CurrencyTotals` — the one way money is added to a
+  per-currency total, used by the reconciler and every M8 report)
 
 ## Purchase orders & goods receipts (M4)
 
@@ -201,20 +203,54 @@ they carry. Deep dive:
   (letterhead and logo); `frontend/src/lib/letterhead.ts` (the client-side
   type and size checks, as a courtesy)
 
-## Reporting (M5, M5b)
+## Reporting (M5, M5b, M8)
 
-Reads over what the documents already wrote, all read-only. Price
-deviations sit behind `Permission.Reporting.View`; the debtor list takes
-`Permission.CustomerAccount.ViewAll` instead, because §2.1 grades "what
-does this customer owe" and "what is the whole book owed" differently.
+Reads over what the documents already wrote, all read-only. Most sit
+behind `Permission.Reporting.View`; the financial ledger takes
+`Permission.FinancialLedger.View` and the debtor list
+`Permission.CustomerAccount.ViewAll`, because §2.1 grades "what did we
+move", "what did we earn" and "what is the whole book owed" as three
+questions. Deep dive: [ledgers.md](../docs/architecture/ledgers.md)'s
+"Reading them back".
 
-- Queries: `queries/list_price_deviations.py` (FR-9.7 — confirmed lines
-  charged something other than the resolved price, in both directions),
-  `queries/list_debtors.py` (FR-11.10 — oldest open debt first)
-- Models: `models/price_deviation.py`, `models/debtor.py`
-- Carrier: `dtos/price_deviation.py` (`PriceDeviation`, the joined read row
-  `SalesInvoiceRepository.list_deviations` builds)
-- Router: `presentation/routers/reports.py` (`/reports`)
+- Queries: `queries/get_stock_on_hand.py` (FR-9.1),
+  `get_device_trace.py` (FR-9.2 — the M8 demo),
+  `get_sales_summary.py` (FR-9.3), `list_ageing.py` (FR-9.4),
+  `list_movements.py` (FR-9.5), `list_needs_pricing.py` (FR-9.6),
+  `list_price_deviations.py` (FR-9.7),
+  `list_financial_ledger.py` (FR-10.3), `list_debtors.py` (FR-11.10)
+- Models: `models/stock_on_hand.py`, `device_trace.py`, `sales_summary.py`,
+  `ageing.py`, `movement_log.py`, `needs_pricing.py`,
+  `financial_ledger.py`, `price_deviation.py`, `debtor.py`
+- Carriers: `dtos/stock_on_hand.py`, `unit_trace.py`, `sales_summary.py`,
+  `ageing.py`, `ledger_log.py` (both raw logs share one row shape),
+  `needs_pricing.py`, `price_deviation.py` — the joined read rows the
+  repositories build
+- Services: `services/stock_on_hand.py` (`StockOnHandReader` — merges the
+  two tracking types and values accessories through `CostPoolReader`),
+  `services/unit_trace.py` (`UnitTraceAssembler` — three append-only
+  sources into one timeline)
+- Sorting: `application/sorting.py` — each report's own fixed enum.
+  `PagedQuery` deliberately has no generic `order_by`
+- Reporting reads: two of them are ports of their own, because neither
+  belongs to an aggregate — `SalesReportRepository`
+  (`persistence/tenant/repositories/sales_report.py`: deviations, debtors,
+  `sales_of_unit`) and `StockOnHandRepository` (`stock_on_hand.py`, which
+  spans `device_units` and `stock_levels`). The rest sit on the aggregate
+  whose table they read: `StockMovementRepository.list_page` /
+  `trace_for_unit` / `units_sold`,
+  `FinancialTransactionRepository.list_page` / `sales_totals`,
+  `DeviceUnitRepository.list_ageing` / `list_needs_pricing`,
+  `GoodsReceiptRepository.origin_of`. `document_ref.py` turns a
+  `(document_type, document_id)` pair into its number for both logs
+- Routers: `presentation/routers/reports.py` (`/reports`), plus
+  `GET /device-units/{id}/trace` on `device_units.py`
+- Screens: `frontend/src/app/(app)/reports/` — one folder per report
+  (`stock-on-hand/`, `trace/`, `movements/`, `sales-summary/`, `ageing/`,
+  `needs-pricing/`, `price-deviations/`, `financial-ledger/`, `debtors/`),
+  plus `components/DeviceTraceTimeline.tsx` (the FR-9.2 timeline, also shown
+  on the unit page) and `reports/BulkRepriceModal.tsx` (FR-2.21, the write
+  the ageing and needs-pricing worklists exist to feed)
 
 ## Scanning & lookup
 

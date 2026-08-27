@@ -132,6 +132,36 @@ nothing is being taken out. It uses `CostPool.average_unit_cost`, and where
 the pool is empty there is no average and no stand-in for one, so
 `CountPoster` refuses the confirm rather than booking zero.
 
+## Reading them back (PRD §5.9, §5.10 — M8)
+
+The reports are reads over these two tables and nothing else, which is why
+none of them needed a new column. Three things about how they are shaped:
+
+**Signs are never flipped for presentation.** A `PURCHASE` and a `COGS` are
+stored negative because §4.6's convention describes *cash*, and the sales
+summary reports them that way, so its margin is `revenue + cost` with no
+sign adjusted anywhere. `INVENTORY_SIGN` above is the one place a sign is
+reinterpreted, and it exists because inventory value genuinely asks a
+different question from cash.
+
+**Nothing is excluded.** A reversal keeps its type and flips its sign, so
+the movement log, the financial ledger and every aggregate over them net a
+cancelled document to zero without a category to filter out. This is the
+payoff of having no `REVERSAL` type.
+
+**A `(document_type, document_id)` pair resolves to a number in one place.**
+`persistence/tenant/repositories/document_ref.py` is a `CASE` over the six
+tables that have one, shared by both logs. `DocumentType.PAYMENT` is absent
+from it: a payment has no number to show.
+
+Two reads do not come from the ledgers. FR-9.4's ageing and FR-9.6's
+needs-pricing worklist read `device_units` and its price log, because
+"how long has this been here and has anyone priced it" is a question about
+the projection, not about what moved. FR-9.6's `WHERE` is the one place
+FR-2.14 is stated a second time, in SQL, and
+`tests/api/test_stock_reports_api.py` asserts it against `PriceResolver`
+for the same units so the two cannot drift.
+
 ## Verification
 
 `apexwms verify-projections`, `verify-financials` and `verify-balances`
