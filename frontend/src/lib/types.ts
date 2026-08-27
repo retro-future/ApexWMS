@@ -639,6 +639,7 @@ export type PriceDeviation = {
   invoiceNumber: string;
   confirmedAt: string;
   customerId: string | null;
+  customerName: string | null;
   productId: string;
   productName: string;
   imei: string | null;
@@ -650,5 +651,226 @@ export type PriceDeviation = {
   difference: string;
   differenceMinor: number;
   priceApprovedBy: string | null;
+  priceApprovedByName: string | null;
   priceNote: string | null;
+};
+
+/* ------------------------------------------------------------------ *
+ * M8 - reading the two ledgers back (PRD 5.9, 5.10)
+ * ------------------------------------------------------------------ */
+
+export type DocumentType =
+  | "purchase_order"
+  | "goods_receipt"
+  | "sales_invoice"
+  | "supplier_return"
+  | "stock_count"
+  | "write_off"
+  | "payment";
+
+export type MovementType =
+  | "receipt"
+  | "sale"
+  | "supplier_return"
+  | "count_adjustment"
+  | "write_off";
+
+export type TransactionType =
+  | "purchase"
+  | "sale_revenue"
+  | "cogs"
+  | "write_off_loss"
+  | "supplier_return_credit"
+  | "count_adjustment"
+  | "payment_received";
+
+export type StockGroupBy = "location" | "product" | "brand";
+
+/**
+ * One group of FR-9.1. `key` is a plain string whatever the grouping is,
+ * because `groupBy` on the same row already says how to read it, and
+ * `costValue` is absent without `Permission.Cost.View`.
+ */
+export type StockOnHandRow = {
+  groupBy: StockGroupBy;
+  key: string | null;
+  label: string;
+  quantity: number;
+  /** --- Permission.Cost.View only --- */
+  costValue?: CurrencySubtotal[] | null;
+};
+
+export type AgeingSort = "age" | "markdowns";
+
+/** One row of FR-9.4. Cost and implied margin are absent without `Cost.View`. */
+export type AgeingRow = {
+  deviceUnitId: string;
+  imei: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  brand: string | null;
+  condition: DeviceCondition;
+  locationId: string | null;
+  locationName: string | null;
+  since: string;
+  daysInStock: number;
+  currency: Currency;
+  askingPrice: string | null;
+  askingPriceMinor: number | null;
+  markdownCount: number;
+  /** --- Permission.Cost.View only --- */
+  acquisitionCost?: string | null;
+  acquisitionCostMinor?: number | null;
+  impliedMargin?: string | null;
+  impliedMarginMinor?: number | null;
+};
+
+/** Why FR-2.14 refuses to price the unit: its own price is missing, or the model's. */
+export type NeedsPricingReason = "used_no_price" | "no_catalog_price";
+
+/** One row of FR-9.6. No cost anywhere on it - pricing does not need one. */
+export type NeedsPricingRow = {
+  deviceUnitId: string;
+  imei: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  brand: string | null;
+  condition: DeviceCondition;
+  locationId: string | null;
+  locationName: string | null;
+  since: string;
+  daysUnpriced: number;
+  reason: NeedsPricingReason;
+};
+
+/** One row of FR-9.5's stock ledger. `quantityDelta` is signed. */
+export type MovementRow = {
+  id: string;
+  occurredAt: string;
+  movementType: MovementType;
+  quantityDelta: number;
+  productId: string;
+  sku: string;
+  productName: string;
+  deviceUnitId: string | null;
+  imei: string | null;
+  locationId: string;
+  locationName: string;
+  documentType: DocumentType;
+  documentId: string;
+  documentNumber: string | null;
+  userId: string;
+  userName: string | null;
+  note: string | null;
+};
+
+/**
+ * One row of FR-10.3's money ledger. Each row carries its own currency and
+ * the report carries no total: a figure over these rows would be adding
+ * so'm to dollars.
+ */
+export type FinancialLedgerRow = {
+  id: string;
+  occurredAt: string;
+  txnType: TransactionType;
+  currency: Currency;
+  /** Signed per 4.6: negative is money out. */
+  amount: string;
+  amountMinor: number;
+  productId: string | null;
+  productName: string | null;
+  deviceUnitId: string | null;
+  imei: string | null;
+  locationId: string | null;
+  locationName: string | null;
+  documentType: DocumentType;
+  documentId: string;
+  documentNumber: string | null;
+  userId: string;
+  userName: string | null;
+  note: string | null;
+};
+
+/** FR-9.3. `costOfGoods` keeps 4.6's sign and is negative; `margin` is their sum. */
+export type SalesFigures = {
+  unitsSold: number;
+  revenue: CurrencySubtotal[];
+  costOfGoods: CurrencySubtotal[];
+  margin: CurrencySubtotal[];
+};
+
+export type LocationSales = {
+  locationId: string | null;
+  locationName: string | null;
+  figures: SalesFigures;
+};
+
+export type SalesSummary = {
+  fromDate: string | null;
+  toDate: string | null;
+  locations: LocationSales[];
+  total: SalesFigures;
+};
+
+export type TraceEventKind =
+  | "received"
+  | "priced"
+  | "sold"
+  | "returned_to_supplier"
+  | "written_off"
+  | "count_adjustment";
+
+/** Where the handset came from - a supplier, or a walk-in (FR-3.3b). */
+export type TraceOrigin = {
+  acquisitionSource: AcquisitionSource;
+  supplierId: string | null;
+  supplierName: string | null;
+  customerId: string | null;
+  customerName: string | null;
+};
+
+/** The line that sold it, with both prices and who approved the gap (FR-4.5f). */
+export type TraceSale = {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId: string | null;
+  customerName: string | null;
+  resolvedPrice: string | null;
+  resolvedPriceMinor: number | null;
+  chargedPrice: string | null;
+  chargedPriceMinor: number | null;
+  priceApprovedBy: string | null;
+  priceApprovedByName: string | null;
+  priceNote: string | null;
+};
+
+/**
+ * One line of FR-9.2's timeline. Flat with a `kind` rather than a type per
+ * event: the optional halves are what each kind carries.
+ */
+export type TraceEvent = {
+  kind: TraceEventKind;
+  occurredAt: string;
+  userId: string;
+  userName: string | null;
+  note: string | null;
+  documentType: DocumentType | null;
+  documentId: string | null;
+  documentNumber: string | null;
+  locationId: string | null;
+  locationName: string | null;
+  /** PRICED only. A null `oldPrice` is the first pricing, not a cut. */
+  oldPrice: string | null;
+  oldPriceMinor: number | null;
+  newPrice: string | null;
+  newPriceMinor: number | null;
+  origin: TraceOrigin | null;
+  sale: TraceSale | null;
+};
+
+export type DeviceTrace = {
+  unit: DeviceUnit;
+  events: TraceEvent[];
 };

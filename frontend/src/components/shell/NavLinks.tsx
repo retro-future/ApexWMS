@@ -3,17 +3,24 @@
 import { Box, NavLink, Stack, Text } from "@mantine/core";
 import {
   IconArrowBackUp,
+  IconArrowsExchange,
   IconBuildingWarehouse,
   IconChartBar,
+  IconChartLine,
   IconChecklist,
   IconClipboardList,
+  IconCoins,
   IconCreditCard,
+  IconHourglass,
   IconLayoutDashboard,
   IconMapPin,
   IconPackageImport,
   IconReceipt,
+  IconRoute,
   IconScale,
   IconSettings,
+  IconStack2,
+  IconTag,
   IconTrashX,
   IconTruck,
   IconUsers,
@@ -133,6 +140,48 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     {
       title: t("reports"),
       items: [
+        {
+          href: "/reports/stock-on-hand",
+          label: t("stockOnHand"),
+          icon: IconStack2,
+          permission: Permission.Reporting.View,
+        },
+        {
+          href: "/reports/trace",
+          label: t("trace"),
+          icon: IconRoute,
+          permission: Permission.Catalog.View,
+        },
+        {
+          href: "/reports/movements",
+          label: t("movements"),
+          icon: IconArrowsExchange,
+          permission: Permission.Reporting.View,
+        },
+        {
+          href: "/reports/sales-summary",
+          label: t("salesSummary"),
+          icon: IconChartLine,
+          permission: Permission.Reporting.View,
+        },
+        {
+          href: "/reports/ageing",
+          label: t("ageing"),
+          icon: IconHourglass,
+          permission: Permission.Reporting.View,
+        },
+        {
+          href: "/reports/needs-pricing",
+          label: t("needsPricing"),
+          icon: IconTag,
+          permission: Permission.Reporting.View,
+        },
+        {
+          href: "/reports/financial-ledger",
+          label: t("financialLedger"),
+          icon: IconCoins,
+          permission: Permission.FinancialLedger.View,
+        },
         {
           href: "/reports/price-deviations",
           label: t("priceDeviations"),

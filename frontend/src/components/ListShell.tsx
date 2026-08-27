@@ -21,6 +21,9 @@ import { TableScrollArea } from "@/components/TableScrollArea";
 /** Width of the trailing, unlabeled row-actions column shared by every list table. */
 export const ACTIONS_COLUMN_WIDTH = 60;
 
+/** Width of the leading checkbox column on the two worklists that price in bulk. */
+export const SELECT_COLUMN_WIDTH = 40;
+
 /**
  * The frame every list page sits in: heading, search, filters, table,
  * pagination, and the loading / error / empty states that otherwise get

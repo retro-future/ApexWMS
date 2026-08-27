@@ -89,6 +89,11 @@ export const Permission = {
   Reporting: {
     View: "Permission.Reporting.View",
   },
+  /** The raw money ledger. Separate from Reporting.View: 2.1 grades "what did
+      we move" and "what did we earn" as different questions. */
+  FinancialLedger: {
+    View: "Permission.FinancialLedger.View",
+  },
   Document: {
     Cancel: "Permission.Document.Cancel",
   },

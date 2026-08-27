@@ -18,13 +18,13 @@ import type { PriceDeviation } from "@/lib/types";
  * system resolved at confirm, in **both** directions — a handset sold above
  * its asking price is information too.
  *
- * Sorting by approver and by customer is done here rather than on the
- * server: the list query carries no `orderBy` (that lands with M8), and
- * what the report is looking for — the same manager and the same customer,
- * over and over — is visible within a page.
+ * Sorting is the server's (`sort=approver|customer`), because the pattern
+ * the report exists to show — the same manager and the same customer, over
+ * and over — is spread across pages, and sorting one page would only
+ * rearrange what happens to be on it.
  */
 
-type SortKey = "approver" | "customer" | null;
+type SortKey = "confirmed_at" | "approver" | "customer";
 
 export function PriceDeviationsList() {
   const t = useTranslations("reports");
@@ -39,13 +39,14 @@ export function PriceDeviationsList() {
   const [to, setTo] = useState("");
   const [approvedBy, setApprovedBy] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [sort, setSort] = useState<SortKey>(null);
+  const [sort, setSort] = useState<SortKey>("confirmed_at");
   const [page, setPage] = useState(1);
 
   const reset = makePageReset(setPage);
 
   const query = useResourceList<PriceDeviation>("reports/price-deviations", {
     page,
+    sort,
     fromDate: from ? new Date(from).toISOString() : undefined,
     // Through the end of the chosen day, not its first instant.
     toDate: to ? new Date(`${to}T23:59:59.999Z`).toISOString() : undefined,
@@ -53,13 +54,11 @@ export function PriceDeviationsList() {
     customerId: customerId ?? undefined,
   });
 
-  const label = (row: PriceDeviation) =>
-    sort === "approver"
-      ? (employees.get(row.priceApprovedBy) ?? "")
-      : (customers.get(row.customerId) ?? "");
+  const rows = query.data?.items ?? [];
 
-  const rows = [...(query.data?.items ?? [])];
-  if (sort) rows.sort((a, b) => label(a).localeCompare(label(b)));
+  function toggleSort(key: SortKey) {
+    reset(setSort)(sort === key ? "confirmed_at" : key);
+  }
 
   return (
     <ListShell
@@ -119,14 +118,14 @@ export function PriceDeviationsList() {
             <SortHeader
               label={t("approver")}
               active={sort === "approver"}
-              onToggle={() => setSort(sort === "approver" ? null : "approver")}
+              onToggle={() => toggleSort("approver")}
             />
           </Table.Th>
           <Table.Th>
             <SortHeader
               label={t("filterCustomer")}
               active={sort === "customer"}
-              onToggle={() => setSort(sort === "customer" ? null : "customer")}
+              onToggle={() => toggleSort("customer")}
             />
           </Table.Th>
         </Table.Tr>
@@ -176,9 +175,7 @@ export function PriceDeviationsList() {
             </Text>
           </Table.Td>
           <Table.Td>
-            <Text size="sm">
-              {employees.get(row.priceApprovedBy) ?? t("unattributed")}
-            </Text>
+            <Text size="sm">{row.priceApprovedByName ?? t("unattributed")}</Text>
             {row.priceNote && (
               <Text size="xs" c="dimmed">
                 {row.priceNote}
@@ -186,7 +183,7 @@ export function PriceDeviationsList() {
             )}
           </Table.Td>
           <Table.Td>
-            <Text size="sm">{customers.get(row.customerId) ?? tCommon("none")}</Text>
+            <Text size="sm">{row.customerName ?? tCommon("none")}</Text>
           </Table.Td>
         </Table.Tr>
       ))}
@@ -194,7 +191,7 @@ export function PriceDeviationsList() {
   );
 }
 
-/** A column header that toggles the client-side sort on and off. */
+/** A column header that switches the server-side sort on and off. */
 function SortHeader({
   label,
   active,

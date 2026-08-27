@@ -5,17 +5,13 @@ import {
   Badge,
   Button,
   Card,
-  Center,
   Group,
-  Loader,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -25,14 +21,12 @@ import { ConditionModal } from "@/app/(app)/device-units/ConditionModal";
 import { RepriceModal } from "@/app/(app)/device-units/RepriceModal";
 import { SellUnitModal } from "@/app/(app)/device-units/SellUnitModal";
 import { DetailError, DetailLoading } from "@/components/DetailStates";
+import { DeviceTraceTimeline } from "@/components/DeviceTraceTimeline";
 import { useCan } from "@/components/MeProvider";
-import { TableScrollArea } from "@/components/TableScrollArea";
-import { useDateFormat } from "@/hooks/use-date-format";
 import { useLocationLookup } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
-import { apiGet } from "@/lib/api";
 import { Permission } from "@/lib/permissions";
-import type { DeviceUnit, PriceChange } from "@/lib/types";
+import type { DeviceUnit } from "@/lib/types";
 
 /** A handset that has left stock is settled: no repricing, no re-grading. */
 const ON_HAND = new Set(["in_stock", "reserved"]);
@@ -42,7 +36,7 @@ export default function DeviceUnitPage() {
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
   const tSell = useTranslations("invoices.sell");
-  const { formatDateTime } = useDateFormat();
+  const tReports = useTranslations("reports");
   const { id } = useParams<{ id: string }>();
   const can = useCan();
 
@@ -50,12 +44,6 @@ export default function DeviceUnitPage() {
   const locations = useLocationLookup();
 
   const canPrice = can(Permission.Pricing.Set);
-  // Keyed under the unit so a reprice invalidates the log along with it.
-  const history = useQuery<PriceChange[]>({
-    queryKey: ["device-units", "item", id, "price-history"],
-    queryFn: () => apiGet<PriceChange[]>(`/device-units/${id}/price-history`),
-    enabled: canPrice,
-  });
 
   const [repricing, setRepricing] = useState(false);
   const [regrading, setRegrading] = useState(false);
@@ -174,56 +162,15 @@ export default function DeviceUnitPage() {
         </Card>
       )}
 
-      {canPrice && (
-        <Card withBorder radius="md" padding="lg">
-          <Stack gap="md">
-            <Text fw={500}>{t("priceHistory")}</Text>
-            {history.isLoading ? (
-              <Center p="md">
-                <Loader size="sm" />
-              </Center>
-            ) : (history.data ?? []).length === 0 ? (
-              <Text size="sm" c="dimmed">
-                {t("priceHistoryEmpty")}
-              </Text>
-            ) : (
-              <TableScrollArea>
-                <Table verticalSpacing="sm" miw={480}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>{tDoc("created")}</Table.Th>
-                      <Table.Th>{t("askingPrice")}</Table.Th>
-                      <Table.Th>{tDoc("reason")}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {(history.data ?? []).map((change) => (
-                      <Table.Tr key={change.id}>
-                        <Table.Td>{formatDateTime(change.occurredAt)}</Table.Td>
-                        <Table.Td>
-                          {change.oldPrice === null
-                            ? t("priceFirst", {
-                                price: `${change.newPrice} ${change.currency}`,
-                              })
-                            : t("priceChanged", {
-                                oldPrice: change.oldPrice,
-                                newPrice: `${change.newPrice} ${change.currency}`,
-                              })}
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="dimmed">
-                            {change.reason ?? tCommon("none")}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </TableScrollArea>
-            )}
-          </Stack>
-        </Card>
-      )}
+      {/* FR-9.2: the whole life of the handset, price log included. Open
+          to anyone who may see the unit - the events carry prices, never
+          costs. */}
+      <Card withBorder radius="md" padding="lg">
+        <Stack gap="md">
+          <Text fw={500}>{tReports("traceHeading")}</Text>
+          <DeviceTraceTimeline deviceUnitId={id} />
+        </Stack>
+      </Card>
 
       {repricing && (
         <RepriceModal unit={unit} onClose={() => setRepricing(false)} />
