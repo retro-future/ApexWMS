@@ -18,10 +18,12 @@ and ``PagedRequest`` (xterminal). Two bugs were found and fixed:
    Fixed with ``Field(ge=1)`` at the source rather than guarding the
    division downstream.
 
-The reference's ``order_by`` field is deliberately absent: no repository
-implements sorting yet, and a query parameter that appears in the OpenAPI
-schema and then silently does nothing is worse than no parameter at all.
-It comes back when M8's reporting specifies what may be sorted by.
+The reference's ``order_by`` field is deliberately absent, and M8 settled
+that it stays absent. A free-text sort column is either a whitelist
+repeated in every repository or an injection hole, and a parameter that
+appears in the OpenAPI schema and then silently does nothing is worse than
+no parameter at all. Each report that PRD §5.9 says is sortable declares
+its own fixed enum in ``application/sorting.py`` instead.
 """
 
 from pydantic import Field

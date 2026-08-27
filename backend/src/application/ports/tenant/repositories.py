@@ -16,13 +16,24 @@ from typing import Protocol
 from uuid import UUID
 
 from application.dtos import (
+    AccessoryOnHand,
+    AgeingRow,
     CreditInvoiceDebt,
     DebtorSummary,
+    FinancialLedgerRow,
     Letterhead,
+    MovementLogRow,
+    NeedsPricingRow,
+    OnHandBucket,
     PriceDeviation,
+    SalesTotalsRow,
+    StockGroupBy,
     TenantLogo,
+    UnitOrigin,
+    UnitSale,
 )
 from application.ports.repository import AppendOnlyRepository, Repository
+from application.sorting import AgeingSort, DeviationSort
 from domain.entities import (
     CreditCompany,
     Customer,
@@ -55,6 +66,7 @@ from domain.enums import (
     AcquisitionSource,
     DocumentStatus,
     DocumentType,
+    MovementType,
     SupplierReturnReason,
     TrackingType,
     TransactionType,
@@ -199,6 +211,39 @@ class DeviceUnitRepository(Repository[DeviceUnit, UUID], Protocol):
         unit must be in hand before any of them is priced."""
         ...
 
+    async def list_ageing(
+        self,
+        page: int,
+        page_size: int,
+        received_before: datetime,
+        location_id: UUID | None = None,
+        sort: AgeingSort = AgeingSort.AGE,
+    ) -> tuple[list[AgeingRow], int]:
+        """FR-9.4: on-hand handsets received before *received_before*.
+
+        The cutoff is an instant, not a day count: the clock belongs to the
+        handler, and a report whose window moved as the query ran would not
+        be reproducible.
+
+        ``markdown_count`` counts price *reductions* only — the first
+        pricing is not one, and neither is a raise.
+        """
+        ...
+
+    async def list_needs_pricing(
+        self,
+        page: int,
+        page_size: int,
+        location_id: UUID | None = None,
+    ) -> tuple[list[NeedsPricingRow], int]:
+        """FR-9.6: on-hand handsets ``PriceResolver`` would refuse, oldest first.
+
+        The filter is FR-2.14 read backwards, stated once in SQL because a
+        worklist that paged over every unit in the store to ask the domain
+        service one at a time would not be a worklist.
+        """
+        ...
+
     async def list_on_hand(self, location_id: UUID | None = None) -> list[DeviceUnit]:
         """Everything the store still physically holds (§4.6, FR-9.1)."""
         ...
@@ -224,10 +269,48 @@ class StockMovementRepository(AppendOnlyRepository[StockMovement], Protocol):
     """The stock ledger (§4.3) — immutable, and the source every stock
     projection is rebuildable from."""
 
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        product_id: UUID | None = None,
+        location_id: UUID | None = None,
+        device_unit_id: UUID | None = None,
+        user_id: UUID | None = None,
+        movement_type: MovementType | None = None,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> tuple[list[MovementLogRow], int]:
+        """FR-9.5: the raw stock ledger, newest first, with the product,
+        handset, location and actor named rather than referenced.
+
+        Every filter is optional and they compose — the question this
+        answers is never the same twice.
+        """
+        ...
+
+    async def units_sold(
+        self,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> dict[UUID, int]:
+        """FR-9.3: how many things left each shelf as a sale.
+
+        Net of cancellations without excluding anything: a reversal is the
+        same movement type with the opposite sign (§4.3 rule 3).
+        """
+        ...
+
     async def list_for_document(
         self, document_type: DocumentType, document_id: UUID
     ) -> list[StockMovement]:
         """Everything one document wrote — what a cancellation compensates."""
+        ...
+
+    async def trace_for_unit(self, device_unit_id: UUID) -> list[MovementLogRow]:
+        """FR-9.2's ledger half: one handset's movements, oldest first, with
+        the document and the person named rather than referenced."""
         ...
 
     async def list_for_unit(self, device_unit_id: UUID) -> list[StockMovement]:
@@ -274,6 +357,39 @@ class FinancialTransactionRepository(AppendOnlyRepository[FinancialTransaction],
         """Everything one document booked — what a cancellation reverses."""
         ...
 
+    async def list_page(
+        self,
+        page: int,
+        page_size: int,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        txn_type: TransactionType | None = None,
+        location_id: UUID | None = None,
+        document_type: DocumentType | None = None,
+    ) -> tuple[list[FinancialLedgerRow], int]:
+        """FR-10.3: the raw money ledger, newest first, mirroring FR-9.5.
+
+        A log rather than an aggregate, and deliberately without a total:
+        these rows mix currencies by design (§4.6), so any single figure
+        over them would be adding som to cents.
+        """
+        ...
+
+    async def sales_totals(
+        self,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> list[SalesTotalsRow]:
+        """FR-9.3's two categories, grouped by location and currency.
+
+        Only ``SALE_REVENUE`` and ``COGS`` — a purchase in the same window
+        is not part of what selling earned. Dates are inclusive at both
+        ends, like every other §5.9 report; ``totals_by_type``'s exclusive
+        ``until`` is §5.10's period math and a different question.
+        """
+        ...
+
     async def totals_by_type(
         self,
         *,
@@ -295,6 +411,44 @@ class FinancialTransactionRepository(AppendOnlyRepository[FinancialTransaction],
         is what a cost pool is replayed from: the quantities come from the
         stock ledger and the money from this one, so a COGS booked at the
         wrong average shows up as a disagreement between them.
+        """
+        ...
+
+
+class StockOnHandRepository(Protocol):
+    """FR-9.1's two halves, read from the two tables that hold stock.
+
+    Its own port rather than methods on the device-unit or stock-level
+    repository: the report spans both tables, and neither aggregate owns
+    the other's answer.
+    """
+
+    async def serialized_totals(
+        self,
+        group_by: StockGroupBy,
+        location_id: UUID | None = None,
+        product_id: UUID | None = None,
+        brand: str | None = None,
+    ) -> list[OnHandBucket]:
+        """On-hand handsets, already grouped and summed per currency.
+
+        Summed in SQL because a store holds far more handsets than groups,
+        and each carries its own cost — specific identification, so there
+        is nothing to replay.
+        """
+        ...
+
+    async def accessories_on_hand(
+        self,
+        group_by: StockGroupBy,
+        location_id: UUID | None = None,
+        product_id: UUID | None = None,
+        brand: str | None = None,
+    ) -> list[AccessoryOnHand]:
+        """The accessory pairs still carrying stock, **unvalued**.
+
+        No column holds an accessory's cost (§4.6), so the value has to be
+        replayed by ``CostPoolReader``, one pair at a time.
         """
         ...
 
@@ -377,6 +531,12 @@ class GoodsReceiptRepository(Repository[GoodsReceipt, UUID], Protocol):
         ordered; a draft receipt has received nothing."""
         ...
 
+    async def origin_of(self, receipt_id: UUID) -> UnitOrigin | None:
+        """FR-9.2's first line: the supplier a handset came from, or the
+        walk-in it was traded in from (FR-3.3b). Exactly one of the two is
+        ever set, which is why both are optional."""
+        ...
+
     async def supplier_of(self, receipt_id: UUID) -> UUID | None:
         """Who delivered this receipt — ``None`` for a trade-in (FR-3.3b).
 
@@ -414,23 +574,6 @@ class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
         """Take a line off while the invoice is still a draft (FR-4.5c)."""
         ...
 
-    async def list_deviations(
-        self,
-        page: int,
-        page_size: int,
-        from_date: datetime | None = None,
-        to_date: datetime | None = None,
-        approved_by: UUID | None = None,
-        customer_id: UUID | None = None,
-    ) -> tuple[list[PriceDeviation], int]:
-        """FR-9.7: confirmed lines charged something other than the resolved
-        price, newest first.
-
-        Confirmed only. A cancelled invoice keeps its snapshots, but a
-        reversed sale is not a deviation anyone still has to answer for.
-        """
-        ...
-
     async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
         """Every non-cash sale this customer has, newest first (FR-11.9).
 
@@ -439,17 +582,6 @@ class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
         debt at all. Cancelled invoices are included — their debt is void
         but any payments taken still have to be surfaced for refund
         handling (FR-11.11).
-        """
-        ...
-
-    async def list_debtors(
-        self, page: int, page_size: int
-    ) -> tuple[list[DebtorSummary], int]:
-        """Every customer with a balance above zero, worst-first (FR-11.10).
-
-        Ordered by the age of their oldest open invoice: store credit has
-        no due date by design, so nothing is ever formally overdue and age
-        is what makes a stale debt visible.
         """
         ...
 
@@ -463,6 +595,60 @@ class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
 
 
 # --- M6 returns, counts and write-offs (PRD §4.4, §5.5, §5.6) ------------
+
+
+class SalesReportRepository(Protocol):
+    """The sales-side reports (§5.9, §5.10), read from invoices and lines.
+
+    Its own port rather than more methods on ``SalesInvoiceRepository``:
+    none of these loads an invoice. They flatten joins across four tables
+    into rows a report renders directly, which is a different job from
+    persisting the aggregate.
+    """
+
+    async def list_deviations(
+        self,
+        page: int,
+        page_size: int,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        approved_by: UUID | None = None,
+        customer_id: UUID | None = None,
+        sort: DeviationSort = DeviationSort.CONFIRMED_AT,
+    ) -> tuple[list[PriceDeviation], int]:
+        """FR-9.7: confirmed lines charged something other than the resolved
+        price, newest first.
+
+        Confirmed only. A cancelled invoice keeps its snapshots, but a
+        reversed sale is not a deviation anyone still has to answer for.
+
+        Sorting by approver or customer is what makes *"one manager, one
+        customer, over and over"* visible; either way ``confirmed_at``
+        descending and the line id break the ties, so a page boundary is
+        stable.
+        """
+        ...
+
+    async def sales_of_unit(self, device_unit_id: UUID) -> dict[UUID, UnitSale]:
+        """Every non-draft line that sold this handset, keyed by invoice id.
+
+        Keyed rather than listed so FR-9.2's trace can attach each sale to
+        the ``SALE`` movement naming the same document — a handset sold,
+        cancelled and sold again leaves no ambiguity about which price
+        belongs to which sale.
+        """
+        ...
+
+    async def list_debtors(
+        self, page: int, page_size: int
+    ) -> tuple[list[DebtorSummary], int]:
+        """Every customer with a balance above zero, worst-first (FR-11.10).
+
+        Ordered by the age of their oldest open invoice: store credit has
+        no due date by design, so nothing is ever formally overdue and age
+        is what makes a stale debt visible.
+        """
+        ...
 
 
 class SupplierReturnRepository(Repository[SupplierReturn, UUID], Protocol):

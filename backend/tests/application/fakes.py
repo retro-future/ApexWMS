@@ -466,7 +466,12 @@ class FakeCustomerRepository(FakeRepository[Customer]):
 class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
     """The line methods write through the aggregate the handler already
     holds, exactly as the SQL repository writes one row rather than
-    rewriting the whole invoice per beep."""
+    rewriting the whole invoice per beep.
+
+    One fake stands in for two ports. SQL splits the reports off into
+    ``SqlSalesReportRepository`` because the file was too big to hold both;
+    in memory there is one dict of invoices to answer from, and the ports
+    are structural, so this satisfies ``SalesReportRepository`` too."""
 
     def __init__(self) -> None:
         super().__init__()

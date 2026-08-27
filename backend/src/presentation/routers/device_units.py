@@ -38,7 +38,11 @@ from application.commands.reprice_device_units import (
 )
 from application.core import ResultWithData
 from application.dtos import CurrentUser
-from application.models import DeviceUnitData, PriceChangeData
+from application.models import DeviceTraceData, DeviceUnitData, PriceChangeData
+from application.queries.get_device_trace import (
+    GetDeviceTraceHandler,
+    GetDeviceTraceQuery,
+)
 from application.queries.get_device_unit import GetDeviceUnitHandler, GetDeviceUnitQuery
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
@@ -78,6 +82,26 @@ async def get_device_unit(
 ) -> ResultWithData[DeviceUnitData]:
     require(current, Permission.CATALOG_VIEW)
     return await handler.handle(GetDeviceUnitQuery(device_unit_id=device_unit_id))
+
+
+@router.get("/{device_unit_id}/trace")
+async def get_device_trace(
+    device_unit_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetDeviceTraceHandler],
+) -> ResultWithData[DeviceTraceData]:
+    """FR-9.2: everything that ever happened to this handset, in order.
+
+    Open to anyone at the store like the unit itself is, and narrowed the
+    same way: cost, margin and the som paid for a trade-in are omitted
+    without ``Cost.View`` (FR-1.7). Prices are not — what a phone was asked
+    for is what the counter needs.
+
+    PRD §8 lists this as ``/devices/{imei}/history``; ``GET /scan/lookup``
+    turns a scanned IMEI into the id this takes.
+    """
+    require(current, Permission.CATALOG_VIEW)
+    return await handler.handle(GetDeviceTraceQuery(device_unit_id=device_unit_id))
 
 
 @router.get("/{device_unit_id}/price-history")

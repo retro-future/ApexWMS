@@ -11,22 +11,41 @@ from tests.api.ledger_helpers import receive_phone
 PHONE_IMEI = "490154203237518"
 
 
-async def sell(client, settings, owner, *, asking: str, charged: str | None, note=None):
+async def a_customer(client, owner, name: str) -> str:
+    created = await client.post(
+        "/api/v1/customers", headers=owner.auth, json={"fullName": name}
+    )
+    assert created.status_code == 201, created.text
+    return created.json()["data"]["id"]
+
+
+async def sell(
+    client,
+    settings,
+    owner,
+    *,
+    asking: str,
+    charged: str | None,
+    note=None,
+    imei: str = PHONE_IMEI,
+    customer_id: str | None = None,
+):
     """Put a handset in stock at *asking*, sell it, optionally overridden."""
-    unit_id, _, location_id = await receive_phone(client, settings, owner)
+    unit_id, _, location_id = await receive_phone(client, settings, owner, imei=imei)
     await client.patch(
         f"/api/v1/device-units/{unit_id}/price",
         headers=owner.auth,
         json={"askingPrice": asking, "reason": "priced for sale"},
     )
-    created = await client.post(
-        "/api/v1/invoices", headers=owner.auth, json={"locationId": str(location_id)}
-    )
+    body = {"locationId": str(location_id)}
+    if customer_id is not None:
+        body["customerId"] = customer_id
+    created = await client.post("/api/v1/invoices", headers=owner.auth, json=body)
     invoice_id = created.json()["data"]["id"]
     scanned = await client.post(
         f"/api/v1/invoices/{invoice_id}/scan",
         headers=owner.auth,
-        json={"code": PHONE_IMEI},
+        json={"code": imei},
     )
     line_id = scanned.json()["data"]["line"]["id"]
 
@@ -174,3 +193,101 @@ class TestWhoMayRead:
         )
 
         assert refused.status_code == 403
+
+
+class TestTheRowNamesItsPeople:
+    """The demo line is *"the name of whoever approved that"*, and the
+    pattern the report exists to surface is one manager against one
+    customer — neither of which a page of UUIDs shows."""
+
+    async def test_the_approver_and_the_customer_are_carried_by_name(
+        self, client, settings, owner
+    ):
+        customer_id = await a_customer(client, owner, "Aziz")
+
+        await sell(
+            client,
+            settings,
+            owner,
+            asking="520",
+            charged="300",
+            customer_id=customer_id,
+        )
+
+        row = (await deviations(client, owner.auth))["data"][0]
+        assert row["priceApprovedByName"] == owner.full_name
+        assert row["customerId"] == customer_id
+        assert row["customerName"] == "Aziz"
+
+    async def test_a_walk_in_sale_names_no_customer(self, client, settings, owner):
+        await sell(client, settings, owner, asking="520", charged="300")
+
+        row = (await deviations(client, owner.auth))["data"][0]
+        assert row["customerId"] is None
+        assert row["customerName"] is None
+
+
+class TestSorting:
+    """FR-9.7 is sortable by customer, because the pattern worth seeing is
+    the same person coming back for the same treatment."""
+
+    async def test_sorting_by_customer_orders_by_name(self, client, settings, owner):
+        bek = await a_customer(client, owner, "Bek")
+        aziz = await a_customer(client, owner, "Aziz")
+        await sell(
+            client,
+            settings,
+            owner,
+            asking="520",
+            charged="300",
+            customer_id=bek,
+            imei="356938035643809",
+        )
+        await sell(
+            client,
+            settings,
+            owner,
+            asking="520",
+            charged="300",
+            customer_id=aziz,
+            imei="013994000523984",
+        )
+
+        body = await deviations(client, owner.auth, sort="customer")
+
+        assert [row["customerName"] for row in body["data"]] == ["Aziz", "Bek"]
+
+    async def test_the_default_is_newest_first(self, client, settings, owner):
+        bek = await a_customer(client, owner, "Bek")
+        aziz = await a_customer(client, owner, "Aziz")
+        await sell(
+            client,
+            settings,
+            owner,
+            asking="520",
+            charged="300",
+            customer_id=bek,
+            imei="356938035643809",
+        )
+        await sell(
+            client,
+            settings,
+            owner,
+            asking="520",
+            charged="300",
+            customer_id=aziz,
+            imei="013994000523984",
+        )
+
+        body = await deviations(client, owner.auth)
+
+        assert [row["customerName"] for row in body["data"]] == ["Aziz", "Bek"]
+
+    async def test_an_unknown_sort_value_is_refused(self, client, settings, owner):
+        refused = await client.get(
+            "/api/v1/reports/price-deviations",
+            headers=owner.auth,
+            params={"sort": "whatever"},
+        )
+
+        assert refused.status_code == 422

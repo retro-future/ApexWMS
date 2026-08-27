@@ -269,3 +269,50 @@ async def test_an_invite_grants_a_role_only_at_the_issuing_store(client, two_ten
 
     users_b = await client.get("/api/v1/users", headers=b.auth)
     assert [u["email"] for u in users_b.json()["data"]] == ["owner-b@example.com"]
+
+
+async def test_a_stores_reports_never_see_the_other_stores_stock(client, two_tenants):
+    """M8's reads are the widest surface in the system: seven endpoints that
+    sweep whole tables. A report that forgot its scope would be the quietest
+    possible leak, because it returns a plausible page rather than an error.
+    """
+    a, b = two_tenants
+    created = await client.post(
+        "/api/v1/products",
+        headers=a.auth,
+        json={"sku": "IP15P-256", "name": "iPhone 15 Pro", "trackingType": "serial"},
+    )
+    assert created.status_code == 201, created.text
+
+    for path in (
+        "/api/v1/reports/stock-on-hand",
+        "/api/v1/reports/needs-pricing",
+        "/api/v1/reports/ageing",
+        "/api/v1/reports/movements",
+        "/api/v1/reports/financial-ledger",
+        "/api/v1/reports/price-deviations",
+    ):
+        seen = await client.get(path, headers=b.auth)
+        assert seen.status_code == 200, seen.text
+        assert seen.json()["totalItems"] == 0, path
+
+    summary = await client.get("/api/v1/reports/sales-summary", headers=b.auth)
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["data"]["locations"] == []
+
+
+async def test_a_handset_from_one_store_cannot_be_traced_from_the_other(
+    client, two_tenants
+):
+    a, b = two_tenants
+    created = await client.post(
+        "/api/v1/products",
+        headers=a.auth,
+        json={"sku": "IP15P-256", "name": "iPhone 15 Pro", "trackingType": "serial"},
+    )
+    assert created.status_code == 201, created.text
+    product_id = created.json()["data"]["id"]
+
+    traced = await client.get(f"/api/v1/device-units/{product_id}/trace", headers=b.auth)
+
+    assert traced.status_code == 404

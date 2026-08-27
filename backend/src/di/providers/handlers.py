@@ -83,6 +83,7 @@ from application.commands.update_tenant_settings import UpdateTenantSettingsHand
 from application.queries.get_credit_company import GetCreditCompanyHandler
 from application.queries.get_customer import GetCustomerHandler
 from application.queries.get_customer_account import GetCustomerAccountHandler
+from application.queries.get_device_trace import GetDeviceTraceHandler
 from application.queries.get_device_unit import GetDeviceUnitHandler
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
@@ -96,18 +97,24 @@ from application.queries.get_purchase_order import GetPurchaseOrderHandler
 from application.queries.get_purchase_order_pdf import GetPurchaseOrderPdfHandler
 from application.queries.get_sales_invoice import GetSalesInvoiceHandler
 from application.queries.get_sales_invoice_pdf import GetSalesInvoicePdfHandler
+from application.queries.get_sales_summary import GetSalesSummaryHandler
 from application.queries.get_stock_count import GetStockCountHandler
+from application.queries.get_stock_on_hand import GetStockOnHandHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_supplier_return import GetSupplierReturnHandler
 from application.queries.get_supplier_return_pdf import GetSupplierReturnPdfHandler
 from application.queries.get_tenant_logo import GetTenantLogoHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.get_write_off import GetWriteOffHandler
+from application.queries.list_ageing import ListAgeingHandler
 from application.queries.list_credit_companies import ListCreditCompaniesHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
+from application.queries.list_financial_ledger import ListFinancialLedgerHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
+from application.queries.list_movements import ListMovementsHandler
+from application.queries.list_needs_pricing import ListNeedsPricingHandler
 from application.queries.list_price_deviations import ListPriceDeviationsHandler
 from application.queries.list_products import ListProductsHandler
 from application.queries.list_purchase_orders import ListPurchaseOrdersHandler
@@ -226,4 +233,12 @@ class HandlersProvider(Provider):
         # --- reporting ---
         ListPriceDeviationsHandler,
         ListDebtorsHandler,
+        # --- M8 reporting ---
+        ListNeedsPricingHandler,
+        ListAgeingHandler,
+        GetStockOnHandHandler,
+        ListMovementsHandler,
+        ListFinancialLedgerHandler,
+        GetSalesSummaryHandler,
+        GetDeviceTraceHandler,
     )

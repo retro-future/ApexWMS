@@ -4,11 +4,16 @@ Everything here is a read. A report never corrects the thing it reports
 on: a wrong invoice is cancelled and re-entered (§4.4), not edited from a
 table that noticed it.
 
-Most of it sits behind ``Permission.Reporting.View`` — Manager and Owner.
-The debtor list takes ``CustomerAccount.ViewAll`` instead, because §2.1
-grades the two questions differently: a Seller may look up what the
-customer in front of them owes, while the whole book is a business-health
-figure.
+Three permissions, because §2.1 grades three questions. Most of this sits
+behind ``Permission.Reporting.View`` — *what did we move*. The financial
+ledger takes ``FinancialLedger.View`` — *what did we earn*. The debtor list
+takes ``CustomerAccount.ViewAll`` — *what is the whole book owed*, as
+against the single customer's balance a Seller may look up. All three land
+on Manager and Owner today; the catalog keeps them apart so a future
+custom role can hold one without the others.
+
+Cost figures inside a report are narrower still: FR-1.7 omits them from the
+payload without ``Cost.View`` rather than leaving a screen to hide them.
 """
 
 from typing import Annotated
@@ -16,10 +21,40 @@ from typing import Annotated
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends, Query
 
-from application.core import PagedResult
+from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
-from application.models import DebtorData, PriceDeviationData
+from application.models import (
+    AgeingRowData,
+    DebtorData,
+    FinancialLedgerRowData,
+    MovementRowData,
+    NeedsPricingRowData,
+    PriceDeviationData,
+    SalesSummaryData,
+    StockOnHandData,
+)
+from application.queries.get_sales_summary import (
+    GetSalesSummaryHandler,
+    GetSalesSummaryQuery,
+)
+from application.queries.get_stock_on_hand import (
+    GetStockOnHandHandler,
+    GetStockOnHandQuery,
+)
+from application.queries.list_ageing import ListAgeingHandler, ListAgeingQuery
 from application.queries.list_debtors import ListDebtorsHandler, ListDebtorsQuery
+from application.queries.list_financial_ledger import (
+    ListFinancialLedgerHandler,
+    ListFinancialLedgerQuery,
+)
+from application.queries.list_movements import (
+    ListMovementsHandler,
+    ListMovementsQuery,
+)
+from application.queries.list_needs_pricing import (
+    ListNeedsPricingHandler,
+    ListNeedsPricingQuery,
+)
 from application.queries.list_price_deviations import (
     ListPriceDeviationsHandler,
     ListPriceDeviationsQuery,
@@ -57,4 +92,82 @@ async def list_debtors(
     first. No buckets and no overdue flag — store credit has no due
     date."""
     require(current, Permission.CUSTOMER_ACCOUNT_VIEW_ALL)
+    return await handler.handle(query)
+
+
+@router.get("/needs-pricing")
+async def list_needs_pricing(
+    query: Annotated[ListNeedsPricingQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[ListNeedsPricingHandler],
+) -> PagedResult[NeedsPricingRowData]:
+    """FR-9.6: in-stock handsets that resolve to no price, oldest first.
+
+    Manager and Owner, because they are the only ones who can act on it:
+    pricing is theirs (§2.1), and a Seller who found the list could not fix
+    a single row on it."""
+    require(current, Permission.REPORTING_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/ageing")
+async def list_ageing(
+    query: Annotated[ListAgeingQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[ListAgeingHandler],
+) -> PagedResult[AgeingRowData]:
+    """FR-9.4: handsets in stock longer than ``days``, with what they cost,
+    what they are asking, and how many times they have been cut."""
+    require(current, Permission.REPORTING_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/stock-on-hand")
+async def get_stock_on_hand(
+    query: Annotated[GetStockOnHandQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetStockOnHandHandler],
+) -> PagedResult[StockOnHandData]:
+    """FR-9.1: what is on the shelves, by location, product or brand, with
+    its cost value per currency — never one merged figure."""
+    require(current, Permission.REPORTING_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/movements")
+async def list_movements(
+    query: Annotated[ListMovementsQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[ListMovementsHandler],
+) -> PagedResult[MovementRowData]:
+    """FR-9.5: the raw stock ledger. Nothing is excluded — a reversal sits
+    beside the movement it reverses, because both happened."""
+    require(current, Permission.REPORTING_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/financial-ledger")
+async def list_financial_ledger(
+    query: Annotated[ListFinancialLedgerQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[ListFinancialLedgerHandler],
+) -> PagedResult[FinancialLedgerRowData]:
+    """FR-10.3: the raw money ledger, mirroring the movement log. Each row
+    carries its own currency; the report carries no total."""
+    require(current, Permission.FINANCIAL_LEDGER_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/sales-summary")
+async def get_sales_summary(
+    query: Annotated[GetSalesSummaryQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetSalesSummaryHandler],
+) -> ResultWithData[SalesSummaryData]:
+    """FR-9.3: units sold, revenue, cost of goods and margin per location.
+
+    Not paged: the store total is only meaningful with every location in
+    hand, and a total of one page is the kind of figure that gets
+    believed."""
+    require(current, Permission.REPORTING_VIEW)
     return await handler.handle(query)

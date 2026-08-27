@@ -13,7 +13,16 @@ runs are identical. A figure that leaks into a total cannot survive that.
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from application.dtos import MoneyEffect, Posting, PostingEntry
+from application.dtos import AgeingRow, MoneyEffect, Posting, PostingEntry
+from application.models import (
+    AgeingRowData,
+    DeviceUnitData,
+    FinancialLedgerRowData,
+    MovementRowData,
+    NeedsPricingRowData,
+    SalesFiguresData,
+    StockOnHandData,
+)
 from application.services import LedgerReconciler
 from domain.entities import DeviceUnit, Product
 from domain.enums import (
@@ -209,3 +218,66 @@ class TestItIsStillReadableOneRowAtATime:
         _, unit = await trade_in_store(record_cash=False)
 
         assert unit.cash_paid_display() is None
+
+
+class TestM8sReportsDoNotSumIt:
+    """The failure mode §4.5b names: *"a future report quietly summing
+    ``cash_paid``"*. M8 added seven of them, so the guard is stated against
+    the payloads they return rather than against the ledger alone.
+    """
+
+    def test_no_report_row_has_a_numeric_cash_field(self):
+        """``DeviceUnitData`` renders the som as a **string** and every other
+        M8 payload has no cash field at all — so there is nothing anywhere
+        for a caller to add to a figure."""
+        payloads = [
+            AgeingRowData,
+            NeedsPricingRowData,
+            StockOnHandData,
+            MovementRowData,
+            FinancialLedgerRowData,
+            SalesFiguresData,
+        ]
+
+        for payload in payloads:
+            assert not [
+                name for name in payload.model_fields if name.startswith("cash")
+            ], payload.__name__
+
+    def test_the_trace_header_carries_it_as_a_string_and_only_that(self):
+        assert DeviceUnitData.model_fields["cash_paid"].annotation == str | None
+        assert "cash_paid_minor" not in DeviceUnitData.model_fields
+
+    async def test_ageing_reports_the_booked_cost_not_the_som(self):
+        """The one M8 row that carries a cost. It is the dollar figure the
+        purchase was booked at, never the som that changed hands."""
+        _, unit = await trade_in_store(record_cash=True)
+
+        row = AgeingRowData.from_entity(
+            AgeingRow(
+                device_unit_id=unit.id,
+                imei=str(unit.imei),
+                product_id=unit.product_id,
+                sku="IP11-64",
+                product_name="iPhone 11 64GB",
+                brand=None,
+                condition=unit.condition,
+                location_id=unit.location_id,
+                location_name="Chilonzor shop",
+                created_at=NOW,
+                acquisition_cost=unit.acquisition_cost,
+                asking_price=usd("420"),
+                markdown_count=0,
+            ),
+            NOW,
+            show_cost=True,
+        )
+
+        assert row.acquisition_cost_minor == 33000
+        assert row.implied_margin_minor == 9000
+        assert row.currency is Currency.USD
+        assert CASH_PAID_SOM not in (
+            row.acquisition_cost_minor,
+            row.asking_price_minor,
+            row.implied_margin_minor,
+        )

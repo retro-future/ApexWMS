@@ -110,6 +110,7 @@ class Tenant:
         email: str,
         password: str,
         user_id: str,
+        full_name: str,
         access_token: str,
         refresh_token: str,
     ) -> None:
@@ -118,6 +119,7 @@ class Tenant:
         self.email = email
         self.password = password
         self.user_id = user_id
+        self.full_name = full_name
         self.access_token = access_token
         self.refresh_token = refresh_token
 
@@ -167,6 +169,7 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
         email: str = "owner@example.com",
         timezone: str = "Asia/Tashkent",
         password: str | None = None,
+        full_name: str = "Test Owner",
     ) -> Tenant:
         engine, sessions = _master_session(settings)
         try:
@@ -188,7 +191,7 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
                         name=name,
                         slug=slug,
                         owner_email=email,
-                        owner_full_name="Test Owner",
+                        owner_full_name=full_name,
                         timezone=timezone,
                     )
                 )
@@ -210,6 +213,7 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
             email=email,
             password=temp,
             user_id=str(data.owner_user_id),
+            full_name=full_name,
             access_token=body["accessToken"],
             refresh_token=body["refreshToken"],
         )

@@ -36,9 +36,11 @@ from application.services.removal_posting import RemovalPoster
 from application.services.removal_scanning import RemovalScanner
 from application.services.sale_price import SalePriceParser
 from application.services.slugs import SlugNormalizer
+from application.services.stock_on_hand import StockOnHandReader
 from application.services.timezones import TimezoneValidator
 from application.services.token_issuer import TokenIssuer
 from application.services.unit_origin import UnitOriginGuard
+from application.services.unit_trace import UnitTraceAssembler
 from application.services.verification import (
     BalanceVerifier,
     LedgerReconciler,
@@ -66,7 +68,9 @@ __all__ = [
     "RemovalScanner",
     "SalePriceParser",
     "SlugNormalizer",
+    "StockOnHandReader",
     "TimezoneValidator",
     "TokenIssuer",
     "UnitOriginGuard",
+    "UnitTraceAssembler",
 ]

@@ -20,6 +20,7 @@ from uuid import UUID
 
 from sqlalchemy import Row, delete, select
 
+from application.dtos import UnitOrigin
 from domain.entities import GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.enums import (
     AcquisitionSource,
@@ -29,10 +30,12 @@ from domain.enums import (
 )
 from domain.value_objects import IMEI, Currency, Money
 from infrastructure.persistence.tenant.models import (
+    CustomerModel,
     GoodsReceiptLineModel,
     GoodsReceiptModel,
     ProductModel,
     ReceivedUnitModel,
+    SupplierModel,
 )
 
 from .base import TenantRepository
@@ -169,6 +172,39 @@ class SqlGoodsReceiptRepository(TenantRepository):
             GoodsReceiptModel.id == receipt_id
         )
         return await self._session.scalar(stmt)
+
+    async def origin_of(self, receipt_id: UUID) -> UnitOrigin | None:
+        """FR-9.2's first line: a supplier, or the walk-in it was traded in
+        from (FR-3.3b). Both sides are outer-joined because exactly one of
+        them is ever set."""
+        stmt = (
+            select(
+                GoodsReceiptModel.acquisition_source,
+                GoodsReceiptModel.supplier_id,
+                SupplierModel.name,
+                GoodsReceiptModel.customer_id,
+                CustomerModel.full_name,
+            )
+            .outerjoin(SupplierModel, SupplierModel.id == GoodsReceiptModel.supplier_id)
+            .outerjoin(CustomerModel, CustomerModel.id == GoodsReceiptModel.customer_id)
+            .where(GoodsReceiptModel.id == receipt_id)
+        )
+        return await self._one_row(stmt, self._to_origin)
+
+    @staticmethod
+    def _to_origin(
+        row: Row[tuple[str, UUID | None, str, UUID | None, str]],
+    ) -> UnitOrigin:
+        source, supplier_id, supplier, customer_id, customer = row._tuple()
+        supplier_name: str | None = supplier
+        customer_name: str | None = customer
+        return UnitOrigin(
+            acquisition_source=AcquisitionSource(source),
+            supplier_id=supplier_id,
+            supplier_name=supplier_name,
+            customer_id=customer_id,
+            customer_name=customer_name,
+        )
 
     async def _lines_for(
         self, receipt_ids: list[UUID]

@@ -9,7 +9,7 @@ the top on its own.
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import DebtorData
-from application.ports import Clock, SalesInvoiceRepository
+from application.ports import Clock, SalesReportRepository
 
 
 class ListDebtorsQuery(PagedQuery[PagedResult[DebtorData]]):
@@ -17,12 +17,12 @@ class ListDebtorsQuery(PagedQuery[PagedResult[DebtorData]]):
 
 
 class ListDebtorsHandler(IRequestHandler[PagedResult[DebtorData], ListDebtorsQuery]):
-    def __init__(self, invoices: SalesInvoiceRepository, clock: Clock) -> None:
-        self._invoices = invoices
+    def __init__(self, sales: SalesReportRepository, clock: Clock) -> None:
+        self._sales = sales
         self._clock = clock
 
     async def handle(self, request: ListDebtorsQuery) -> PagedResult[DebtorData]:
-        debtors, total = await self._invoices.list_debtors(
+        debtors, total = await self._sales.list_debtors(
             page=request.page, page_size=request.page_size
         )
         now = self._clock.now()

@@ -12,7 +12,7 @@ from application.ports import (
     StockMovementRepository,
 )
 from application.services.cost_pools import INVENTORY_SIGN, CostPoolReader
-from domain.value_objects import Currency, Money
+from domain.value_objects import Currency, CurrencyTotals, Money
 
 
 class LedgerReconciler:
@@ -43,14 +43,14 @@ class LedgerReconciler:
         COGS booked at the wrong average shows up here as a disagreement
         with what the money ledger thinks it is holding.
         """
-        totals: dict[Currency, Money] = {}
+        totals = CurrencyTotals.empty()
         for unit in await self._units.list_on_hand():
-            _accumulate(totals, unit.acquisition_cost)
+            totals = totals.add(unit.acquisition_cost)
         for product_id, location_id in await self._movements.list_moved_pairs():
             pool = await self._pools.pool_for(product_id, location_id)
             if pool is not None and not pool.value.is_zero:
-                _accumulate(totals, pool.value)
-        return totals
+                totals = totals.add(pool.value)
+        return totals.as_dict()
 
     async def ledger_value(self) -> dict[Currency, Money]:
         """What the money ledger says the store should be holding.
@@ -64,12 +64,12 @@ class LedgerReconciler:
         not what they *cost*, and adding it here would compare a selling
         price against an inventory value.
         """
-        totals: dict[Currency, Money] = {}
+        totals = CurrencyTotals.empty()
         for (txn_type, _), amount in (await self._transactions.totals_by_type()).items():
             sign = INVENTORY_SIGN.get(txn_type)
             if sign is not None:
-                _accumulate(totals, amount * sign)
-        return totals
+                totals = totals.add(amount * sign)
+        return totals.as_dict()
 
     async def reconcile(self) -> list[Discrepancy]:
         """A mismatch is surfaced, never silently corrected (FR-10.7)."""
@@ -89,15 +89,3 @@ class LedgerReconciler:
                     )
                 )
         return found
-
-
-def _accumulate(totals: dict[Currency, Money], amount: Money) -> None:
-    """Add *amount* to its own currency's running total, and only its own.
-
-    The one operation every per-currency figure here is built from — so
-    there is nowhere a USD amount could land in the UZS column (§4.5
-    rule 4). The key is derived from the amount rather than passed in,
-    which is what makes that structural.
-    """
-    running = totals.get(amount.currency)
-    totals[amount.currency] = amount if running is None else running + amount

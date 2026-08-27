@@ -15,7 +15,8 @@ from uuid import UUID
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import PriceDeviationData
-from application.ports import SalesInvoiceRepository
+from application.ports import SalesReportRepository
+from application.sorting import DeviationSort
 
 
 class ListPriceDeviationsQuery(PagedQuery[PagedResult[PriceDeviationData]]):
@@ -23,24 +24,26 @@ class ListPriceDeviationsQuery(PagedQuery[PagedResult[PriceDeviationData]]):
     to_date: datetime | None = None
     approved_by: UUID | None = None
     customer_id: UUID | None = None
+    sort: DeviationSort = DeviationSort.CONFIRMED_AT
 
 
 class ListPriceDeviationsHandler(
     IRequestHandler[PagedResult[PriceDeviationData], ListPriceDeviationsQuery]
 ):
-    def __init__(self, invoices: SalesInvoiceRepository) -> None:
-        self._invoices = invoices
+    def __init__(self, sales: SalesReportRepository) -> None:
+        self._sales = sales
 
     async def handle(
         self, request: ListPriceDeviationsQuery
     ) -> PagedResult[PriceDeviationData]:
-        deviations, total = await self._invoices.list_deviations(
+        deviations, total = await self._sales.list_deviations(
             page=request.page,
             page_size=request.page_size,
             from_date=request.from_date,
             to_date=request.to_date,
             approved_by=request.approved_by,
             customer_id=request.customer_id,
+            sort=request.sort,
         )
         return PagedResult[PriceDeviationData].succeed_with_data(
             data=[PriceDeviationData.from_entity(one) for one in deviations],

@@ -29,9 +29,11 @@ from application.ports import (
     ProductRepository,
     PurchaseOrderRepository,
     SalesInvoiceRepository,
+    SalesReportRepository,
     StockCountRepository,
     StockLevelRepository,
     StockMovementRepository,
+    StockOnHandRepository,
     SupplierRepository,
     SupplierReturnRepository,
     TenantScope,
@@ -55,9 +57,11 @@ from infrastructure.persistence.tenant.repositories import (
     SqlProductRepository,
     SqlPurchaseOrderRepository,
     SqlSalesInvoiceRepository,
+    SqlSalesReportRepository,
     SqlStockCountRepository,
     SqlStockLevelRepository,
     SqlStockMovementRepository,
+    SqlStockOnHandRepository,
     SqlSupplierRepository,
     SqlSupplierReturnRepository,
     SqlTenantSettingsRepository,
@@ -130,6 +134,10 @@ class TenantRepositoriesProvider(Provider):
     def stock_levels(self, session: TenantSession) -> StockLevelRepository:
         return SqlStockLevelRepository(session)
 
+    @provide
+    def stock_on_hand(self, session: TenantSession) -> StockOnHandRepository:
+        return SqlStockOnHandRepository(session)
+
     # --- M4 inbound documents (PRD §4.4, §5.3) -------------------------
 
     @provide
@@ -147,6 +155,10 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def sales_invoices(self, session: TenantSession) -> SalesInvoiceRepository:
         return SqlSalesInvoiceRepository(session)
+
+    @provide
+    def sales_reports(self, session: TenantSession) -> SalesReportRepository:
+        return SqlSalesReportRepository(session)
 
     # --- M5b credit sales (PRD §4.7) -----------------------------------
 

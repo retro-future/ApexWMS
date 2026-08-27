@@ -28,9 +28,11 @@ from application.services import (
     RemovalScanner,
     SalePriceParser,
     SlugNormalizer,
+    StockOnHandReader,
     TimezoneValidator,
     TokenIssuer,
     UnitOriginGuard,
+    UnitTraceAssembler,
 )
 
 
@@ -52,11 +54,14 @@ class ApplicationServicesProvider(Provider):
         ReceiptPoster,
         # --- M5 outbound ---
         CostPoolReader,
+        StockOnHandReader,
         InvoicePoster,
         # --- M5b credit sales ---
         PaymentPoster,
         # --- M6 returns, counts & write-offs ---
         UnitOriginGuard,
+        UnitTraceAssembler,
+    UnitTraceAssembler,
         RemovalScanner,
         RemovalPoster,
         CountPoster,

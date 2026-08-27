@@ -597,3 +597,28 @@ async def test_only_a_manager_can_cancel_a_confirmed_document(
 
     still = await client.get(f"/api/v1/receipts/{receipt_id}", headers=owner.auth)
     assert still.json()["data"]["status"] == "confirmed"
+
+
+REPORTS = [
+    "/api/v1/reports/stock-on-hand",
+    "/api/v1/reports/needs-pricing",
+    "/api/v1/reports/ageing",
+    "/api/v1/reports/movements",
+    "/api/v1/reports/sales-summary",
+    "/api/v1/reports/financial-ledger",
+]
+
+
+@pytest.mark.parametrize("path", REPORTS)
+async def test_reporting_is_owner_and_manager_only(client, tenant_with_roles, path):
+    """§2.1: operational reporting and the financial ledger are both the
+    Owner's and the Manager's, and neither is anybody else's."""
+    _, tokens, _ = tenant_with_roles
+
+    for role in ("tenant.owner", "tenant.manager"):
+        allowed = await client.get(path, headers=tokens[role])
+        assert allowed.status_code == 200, f"{path} for {role}: {allowed.text}"
+
+    for role in ("tenant.storekeeper", "tenant.seller"):
+        refused = await client.get(path, headers=tokens[role])
+        assert refused.status_code == 403, f"{path} for {role}"

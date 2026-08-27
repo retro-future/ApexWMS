@@ -17,13 +17,12 @@ them at once (FR-4.5b1).
 """
 
 from collections import defaultdict
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import Row, delete, func, or_, select
 
-from application.dtos import CreditInvoiceDebt, DebtorSummary, PriceDeviation
+from application.dtos import CreditInvoiceDebt
 from domain.entities import SalesInvoice, SalesInvoiceLine
 from domain.enums import DocumentStatus, PaymentType, TrackingType
 from domain.value_objects import Currency, Money
@@ -156,56 +155,6 @@ class SqlSalesInvoiceRepository(TenantRepository):
         lines = await self._lines_for([row.id for row in rows])
         return [self._to_entity(row, lines[row.id]) for row in rows], total
 
-    async def list_deviations(
-        self,
-        page: int,
-        page_size: int,
-        from_date: datetime | None = None,
-        to_date: datetime | None = None,
-        approved_by: UUID | None = None,
-        customer_id: UUID | None = None,
-    ) -> tuple[list[PriceDeviation], int]:
-        stmt = (
-            select(
-                SalesInvoiceModel,
-                SalesInvoiceLineModel,
-                ProductModel.name,
-                ProductModel.currency,
-                DeviceUnitModel.imei,
-            )
-            .join(
-                SalesInvoiceModel,
-                SalesInvoiceModel.id == SalesInvoiceLineModel.sales_invoice_id,
-            )
-            .join(ProductModel, ProductModel.id == SalesInvoiceLineModel.product_id)
-            # Left: an accessory line names no handset, and it deviates as
-            # readily as a phone does.
-            .outerjoin(
-                DeviceUnitModel,
-                DeviceUnitModel.id == SalesInvoiceLineModel.device_unit_id,
-            )
-            .where(
-                SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value,
-                SalesInvoiceLineModel.resolved_price_minor.is_not(None),
-                SalesInvoiceLineModel.charged_price_minor.is_not(None),
-                SalesInvoiceLineModel.charged_price_minor
-                != SalesInvoiceLineModel.resolved_price_minor,
-            )
-        )
-        if from_date is not None:
-            stmt = stmt.where(SalesInvoiceModel.confirmed_at >= from_date)
-        if to_date is not None:
-            stmt = stmt.where(SalesInvoiceModel.confirmed_at <= to_date)
-        if approved_by is not None:
-            stmt = stmt.where(SalesInvoiceLineModel.price_approved_by == approved_by)
-        if customer_id is not None:
-            stmt = stmt.where(SalesInvoiceModel.customer_id == customer_id)
-        stmt = stmt.order_by(
-            SalesInvoiceModel.confirmed_at.desc(), SalesInvoiceLineModel.id
-        )
-
-        return await self._page_rows(stmt, page, page_size, self._to_deviation)
-
     async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
         # A correlated subquery rather than a join, so an invoice with three
         # payments still comes back as one row.
@@ -224,46 +173,6 @@ class SqlSalesInvoiceRepository(TenantRepository):
             .order_by(SalesInvoiceModel.confirmed_at.desc(), SalesInvoiceModel.id)
         )
         return await self._many_rows(stmt, self._to_credit_debt)
-
-    async def list_debtors(
-        self, page: int, page_size: int
-    ) -> tuple[list[DebtorSummary], int]:
-        # A correlated subquery rather than a join, for the same reason
-        # ``credit_history_for`` uses one: joining ``payments`` would repeat
-        # an invoice once per payment and count its debt that many times.
-        paid = (
-            select(func.coalesce(func.sum(PaymentModel.amount_minor), 0))
-            .where(PaymentModel.sales_invoice_id == SalesInvoiceModel.id)
-            .scalar_subquery()
-        )
-        remaining = SalesInvoiceModel.debt_minor - paid
-        # Grouped in SQL rather than in Python: a debtor list that loaded
-        # every credit sale and every payment to add them up would read the
-        # store's whole history to answer one question.
-        stmt = (
-            select(
-                CustomerModel.id,
-                CustomerModel.full_name,
-                CustomerModel.phone,
-                func.sum(remaining),
-                func.min(SalesInvoiceModel.confirmed_at),
-                func.count(SalesInvoiceModel.id),
-            )
-            .join(CustomerModel, CustomerModel.id == SalesInvoiceModel.customer_id)
-            # Settled sales drop out here rather than in a HAVING, so the
-            # count and the age describe the open debts and nothing else.
-            .where(
-                SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value,
-                SalesInvoiceModel.payment_type == PaymentType.STORE_CREDIT.value,
-                remaining > 0,
-            )
-            .group_by(CustomerModel.id, CustomerModel.full_name, CustomerModel.phone)
-            # Oldest open invoice first. Store credit has no due date by
-            # design (§4.7), so age is the only thing that makes a stale
-            # debt visible; ``id`` breaks ties so a page boundary is stable.
-            .order_by(func.min(SalesInvoiceModel.confirmed_at), CustomerModel.id)
-        )
-        return await self._page_rows(stmt, page, page_size, self._to_debtor)
 
     async def total_debt(self) -> Money:
         owed = await self._session.scalar(
@@ -315,6 +224,10 @@ class SqlSalesInvoiceRepository(TenantRepository):
         """
         return Money(int(total or 0), Currency.UZS)
 
+    @staticmethod
+    def _money(minor: int | None, currency: Currency) -> Money | None:
+        return Money(minor, currency) if minor is not None else None
+
     @classmethod
     def _to_credit_debt(
         cls, row: Row[tuple[SalesInvoiceModel, int]]
@@ -330,56 +243,6 @@ class SqlSalesInvoiceRepository(TenantRepository):
             paid=cls._som(paid),
             credit_company_id=invoice.credit_company_id,
             contract_ref=invoice.contract_ref,
-        )
-
-    @classmethod
-    def _to_debtor(
-        cls, row: Row[tuple[UUID, str, str | None, int, datetime | None, int]]
-    ) -> DebtorSummary:
-        customer_id, full_name, phone, balance, oldest, open_count = row._tuple()
-        # Non-null by the query's own WHERE: it counts confirmed invoices
-        # only, and a confirmed document carries its confirm timestamp.
-        assert oldest is not None
-        return DebtorSummary(
-            customer_id=customer_id,
-            full_name=full_name,
-            phone=phone,
-            balance=cls._som(balance),
-            oldest_open_at=oldest,
-            open_invoice_count=open_count,
-        )
-
-    @staticmethod
-    def _money(minor: int | None, currency: Currency) -> Money | None:
-        return None if minor is None else Money(minor, currency)
-
-    @staticmethod
-    def _to_deviation(
-        row: Row[tuple[SalesInvoiceModel, SalesInvoiceLineModel, str, str, str]],
-    ) -> PriceDeviation:
-        invoice, line, product_name, currency_code, scanned = row._tuple()
-        # Nullable at runtime whatever the column type says — the join onto
-        # ``device_units`` is outer, because an accessory line names no
-        # handset and deviates as readily as a phone does.
-        imei: str | None = scanned
-        currency = Currency(currency_code)
-        # Both are non-null by the query's own WHERE — a confirmed line has
-        # snapshotted both prices (FR-4.5b).
-        assert line.resolved_price_minor is not None
-        assert line.charged_price_minor is not None
-        assert invoice.confirmed_at is not None
-        return PriceDeviation(
-            invoice_id=invoice.id,
-            invoice_number=invoice.number,
-            confirmed_at=invoice.confirmed_at,
-            customer_id=invoice.customer_id,
-            product_id=line.product_id,
-            product_name=product_name,
-            imei=imei,
-            resolved_price=Money(line.resolved_price_minor, currency),
-            charged_price=Money(line.charged_price_minor, currency),
-            price_approved_by=line.price_approved_by,
-            price_note=line.price_note,
         )
 
     @classmethod

@@ -31,6 +31,7 @@ from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.ledger import LedgerPoster
 from domain.entities import DeviceUnit, GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
+from domain.value_objects import Money
 
 
 class ReceiptPoster:
@@ -49,12 +50,15 @@ class ReceiptPoster:
     async def receive(self, receipt: GoodsReceipt) -> None:
         now = self._clock.now()
         entries: list[PostingEntry] = []
+        to_price: list[tuple[DeviceUnit, Money]] = []
 
         for line in receipt.lines:
             if line.is_serial:
                 for scanned in line.units:
                     unit = await self._create_unit(receipt, line, scanned, now)
                     entries.append(self._serial_entry(receipt, line, unit))
+                    if scanned.asking_price is not None:
+                        to_price.append((unit, scanned.asking_price))
             else:
                 entries.append(self._quantity_entry(receipt, line))
 
@@ -65,6 +69,13 @@ class ReceiptPoster:
                 entries=entries,
             )
         )
+
+        # After the movement, not before it. A handset is received and then
+        # priced, and FR-9.2's timeline is ordered by these very stamps —
+        # pricing first would show it priced before it arrived.
+        for unit, asking in to_price:
+            await self._repricer.set_price(unit, asking, "priced at intake")
+            await self._units.update(unit)
 
     async def _create_unit(
         self,
@@ -94,13 +105,7 @@ class ReceiptPoster:
             source_document_id=receipt.id,
             created_at=now,
         )
-        # Added before pricing because the price-change row's foreign key
-        # points at this unit.
         await self._units.add(unit)
-
-        if scanned.asking_price is not None:
-            await self._repricer.set_price(unit, scanned.asking_price, "priced at intake")
-            await self._units.update(unit)
         return unit
 
     async def _assert_imei_is_free(self, scanned: ReceivedUnit) -> None:
