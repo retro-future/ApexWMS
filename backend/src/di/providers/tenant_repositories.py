@@ -27,15 +27,12 @@ from application.ports import (
     PaymentRepository,
     ProductPriceChangeRepository,
     ProductRepository,
-    PurchaseOrderRepository,
     SalesInvoiceRepository,
     SalesReportRepository,
     StockCountRepository,
     StockLevelRepository,
     StockMovementRepository,
     StockOnHandRepository,
-    SupplierRepository,
-    SupplierReturnRepository,
     TenantScope,
     TenantSettingsRepository,
     TenantUnitOfWork,
@@ -55,15 +52,12 @@ from infrastructure.persistence.tenant.repositories import (
     SqlPaymentRepository,
     SqlProductPriceChangeRepository,
     SqlProductRepository,
-    SqlPurchaseOrderRepository,
     SqlSalesInvoiceRepository,
     SqlSalesReportRepository,
     SqlStockCountRepository,
     SqlStockLevelRepository,
     SqlStockMovementRepository,
     SqlStockOnHandRepository,
-    SqlSupplierRepository,
-    SqlSupplierReturnRepository,
     SqlTenantSettingsRepository,
     SqlWriteOffRepository,
 )
@@ -95,10 +89,6 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def locations(self, session: TenantSession) -> LocationRepository:
         return SqlLocationRepository(session)
-
-    @provide
-    def suppliers(self, session: TenantSession) -> SupplierRepository:
-        return SqlSupplierRepository(session)
 
     @provide
     def customers(self, session: TenantSession) -> CustomerRepository:
@@ -145,10 +135,6 @@ class TenantRepositoriesProvider(Provider):
         return SqlDocumentNumberRepository(session)
 
     @provide
-    def purchase_orders(self, session: TenantSession) -> PurchaseOrderRepository:
-        return SqlPurchaseOrderRepository(session)
-
-    @provide
     def goods_receipts(self, session: TenantSession) -> GoodsReceiptRepository:
         return SqlGoodsReceiptRepository(session)
 
@@ -167,10 +153,6 @@ class TenantRepositoriesProvider(Provider):
         return SqlPaymentRepository(session)
 
     # --- M6 returns, counts and write-offs (PRD §5.5, §5.6) -------------
-
-    @provide
-    def supplier_returns(self, session: TenantSession) -> SupplierReturnRepository:
-        return SqlSupplierReturnRepository(session)
 
     @provide
     def write_offs(self, session: TenantSession) -> WriteOffRepository:

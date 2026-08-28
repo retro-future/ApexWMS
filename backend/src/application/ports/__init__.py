@@ -25,7 +25,7 @@ from application.ports.master import (
     UserTenantAccessRepository,
 )
 from application.ports.provisioning import TenantProvisioner
-from application.ports.repository import AppendOnlyRepository, Repository
+from application.ports.repository import AppendOnlyRepository, LegacyRepository
 from application.ports.security import PasswordHasher, TokenService
 from application.ports.tenancy import TenantScope, TenantWorkspace
 from application.ports.tenant import (
@@ -41,15 +41,12 @@ from application.ports.tenant import (
     PaymentRepository,
     ProductPriceChangeRepository,
     ProductRepository,
-    PurchaseOrderRepository,
     SalesInvoiceRepository,
     SalesReportRepository,
     StockCountRepository,
     StockLevelRepository,
     StockMovementRepository,
     StockOnHandRepository,
-    SupplierRepository,
-    SupplierReturnRepository,
     TenantSettingsRepository,
     TenantUnitOfWork,
     WriteOffRepository,
@@ -69,6 +66,7 @@ __all__ = [
     "GoodsReceiptRepository",
     "InvitationRepository",
     "InvoiceRenderer",
+    "LegacyRepository",
     "LocationRepository",
     "MasterUnitOfWork",
     "PasswordHasher",
@@ -78,16 +76,12 @@ __all__ = [
     "SalesInvoiceRepository",
     "SalesReportRepository",
     "PurchaseOrderRenderer",
-    "PurchaseOrderRepository",
     "RefreshTokenRepository",
-    "Repository",
     "StockCountRepository",
     "StockLevelRepository",
     "StockOnHandRepository",
     "StockMovementRepository",
-    "SupplierRepository",
     "SupplierReturnRenderer",
-    "SupplierReturnRepository",
     "TenantProvisioner",
     "TenantRepository",
     "TenantScope",

@@ -22,6 +22,16 @@ from application.dtos import (
     TenantLogo,
 )
 from application.errors import ProvisioningFailedError, TenantNotActiveError
+from application.specs import (
+    PurchaseOrderBrowse,
+    PurchaseOrderById,
+    PurchaseOrderForWrite,
+    SupplierById,
+    SupplierForWrite,
+    SupplierReturnBrowse,
+    SupplierReturnById,
+    SupplierReturnForWrite,
+)
 from domain.core import Entity
 from domain.entities import (
     CreditCompany,
@@ -37,7 +47,6 @@ from domain.entities import (
     Product,
     ProductPriceChange,
     PurchaseOrder,
-    PurchaseOrderLine,
     ReceivedUnit,
     RefreshTokenRecord,
     SalesInvoice,
@@ -49,7 +58,6 @@ from domain.entities import (
     StockMovement,
     Supplier,
     SupplierReturn,
-    SupplierReturnLine,
     Tenant,
     User,
     UserAppRole,
@@ -63,7 +71,6 @@ from domain.enums import (
     DocumentStatus,
     DocumentType,
     PaymentType,
-    SupplierReturnReason,
     TenantRole,
     TenantStatus,
     TrackingType,
@@ -143,7 +150,7 @@ class FakeRepository[EntityT: Entity[UUID]]:
     async def add(self, entity: EntityT) -> None:
         self.by_id[entity.id] = entity
 
-    async def update(self, entity: EntityT) -> None:
+    async def update(self, entity: EntityT, spec: object | None = None) -> None:
         self.by_id[entity.id] = entity
 
 
@@ -427,23 +434,22 @@ class FakeLocationRepository(FakeRepository[Location]):
 
 
 class FakeSupplierRepository(FakeRepository[Supplier]):
-    async def get_by_name(self, name: str) -> Supplier | None:
-        return next((s for s in self.by_id.values() if s.name == name), None)
+    """A stand-in for the *other* aggregates' tests, not the supplier ones.
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        is_active: bool | None = None,
-    ) -> tuple[list[Supplier], int]:
-        found = [
-            s
-            for s in sorted(self.by_id.values(), key=lambda s: s.created_at)
-            if _matches(search, s.name, s.contact_name, s.phone)
-            and (is_active is None or s.is_active is is_active)
-        ]
-        return _page(found, page, page_size)
+    Suppliers moved to the specification-based repository, and the handler
+    tests that actually exercise their reads moved to Postgres with them
+    (``tests/api/test_catalog_api.py``). What is left here is the one thing
+    a purchase order, a goods receipt or a return asks of a supplier: is
+    this id one of ours, and what is its name for the PDF. Both answer from
+    ``SupplierById``'s own ``supplier_id`` attribute — no SQLAlchemy
+    criteria are read, and nothing else is supported on purpose.
+    """
+
+    async def find_one(self, spec: SupplierById | SupplierForWrite) -> Supplier | None:
+        return self.by_id.get(spec.supplier_id)
+
+    async def exists(self, spec: SupplierById) -> bool:
+        return spec.supplier_id in self.by_id
 
 
 class FakeCustomerRepository(FakeRepository[Customer]):
@@ -764,25 +770,35 @@ class FakeDocumentNumberRepository:
 
 
 class FakePurchaseOrderRepository(FakeRepository[PurchaseOrder]):
-    async def update_line(self, line: PurchaseOrderLine) -> None:
-        return None
+    """Spec-based, like the SQL repository. ``find_one`` reads the id off
+    the spec; ``find``/``count`` read ``PurchaseOrderBrowse``'s plain
+    filter attributes. No SQLAlchemy criteria are evaluated."""
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        supplier_id: UUID | None = None,
-    ) -> tuple[list[PurchaseOrder], int]:
-        found = [
+    async def find_one(
+        self, spec: PurchaseOrderById | PurchaseOrderForWrite
+    ) -> PurchaseOrder | None:
+        return self.by_id.get(spec.purchase_order_id)
+
+    async def find(self, spec: PurchaseOrderBrowse) -> list[PurchaseOrder]:
+        found = self._filter(spec)
+        found.sort(key=lambda o: o.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: PurchaseOrderBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: PurchaseOrderBrowse) -> list[PurchaseOrder]:
+        return [
             order
             for order in self.by_id.values()
-            if _matches(search, order.number)
-            and (status is None or order.status is status)
-            and (supplier_id is None or order.supplier_id == supplier_id)
+            if _matches(spec.search, order.number)
+            and (spec.status is None or order.status is spec.status)
+            and (spec.supplier_id is None or order.supplier_id == spec.supplier_id)
         ]
-        return _page(sorted(found, key=lambda o: o.created_at, reverse=True), page, page_size)
 
 
 class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
@@ -838,38 +854,36 @@ class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
 
 
 class FakeSupplierReturnRepository(FakeRepository[SupplierReturn]):
-    """The line methods are no-ops for the reason the receipt's scan methods
-    are: the handler already holds the aggregate and mutates it in place,
-    exactly as the SQL repository writes one row rather than rewriting the
-    whole document per beep."""
+    """Spec-based. Scanning mutates ``document.lines`` on the aggregate the
+    handler holds, and ``update`` re-stores that same object, so no line
+    method is needed."""
 
-    async def add_line(self, line: SupplierReturnLine) -> None:
-        return None
+    async def find_one(
+        self, spec: SupplierReturnById | SupplierReturnForWrite
+    ) -> SupplierReturn | None:
+        return self.by_id.get(spec.supplier_return_id)
 
-    async def update_line(self, line: SupplierReturnLine) -> None:
-        return None
+    async def find(self, spec: SupplierReturnBrowse) -> list[SupplierReturn]:
+        found = self._filter(spec)
+        found.sort(key=lambda d: d.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
 
-    async def remove_line(self, line_id: UUID) -> None:
-        return None
+    async def count(self, spec: SupplierReturnBrowse) -> int:
+        return len(self._filter(spec))
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        supplier_id: UUID | None = None,
-        reason: SupplierReturnReason | None = None,
-    ) -> tuple[list[SupplierReturn], int]:
-        found = [
+    def _filter(self, spec: SupplierReturnBrowse) -> list[SupplierReturn]:
+        return [
             document
             for document in self.by_id.values()
-            if _matches(search, document.number)
-            and (status is None or document.status is status)
-            and (supplier_id is None or document.supplier_id == supplier_id)
-            and (reason is None or document.reason is reason)
+            if _matches(spec.search, document.number)
+            and (spec.status is None or document.status is spec.status)
+            and (spec.supplier_id is None or document.supplier_id == spec.supplier_id)
+            and (spec.reason is None or document.reason is spec.reason)
         ]
-        return _page(sorted(found, key=lambda d: d.created_at, reverse=True), page, page_size)
 
 
 class FakeWriteOffRepository(FakeRepository[WriteOff]):

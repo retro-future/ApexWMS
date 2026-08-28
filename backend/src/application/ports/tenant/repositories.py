@@ -32,7 +32,7 @@ from application.dtos import (
     UnitOrigin,
     UnitSale,
 )
-from application.ports.repository import AppendOnlyRepository, Repository
+from application.ports.repository import AppendOnlyRepository, LegacyRepository
 from application.sorting import AgeingSort, DeviationSort
 from domain.entities import (
     CreditCompany,
@@ -46,8 +46,6 @@ from domain.entities import (
     Payment,
     Product,
     ProductPriceChange,
-    PurchaseOrder,
-    PurchaseOrderLine,
     ReceivedUnit,
     SalesInvoice,
     SalesInvoiceLine,
@@ -56,9 +54,6 @@ from domain.entities import (
     StockCountUnit,
     StockLevel,
     StockMovement,
-    Supplier,
-    SupplierReturn,
-    SupplierReturnLine,
     WriteOff,
     WriteOffLine,
 )
@@ -67,7 +62,6 @@ from domain.enums import (
     DocumentStatus,
     DocumentType,
     MovementType,
-    SupplierReturnReason,
     TrackingType,
     TransactionType,
     WriteOffReason,
@@ -75,7 +69,7 @@ from domain.enums import (
 from domain.value_objects import Currency, Money
 
 
-class EmployeeRepository(Repository[Employee, UUID], Protocol):
+class EmployeeRepository(LegacyRepository[Employee, UUID], Protocol):
     """Keyed by the master ``User.id`` — see ``domain.entities.employee``."""
 
     async def get_by_email(self, email: str) -> Employee | None: ...
@@ -110,7 +104,7 @@ class TenantSettingsRepository(Protocol):
         ...
 
 
-class ProductRepository(Repository[Product, UUID], Protocol):
+class ProductRepository(LegacyRepository[Product, UUID], Protocol):
     async def get_by_sku(self, sku: str) -> Product | None: ...
 
     async def get_by_barcode(self, barcode: str) -> Product | None: ...
@@ -142,7 +136,7 @@ class ProductPriceChangeRepository(AppendOnlyRepository[ProductPriceChange], Pro
         ...
 
 
-class LocationRepository(Repository[Location, UUID], Protocol):
+class LocationRepository(LegacyRepository[Location, UUID], Protocol):
     async def get_by_name(self, name: str) -> Location | None: ...
 
     async def list_page(
@@ -154,19 +148,7 @@ class LocationRepository(Repository[Location, UUID], Protocol):
     ) -> tuple[list[Location], int]: ...
 
 
-class SupplierRepository(Repository[Supplier, UUID], Protocol):
-    async def get_by_name(self, name: str) -> Supplier | None: ...
-
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        is_active: bool | None = None,
-    ) -> tuple[list[Supplier], int]: ...
-
-
-class CustomerRepository(Repository[Customer, UUID], Protocol):
+class CustomerRepository(LegacyRepository[Customer, UUID], Protocol):
     """Customers are not name-unique: people share names (PRD §4.2)."""
 
     async def list_page(
@@ -180,7 +162,7 @@ class CustomerRepository(Repository[Customer, UUID], Protocol):
         ...
 
 
-class CreditCompanyRepository(Repository[CreditCompany, UUID], Protocol):
+class CreditCompanyRepository(LegacyRepository[CreditCompany, UUID], Protocol):
     """Owner-maintained reference data (FR-11.3), name-unique like suppliers."""
 
     async def get_by_name(self, name: str) -> CreditCompany | None: ...
@@ -197,7 +179,7 @@ class CreditCompanyRepository(Repository[CreditCompany, UUID], Protocol):
 # --- M3 ledgers (PRD §4.3, §4.6) -----------------------------------------
 
 
-class DeviceUnitRepository(Repository[DeviceUnit, UUID], Protocol):
+class DeviceUnitRepository(LegacyRepository[DeviceUnit, UUID], Protocol):
     """Handsets. ``update`` exists, but the three fields it writes —
     status, location, asking price — are projections: only a ledger
     posting or the repricer may move them (§4.3 rule 1, FR-2.15)."""
@@ -453,7 +435,7 @@ class StockOnHandRepository(Protocol):
         ...
 
 
-class StockLevelRepository(Repository[StockLevel, UUID], Protocol):
+class StockLevelRepository(LegacyRepository[StockLevel, UUID], Protocol):
     """The quantity projection (§4.2), written only by a ledger posting."""
 
     async def get_for(self, product_id: UUID, location_id: UUID) -> StockLevel | None: ...
@@ -480,26 +462,7 @@ class DocumentNumberRepository(Protocol):
     async def next_number(self, document_type: DocumentType, year: int) -> int: ...
 
 
-class PurchaseOrderRepository(Repository[PurchaseOrder, UUID], Protocol):
-    """An order and its lines, loaded and saved as one aggregate (§4.4)."""
-
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        supplier_id: UUID | None = None,
-    ) -> tuple[list[PurchaseOrder], int]:
-        """*search* matches the document number."""
-        ...
-
-    async def update_line(self, line: PurchaseOrderLine) -> None:
-        """Price one line while the order is still a draft (FR-3.1)."""
-        ...
-
-
-class GoodsReceiptRepository(Repository[GoodsReceipt, UUID], Protocol):
+class GoodsReceiptRepository(LegacyRepository[GoodsReceipt, UUID], Protocol):
     """A receipt, its lines and every IMEI scanned onto it (§4.4).
 
     ``add_unit``/``remove_unit`` exist because a scan is one row and
@@ -547,7 +510,7 @@ class GoodsReceiptRepository(Repository[GoodsReceipt, UUID], Protocol):
         ...
 
 
-class SalesInvoiceRepository(Repository[SalesInvoice, UUID], Protocol):
+class SalesInvoiceRepository(LegacyRepository[SalesInvoice, UUID], Protocol):
     """An invoice and the lines scanned onto it (§4.4, §5.4).
 
     ``add_line``/``remove_line`` exist for the same reason the receipt's
@@ -651,37 +614,7 @@ class SalesReportRepository(Protocol):
         ...
 
 
-class SupplierReturnRepository(Repository[SupplierReturn, UUID], Protocol):
-    """A return and the lines scanned onto it (§4.4, §5.5).
-
-    ``add_line``/``remove_line`` exist for the reason every scan-driven
-    document's do: a scan is one row, and §6 gives the round trip 200ms.
-    """
-
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        supplier_id: UUID | None = None,
-        reason: SupplierReturnReason | None = None,
-    ) -> tuple[list[SupplierReturn], int]:
-        """*search* matches the document number."""
-        ...
-
-    async def add_line(self, line: SupplierReturnLine) -> None: ...
-
-    async def update_line(self, line: SupplierReturnLine) -> None:
-        """Bump an accessory line's quantity on a repeat barcode (§6)."""
-        ...
-
-    async def remove_line(self, line_id: UUID) -> None:
-        """Undo a scan while the return is still a draft (FR-3.12)."""
-        ...
-
-
-class WriteOffRepository(Repository[WriteOff, UUID], Protocol):
+class WriteOffRepository(LegacyRepository[WriteOff, UUID], Protocol):
     """A write-off and the lines scanned onto it (§4.4, §5.6)."""
 
     async def list_page(
@@ -704,7 +637,7 @@ class WriteOffRepository(Repository[WriteOff, UUID], Protocol):
     async def remove_line(self, line_id: UUID) -> None: ...
 
 
-class StockCountRepository(Repository[StockCount, UUID], Protocol):
+class StockCountRepository(LegacyRepository[StockCount, UUID], Protocol):
     """A count, its expected quantities and every handset it knows about.
 
     Two child collections rather than one, because the two tracking types

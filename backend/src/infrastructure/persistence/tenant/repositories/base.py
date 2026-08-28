@@ -7,6 +7,11 @@ repository the platform's database. ``ty`` is the only thing that enforces
 it — a ``NewType`` is an identity function at runtime — which is why a red
 type check is a broken build.
 
+- ``TenantSqlRepository`` — the one every aggregate is moving to. It is
+  not a fourth box to sort tables into: it replaces the two below, which
+  disappear as each aggregate converts. Per-aggregate mapping lives in a
+  mapper it is built with, per-query filtering in the ``Specification``
+  each call is given.
 - ``TenantCrudRepository`` — for an aggregate whose whole persisted state
   is one ``TenantActivatableRow``: the identity records and the M2 catalog,
   all browsable through the same paging shape.
@@ -31,9 +36,14 @@ from uuid import UUID
 from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import InstrumentedAttribute
 
+from application.common.mapper import EntityMapper
 from domain.core import Entity
-from infrastructure.persistence.repository import CrudRepository, SqlRepository
-from infrastructure.persistence.tenant.models.base import TenantActivatableRow
+from infrastructure.persistence.repository import (
+    CrudRepository,
+    SqlAlchemyRepository,
+    SqlRepository,
+)
+from infrastructure.persistence.tenant.models.base import TenantActivatableRow, TenantBase
 from infrastructure.types import TenantSession
 
 
@@ -91,3 +101,22 @@ class TenantCrudRepository[EntityT: Entity, KeyT: UUID, ModelT: TenantActivatabl
             page_size,
             self._to_entity,
         )
+
+
+class TenantSqlRepository[EntityT: Entity, ModelT: TenantBase](
+    SqlAlchemyRepository[EntityT, ModelT]
+):
+    """``SqlAlchemyRepository`` against *this tenant's* database.
+
+    It adds nothing but the narrowed constructor, which is the point: a
+    ``MasterSession`` is a type error here, so the container physically
+    cannot hand a store's repository the platform's database.
+    """
+
+    def __init__(
+        self,
+        session: TenantSession,
+        model_cls: type[ModelT],
+        mapper: EntityMapper[EntityT, ModelT],
+    ) -> None:
+        super().__init__(session, model_cls, mapper)

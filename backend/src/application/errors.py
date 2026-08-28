@@ -62,6 +62,22 @@ class NotFoundError(ApplicationError):
     """The referenced resource does not exist in this tenant's scope."""
 
 
+class EntityNotPersistedError(ApplicationError):
+    """``update`` was called for an entity that has no row.
+
+    Not a ``NotFoundError``: that one is a caller asking for something that
+    is not there, and it answers 404. This one means a handler mutated an
+    entity it never loaded, which is a bug in the handler. It lives in
+    ``application`` rather than ``domain`` because the domain knows nothing
+    about persistence, and the refactor guide's rule 1 keeps it that way.
+    """
+
+    def __init__(self, model_name: str, entity_id: object) -> None:
+        super().__init__(f"{model_name} {entity_id} has no persisted row")
+        self.model_name = model_name
+        self.entity_id = entity_id
+
+
 class InvalidTimezoneError(ApplicationError):
     """Not an IANA timezone name."""
 

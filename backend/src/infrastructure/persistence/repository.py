@@ -18,7 +18,7 @@ subclasses (``master/repositories/base.py``, ``tenant/repositories/base.py``).
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 from uuid import UUID
 
@@ -26,6 +26,9 @@ from sqlalchemy import ColumnExpressionArgument, Row, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
+from application.common.mapper import EntityMapper
+from application.common.specification import Specification
+from application.errors import EntityNotPersistedError
 from domain.core import Entity
 
 
@@ -204,3 +207,95 @@ class CrudRepository[EntityT: Entity, KeyT: UUID, ModelT: DeclarativeBase](SqlRe
 
     async def _find_many(self, stmt: Select[tuple[ModelT]]) -> list[EntityT]:
         return await self._many(stmt, self._to_entity)
+
+
+class SqlAlchemyRepository[TEntity: Entity, TModel: DeclarativeBase]:
+    """One repository for every aggregate: the per-entity parts are the
+    *mapper* it is built with and the *specification* each call is given.
+
+    Stateless by design — session, model class, mapper, nothing else. No
+    identity map and no dirty set: the SQLAlchemy session already is one,
+    and a second one on top of it is how two answers to "what is the
+    current state of this row" start to disagree.
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        model_cls: type[TModel],
+        mapper: EntityMapper[TEntity, TModel],
+    ) -> None:
+        self._session = session
+        self._model_cls = model_cls
+        self._mapper = mapper
+
+    def _apply(self, spec: Specification[TModel]) -> Select[tuple[TModel]]:
+        stmt = select(self._model_cls)
+        for target in spec.joins:
+            stmt = stmt.join(target)
+        if spec.criteria:
+            stmt = stmt.where(*spec.criteria)
+        if spec.options:
+            stmt = stmt.options(*spec.options)
+        if spec.order_by:
+            stmt = stmt.order_by(*spec.order_by)
+        if spec.offset is not None:
+            stmt = stmt.offset(spec.offset)
+        if spec.limit is not None:
+            stmt = stmt.limit(spec.limit)
+        if spec.for_update:
+            stmt = stmt.with_for_update()
+        return stmt
+
+    async def find(self, spec: Specification[TModel]) -> Sequence[TEntity]:
+        rows = await self._session.scalars(self._apply(spec))
+        # unique() is mandatory: a joined eager load on a collection yields
+        # one row per child, and the parent repeated alongside each of them.
+        return [self._mapper.to_entity(row) for row in rows.unique().all()]
+
+    async def find_one(self, spec: Specification[TModel]) -> TEntity | None:
+        rows = await self._session.scalars(self._apply(spec).limit(1))
+        row = rows.unique().one_or_none()
+        return None if row is None else self._mapper.to_entity(row)
+
+    async def count(self, spec: Specification[TModel]) -> int:
+        """The unpaged total: *spec*'s limit, offset and ordering are ignored.
+
+        Built as its own ``count(*)`` rather than a subquery over
+        ``_apply``, so eager-load options and ``ORDER BY`` cannot end up in
+        a statement that returns one number.
+        """
+        stmt = select(func.count()).select_from(self._model_cls)
+        for target in spec.joins:
+            stmt = stmt.join(target)
+        if spec.criteria:
+            stmt = stmt.where(*spec.criteria)
+        return await self._session.scalar(stmt) or 0
+
+    async def exists(self, spec: Specification[TModel]) -> bool:
+        return await self.count(spec) > 0
+
+    async def add(self, entity: TEntity) -> None:
+        self._session.add(self._mapper.to_model(entity))
+
+    async def update(
+        self, entity: TEntity, spec: Specification[TModel] | None = None
+    ) -> None:
+        # Without a spec: the row is normally still in the session's
+        # identity map from the handler's own load. With one: the mapper's
+        # write path reads a relationship, so re-load through the spec that
+        # eager-loads (and locks) it rather than a bare get() that would
+        # hand back a row with the collection unloaded.
+        if spec is None:
+            row = await self._session.get(self._model_cls, entity.id)
+        else:
+            rows = await self._session.scalars(self._apply(spec).limit(1))
+            row = rows.unique().one_or_none()
+        if row is None:
+            raise EntityNotPersistedError(self._model_cls.__name__, entity.id)
+        self._mapper.to_model(entity, row)
+
+    async def delete(self, entity: TEntity) -> None:
+        row = await self._session.get(self._model_cls, entity.id)
+        if row is not None:
+            await self._session.delete(row)

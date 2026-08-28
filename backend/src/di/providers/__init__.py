@@ -17,12 +17,14 @@ from di.providers.config import ConfigProvider
 from di.providers.documents import DocumentsProvider
 from di.providers.domain_services import DomainServicesProvider
 from di.providers.handlers import HandlersProvider
+from di.providers.mappers import MapperProvider
 from di.providers.master_db import MasterDbProvider
 from di.providers.master_repositories import MasterRepositoriesProvider
 from di.providers.security import SecurityProvider
 from di.providers.services import ApplicationServicesProvider
 from di.providers.tenant_db import TenantDbProvider
 from di.providers.tenant_repositories import TenantRepositoriesProvider
+from di.providers.tenant_repository import TenantRepositoryProvider
 
 __all__ = [
     "ApplicationServicesProvider",
@@ -32,8 +34,10 @@ __all__ = [
     "DocumentsProvider",
     "DomainServicesProvider",
     "HandlersProvider",
+    "MapperProvider",
     "MasterDbProvider",
     "MasterRepositoriesProvider",
+    "TenantRepositoryProvider",
     "SecurityProvider",
     "TenantDbProvider",
     "TenantRepositoriesProvider",

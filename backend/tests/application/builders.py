@@ -428,10 +428,8 @@ class World:
 
     def document_loader(self) -> DocumentLoader:
         return DocumentLoader(
-            self.orders,
             self.receipts,
             self.invoices,
-            self.returns,
             self.write_offs,
             self.counts,
         )
@@ -457,7 +455,6 @@ class World:
     ) -> PricePurchaseOrderLineHandler:
         return PricePurchaseOrderLineHandler(
             self.orders,
-            self.document_loader(),
             self.uow,
             self._as(actor),
         )
@@ -468,7 +465,6 @@ class World:
         return ConfirmPurchaseOrderHandler(
             self.orders,
             self.receipts,
-            self.document_loader(),
             self.clock,
             self.uow,
             self._as(actor),
@@ -478,14 +474,13 @@ class World:
         return CancelPurchaseOrderHandler(
             self.orders,
             self.receipts,
-            self.document_loader(),
             self.clock,
             self.uow,
             self._as(actor),
         )
 
     def get_purchase_order(self) -> GetPurchaseOrderHandler:
-        return GetPurchaseOrderHandler(self.document_loader(), self.receipts)
+        return GetPurchaseOrderHandler(self.orders, self.receipts)
 
     def list_purchase_orders(self) -> ListPurchaseOrdersHandler:
         return ListPurchaseOrdersHandler(self.orders, self.receipts)
@@ -812,12 +807,12 @@ class World:
 
     def scan_supplier_return_line(self) -> ScanSupplierReturnLineHandler:
         return ScanSupplierReturnLineHandler(
-            self.returns, self.removal_scanner(), self.document_loader(), self.uow
+            self.returns, self.removal_scanner(), self.uow
         )
 
     def unscan_supplier_return_line(self) -> UnscanSupplierReturnLineHandler:
         return UnscanSupplierReturnLineHandler(
-            self.returns, self.units, self.document_loader(), self.uow
+            self.returns, self.units, self.uow
         )
 
     def confirm_supplier_return(
@@ -825,7 +820,6 @@ class World:
     ) -> ConfirmSupplierReturnHandler:
         return ConfirmSupplierReturnHandler(
             self.returns,
-            self.document_loader(),
             self.removal_poster(actor),
             self.clock,
             self.uow,
@@ -837,7 +831,6 @@ class World:
     ) -> CancelSupplierReturnHandler:
         return CancelSupplierReturnHandler(
             self.returns,
-            self.document_loader(),
             self.poster(actor),
             self.clock,
             self.uow,

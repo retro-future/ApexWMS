@@ -5,6 +5,8 @@ repository, migrated Postgres — so they are what proves the 0002 migration
 and the DI wiring, not just the use-case logic.
 """
 
+from uuid import uuid4
+
 import pytest
 
 PASSWORD = "hunter2000"
@@ -344,6 +346,124 @@ class TestReferenceData:
         )
 
         assert again.status_code == 409
+
+    # The cases below ran against in-memory fakes until suppliers moved to
+    # the specification-based repository. A specification carries SQLAlchemy
+    # predicates, so there is nothing left for a fake to evaluate — they run
+    # against the real database now.
+
+    async def test_a_supplier_carries_no_currency(self, client, owner):
+        """Currency belongs to the product (PRD §4.5 rule 3) — one supplier
+        can invoice in dollars and in som on the same order."""
+        created = await client.post(
+            "/api/v1/suppliers", headers=owner.auth, json={"name": "TMD"}
+        )
+
+        assert "currency" not in created.json()["data"]
+
+    async def test_an_omitted_contact_field_is_left_alone(self, client, owner):
+        created = await client.post(
+            "/api/v1/suppliers",
+            headers=owner.auth,
+            json={"name": "TMD", "phone": "+998901234567"},
+        )
+        supplier_id = created.json()["data"]["id"]
+
+        patched = await client.patch(
+            f"/api/v1/suppliers/{supplier_id}",
+            headers=owner.auth,
+            json={"contactName": "Aziz"},
+        )
+
+        assert patched.json()["data"]["phone"] == "+998901234567"
+        assert patched.json()["data"]["contactName"] == "Aziz"
+
+    async def test_an_explicit_null_clears_a_contact_field(self, client, owner):
+        created = await client.post(
+            "/api/v1/suppliers",
+            headers=owner.auth,
+            json={"name": "TMD", "phone": "+998901234567"},
+        )
+        supplier_id = created.json()["data"]["id"]
+
+        patched = await client.patch(
+            f"/api/v1/suppliers/{supplier_id}",
+            headers=owner.auth,
+            json={"phone": None},
+        )
+
+        assert patched.json()["data"]["phone"] is None
+
+    async def test_renaming_onto_another_suppliers_name_is_a_conflict(self, client, owner):
+        await client.post("/api/v1/suppliers", headers=owner.auth, json={"name": "TMD"})
+        other = await client.post(
+            "/api/v1/suppliers", headers=owner.auth, json={"name": "Samarkand Parts"}
+        )
+
+        renamed = await client.patch(
+            f"/api/v1/suppliers/{other.json()['data']['id']}",
+            headers=owner.auth,
+            json={"name": "TMD"},
+        )
+
+        assert renamed.status_code == 409
+
+    async def test_renaming_a_supplier_to_its_own_name_is_allowed(self, client, owner):
+        """The uniqueness probe excludes the supplier being renamed — without
+        that, saving a form that did not touch the name would 409."""
+        created = await client.post(
+            "/api/v1/suppliers", headers=owner.auth, json={"name": "TMD"}
+        )
+
+        renamed = await client.patch(
+            f"/api/v1/suppliers/{created.json()['data']['id']}",
+            headers=owner.auth,
+            json={"name": "TMD", "contactName": "Aziz"},
+        )
+
+        assert renamed.status_code == 200, renamed.text
+
+    async def test_reading_an_unknown_supplier_is_a_404(self, client, owner):
+        resp = await client.get(
+            f"/api/v1/suppliers/{uuid4()}", headers=owner.auth
+        )
+
+        assert resp.status_code == 404
+
+    async def test_the_supplier_list_searches_name_and_phone(self, client, owner):
+        await client.post(
+            "/api/v1/suppliers",
+            headers=owner.auth,
+            json={"name": "TMD", "phone": "+998901234567"},
+        )
+        await client.post(
+            "/api/v1/suppliers", headers=owner.auth, json={"name": "Samarkand Parts"}
+        )
+
+        by_name = await client.get(
+            "/api/v1/suppliers", headers=owner.auth, params={"search": "samarkand"}
+        )
+        by_phone = await client.get(
+            "/api/v1/suppliers", headers=owner.auth, params={"search": "9012345"}
+        )
+
+        assert [s["name"] for s in by_name.json()["data"]] == ["Samarkand Parts"]
+        assert [s["name"] for s in by_phone.json()["data"]] == ["TMD"]
+
+    async def test_the_supplier_list_pages_and_reports_the_unpaged_total(self, client, owner):
+        """count() and find() take the same specification object, so a filter
+        can never be applied to the rows and forgotten on the total."""
+        for name in ("Alpha", "Beta", "Gamma"):
+            await client.post("/api/v1/suppliers", headers=owner.auth, json={"name": name})
+
+        page = await client.get(
+            "/api/v1/suppliers",
+            headers=owner.auth,
+            params={"page": 1, "pageSize": 2, "search": "a"},
+        )
+
+        assert len(page.json()["data"]) == 2
+        assert page.json()["totalItems"] == 3
 
     async def test_two_customers_may_share_a_name(self, client, owner):
         first = await client.post(

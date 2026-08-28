@@ -16,11 +16,13 @@ from di.providers import (
     DocumentsProvider,
     DomainServicesProvider,
     HandlersProvider,
+    MapperProvider,
     MasterDbProvider,
     MasterRepositoriesProvider,
     SecurityProvider,
     TenantDbProvider,
     TenantRepositoriesProvider,
+    TenantRepositoryProvider,
 )
 from infrastructure.config import Settings
 
@@ -35,6 +37,8 @@ def create_container(settings: Settings | None = None) -> AsyncContainer:
         AuthProvider(),
         MasterRepositoriesProvider(),
         TenantRepositoriesProvider(),
+        MapperProvider(),
+        TenantRepositoryProvider(),
         DomainServicesProvider(),
         DocumentsProvider(),
         ApplicationServicesProvider(),

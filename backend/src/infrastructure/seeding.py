@@ -24,18 +24,22 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from application.commands.create_customer import CreateCustomerCommand, CreateCustomerHandler
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
 from application.commands.create_supplier import CreateSupplierCommand, CreateSupplierHandler
+from application.common.repository import TenantDbRepository
 from application.dtos import CurrentUser
 from application.errors import ApplicationError
 from application.services import ProductRepricer, SalePriceParser
+from domain.entities import Supplier
 from domain.enums import TenantRole, TrackingType
 from infrastructure.clock import SystemClock
+from infrastructure.persistence.mappers import SupplierMapper
+from infrastructure.persistence.tenant.models import SupplierModel
 from infrastructure.persistence.tenant.repositories import (
     SqlCustomerRepository,
     SqlEmployeeRepository,
     SqlProductPriceChangeRepository,
     SqlProductRepository,
-    SqlSupplierRepository,
 )
+from infrastructure.persistence.tenant.repositories.base import TenantSqlRepository
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
 from infrastructure.types import TenantSession
 
@@ -111,8 +115,13 @@ async def seed_catalog(
             customer_handler = CreateCustomerHandler(
                 customers=SqlCustomerRepository(tenant_session), clock=clock, uow=uow
             )
+            supplier_repo: TenantDbRepository[Supplier, SupplierModel] = TenantSqlRepository(
+                tenant_session, SupplierModel, SupplierMapper()
+            )
             supplier_handler = CreateSupplierHandler(
-                suppliers=SqlSupplierRepository(tenant_session), clock=clock, uow=uow
+                suppliers=supplier_repo,
+                clock=clock,
+                uow=uow,
             )
 
             created_products = await _seed_products(product_handler, fake, products)

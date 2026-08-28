@@ -8,11 +8,14 @@ from uuid import uuid4
 
 from pydantic import EmailStr
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError
 from application.models import SupplierData
-from application.ports import Clock, SupplierRepository, TenantUnitOfWork
+from application.ports import Clock, TenantUnitOfWork
+from application.specs import SupplierByName
 from domain.entities import Supplier
+from infrastructure.persistence.tenant.models import SupplierModel
 
 
 class CreateSupplierCommand(Command[ResultWithData[SupplierData]]):
@@ -26,7 +29,10 @@ class CreateSupplierHandler(
     IRequestHandler[ResultWithData[SupplierData], CreateSupplierCommand]
 ):
     def __init__(
-        self, suppliers: SupplierRepository, clock: Clock, uow: TenantUnitOfWork
+        self,
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
+        clock: Clock,
+        uow: TenantUnitOfWork,
     ) -> None:
         self._suppliers = suppliers
         self._clock = clock
@@ -34,7 +40,7 @@ class CreateSupplierHandler(
 
     async def handle(self, request: CreateSupplierCommand) -> ResultWithData[SupplierData]:
         name = request.name.strip()
-        if await self._suppliers.get_by_name(name) is not None:
+        if await self._suppliers.exists(SupplierByName(name)):
             raise DuplicateNameError(f"a supplier called {name!r} already exists")
 
         supplier = Supplier(

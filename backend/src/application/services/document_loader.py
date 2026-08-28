@@ -11,18 +11,14 @@ from uuid import UUID
 from application.errors import NotFoundError
 from application.ports import (
     GoodsReceiptRepository,
-    PurchaseOrderRepository,
     SalesInvoiceRepository,
     StockCountRepository,
-    SupplierReturnRepository,
     WriteOffRepository,
 )
 from domain.entities import (
     GoodsReceipt,
-    PurchaseOrder,
     SalesInvoice,
     StockCount,
-    SupplierReturn,
     WriteOff,
 )
 
@@ -30,25 +26,15 @@ from domain.entities import (
 class DocumentLoader:
     def __init__(
         self,
-        orders: PurchaseOrderRepository,
         receipts: GoodsReceiptRepository,
         invoices: SalesInvoiceRepository,
-        returns: SupplierReturnRepository,
         write_offs: WriteOffRepository,
         counts: StockCountRepository,
     ) -> None:
-        self._orders = orders
         self._receipts = receipts
         self._invoices = invoices
-        self._returns = returns
         self._write_offs = write_offs
         self._counts = counts
-
-    async def load_order(self, order_id: UUID) -> PurchaseOrder:
-        order = await self._orders.get(order_id)
-        if order is None:
-            raise NotFoundError(f"purchase order {order_id} does not exist in this store")
-        return order
 
     async def load_receipt(self, receipt_id: UUID) -> GoodsReceipt:
         receipt = await self._receipts.get(receipt_id)
@@ -61,14 +47,6 @@ class DocumentLoader:
         if invoice is None:
             raise NotFoundError(f"invoice {invoice_id} does not exist in this store")
         return invoice
-
-    async def load_return(self, return_id: UUID) -> SupplierReturn:
-        supplier_return = await self._returns.get(return_id)
-        if supplier_return is None:
-            raise NotFoundError(
-                f"supplier return {return_id} does not exist in this store"
-            )
-        return supplier_return
 
     async def load_write_off(self, write_off_id: UUID) -> WriteOff:
         write_off = await self._write_offs.get(write_off_id)

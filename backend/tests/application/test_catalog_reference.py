@@ -1,25 +1,23 @@
-"""Locations, suppliers and customers — FR-2.2.
+"""Locations and customers — FR-2.2.
 
-The three reference lists a store builds before it can receive or sell
-anything. Names are unique for the first two and deliberately not for the
-third (PRD §4.2: two people share a name).
+Two of the three reference lists a store builds before it can receive or
+sell anything. Names are unique for locations and deliberately not for
+customers (PRD §4.2: two people share a name). Suppliers, the third, moved
+to ``tests/api/test_catalog_api.py`` when they moved to the
+specification-based repository.
 """
 
 import pytest
 
 from application.commands.create_customer import CreateCustomerCommand
 from application.commands.create_location import CreateLocationCommand
-from application.commands.create_supplier import CreateSupplierCommand
 from application.commands.update_customer import UpdateCustomerCommand
 from application.commands.update_location import UpdateLocationCommand
-from application.commands.update_supplier import UpdateSupplierCommand
 from application.errors import DuplicateNameError, NotFoundError
 from application.queries.get_customer import GetCustomerQuery
 from application.queries.get_location import GetLocationQuery
-from application.queries.get_supplier import GetSupplierQuery
 from application.queries.list_customers import ListCustomersQuery
 from application.queries.list_locations import ListLocationsQuery
-from application.queries.list_suppliers import ListSuppliersQuery
 from tests.application.builders import make_world
 
 
@@ -89,88 +87,6 @@ class TestLocations:
 
         assert [loc.name for loc in page.data] == ["Main Store", "Warehouse"]
         assert page.total_items == 3
-
-
-class TestSuppliers:
-    async def test_create_stores_the_contact_details(self):
-        world = make_world()
-
-        result = await world.create_supplier().handle(
-            CreateSupplierCommand(
-                name="Tashkent Mobile Distribution",
-                contact_name="Aziz",
-                phone="+998901234567",
-                email="aziz@tmd.uz",
-            )
-        )
-
-        assert result.data.contact_name == "Aziz"
-        assert result.data.email == "aziz@tmd.uz"
-        assert result.data.is_active is True
-
-    async def test_a_supplier_carries_no_currency(self):
-        """Currency belongs to the product (PRD §4.5 rule 3) — one supplier
-        can invoice in dollars and in som on the same order."""
-        world = make_world()
-
-        result = await world.create_supplier().handle(CreateSupplierCommand(name="TMD"))
-
-        assert "currency" not in result.data.model_dump()
-
-    async def test_a_duplicate_name_is_refused(self):
-        world = make_world()
-        await world.create_supplier().handle(CreateSupplierCommand(name="TMD"))
-
-        with pytest.raises(DuplicateNameError):
-            await world.create_supplier().handle(CreateSupplierCommand(name="TMD"))
-
-        assert world.uow.commits == 1
-
-    async def test_an_omitted_contact_field_is_left_alone(self):
-        world = make_world()
-        created = await world.create_supplier().handle(
-            CreateSupplierCommand(name="TMD", phone="+998901234567")
-        )
-
-        result = await world.update_supplier().handle(
-            UpdateSupplierCommand(supplier_id=created.data.id, contact_name="Aziz")
-        )
-
-        assert result.data.phone == "+998901234567"
-        assert result.data.contact_name == "Aziz"
-
-    async def test_an_explicit_null_clears_a_contact_field(self):
-        world = make_world()
-        created = await world.create_supplier().handle(
-            CreateSupplierCommand(name="TMD", phone="+998901234567")
-        )
-
-        result = await world.update_supplier().handle(
-            UpdateSupplierCommand.model_validate({"phone": None}).model_copy(
-                update={"supplier_id": created.data.id}
-            )
-        )
-
-        assert result.data.phone is None
-
-    async def test_get_raises_for_an_unknown_id(self):
-        world = make_world()
-
-        with pytest.raises(NotFoundError):
-            await world.get_supplier().handle(GetSupplierQuery(supplier_id=world.tenant.id))
-
-    async def test_list_searches_name_and_phone(self):
-        world = make_world()
-        await world.create_supplier().handle(
-            CreateSupplierCommand(name="TMD", phone="+998901234567")
-        )
-        await world.create_supplier().handle(CreateSupplierCommand(name="Samarkand Parts"))
-
-        by_name = await world.list_suppliers().handle(ListSuppliersQuery(search="samarkand"))
-        by_phone = await world.list_suppliers().handle(ListSuppliersQuery(search="9012345"))
-
-        assert [s.name for s in by_name.data] == ["Samarkand Parts"]
-        assert [s.name for s in by_phone.data] == ["TMD"]
 
 
 class TestCustomers:

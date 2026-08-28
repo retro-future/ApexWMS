@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from application.ports.repository import Repository
+from application.ports.repository import LegacyRepository
 from domain.entities import (
     Invitation,
     RefreshTokenRecord,
@@ -20,7 +20,7 @@ from domain.entities import (
 )
 
 
-class TenantRepository(Repository[Tenant, UUID], Protocol):
+class TenantRepository(LegacyRepository[Tenant, UUID], Protocol):
     async def get_by_slug(self, slug: str) -> Tenant | None:
         """Resolve the handle an ``X-Tenant`` header names a tenant by."""
         ...
@@ -28,17 +28,17 @@ class TenantRepository(Repository[Tenant, UUID], Protocol):
     async def list_all(self) -> list[Tenant]: ...
 
 
-class UserRepository(Repository[User, UUID], Protocol):
+class UserRepository(LegacyRepository[User, UUID], Protocol):
     async def get_by_email(self, email: str) -> User | None:
         """Email is unique across the platform — one identity per person."""
         ...
 
 
-class UserAppRoleRepository(Repository[UserAppRole, UUID], Protocol):
+class UserAppRoleRepository(LegacyRepository[UserAppRole, UUID], Protocol):
     async def list_for_user(self, user_id: UUID) -> list[UserAppRole]: ...
 
 
-class UserTenantAccessRepository(Repository[UserTenantAccess, UUID], Protocol):
+class UserTenantAccessRepository(LegacyRepository[UserTenantAccess, UUID], Protocol):
     async def list_for_user(self, user_id: UUID) -> list[UserTenantAccess]: ...
 
     async def exists(self, user_id: UUID, tenant_id: UUID) -> bool:
@@ -46,11 +46,11 @@ class UserTenantAccessRepository(Repository[UserTenantAccess, UUID], Protocol):
         ...
 
 
-class RefreshTokenRepository(Repository[RefreshTokenRecord, UUID], Protocol):
+class RefreshTokenRepository(LegacyRepository[RefreshTokenRecord, UUID], Protocol):
     async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> None:
         """Revoke every live token for the user — the reuse-detection response."""
         ...
 
 
-class InvitationRepository(Repository[Invitation, UUID], Protocol):
+class InvitationRepository(LegacyRepository[Invitation, UUID], Protocol):
     """Plain CRUD — the parametrization alone pins the aggregate and DI key."""

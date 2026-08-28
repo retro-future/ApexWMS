@@ -60,6 +60,14 @@ class TestNoThirdBase:
     """The guard proper: no new abstract base has appeared under either package."""
 
     def test_tenant_package_exports_exactly_its_two_bases(self):
+        """``TenantSqlRepository`` is deliberately absent from this set.
+
+        It is not a third sibling — it is what both of these are being
+        replaced by, one aggregate at a time, and it is imported from
+        ``.base`` by name rather than re-exported here. When the last
+        aggregate converts, this set becomes empty and the test goes away
+        with the bases it guards.
+        """
         exported = {
             name
             for name in tenant_repositories.__all__

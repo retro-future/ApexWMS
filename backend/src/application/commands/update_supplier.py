@@ -5,10 +5,14 @@ from uuid import UUID
 
 from pydantic import EmailStr, Field
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError, NotFoundError
 from application.models import SupplierData
-from application.ports import SupplierRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
+from application.specs import SupplierForWrite, SupplierNameTakenByAnother
+from domain.entities import Supplier
+from infrastructure.persistence.tenant.models import SupplierModel
 
 
 class UpdateSupplierCommand(Command[ResultWithData[SupplierData]]):
@@ -23,21 +27,25 @@ class UpdateSupplierCommand(Command[ResultWithData[SupplierData]]):
 class UpdateSupplierHandler(
     IRequestHandler[ResultWithData[SupplierData], UpdateSupplierCommand]
 ):
-    def __init__(self, suppliers: SupplierRepository, uow: TenantUnitOfWork) -> None:
+    def __init__(
+        self,
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
+        uow: TenantUnitOfWork,
+    ) -> None:
         self._suppliers = suppliers
         self._uow = uow
 
     async def handle(self, request: UpdateSupplierCommand) -> ResultWithData[SupplierData]:
         assert request.supplier_id is not None
-        supplier = await self._suppliers.get(request.supplier_id)
+        supplier = await self._suppliers.find_one(SupplierForWrite(request.supplier_id))
         if supplier is None:
             raise NotFoundError("no such supplier in this store")
 
         sent = request.model_fields_set
         if request.name is not None:
             name = request.name.strip()
-            owner = await self._suppliers.get_by_name(name)
-            if owner is not None and owner.id != supplier.id:
+            taken = SupplierNameTakenByAnother(name, supplier.id)
+            if await self._suppliers.exists(taken):
                 raise DuplicateNameError(f"a supplier called {name!r} already exists")
             supplier.name = name
         if request.is_active is not None:
