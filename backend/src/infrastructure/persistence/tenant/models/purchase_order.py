@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .product import ProductModel
 
 
 class PurchaseOrderModel(TenantBase):
@@ -42,6 +43,17 @@ class PurchaseOrderModel(TenantBase):
     )
     cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # First relationship() on a tenant model. lazy="raise" so a
+    # specification that forgets to eager-load the collection fails at the
+    # query rather than as a silent N+1 or a MissingGreenlet inside a
+    # domain method.
+    lines: Mapped[list[PurchaseOrderLineModel]] = relationship(
+        back_populates="purchase_order",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="PurchaseOrderLineModel.product_id, PurchaseOrderLineModel.id",
+    )
+
 
 class PurchaseOrderLineModel(TenantBase):
     """What was ordered, at what price.
@@ -64,3 +76,10 @@ class PurchaseOrderLineModel(TenantBase):
     # does not end in _minor.
     quantity: Mapped[int] = mapped_column(Integer)
     unit_cost_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    purchase_order: Mapped[PurchaseOrderModel] = relationship(
+        back_populates="lines", lazy="raise"
+    )
+    # viewonly: the line carries the product's currency and tracking type
+    # for display (§4.5 rule 3), but never writes the product back.
+    product: Mapped[ProductModel] = relationship(lazy="raise", viewonly=True)

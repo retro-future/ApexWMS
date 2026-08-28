@@ -661,3 +661,109 @@ class TestTheOrderPrints:
             f"{API}/purchase-orders/{order['id']}/pdf", headers=owner.auth
         )
         assert printed.content == again.content
+
+
+class TestTheOrderRepository:
+    """The purchase order is the first aggregate with a line collection to
+    move to the generic repository + mapper + specification (ADR 0007).
+    These drive the parts a fake cannot: the line reads its currency and
+    tracking type off the product row, pricing writes one child in place,
+    and the browse filters run in SQL."""
+
+    async def _raise(self, client, owner, ids, lines: list[dict]) -> dict:
+        response = await client.post(
+            f"{API}/purchase-orders",
+            headers=owner.auth,
+            json={"supplierId": ids["supplier"], "lines": lines},
+        )
+        assert response.status_code == 201, response.text
+        return response.json()["data"]
+
+    async def test_a_line_takes_currency_and_tracking_type_from_its_product(
+        self, client, store
+    ):
+        owner, ids = store
+        order = await self._raise(
+            client,
+            owner,
+            ids,
+            [
+                {"productId": ids["phone"], "quantity": 1, "unitCost": "700.00"},
+                {"productId": ids["case"], "quantity": 5, "unitCost": "30000"},
+            ],
+        )
+
+        fetched = await client.get(
+            f"{API}/purchase-orders/{order['id']}", headers=owner.auth
+        )
+        assert fetched.status_code == 200, fetched.text
+        by_product = {line["productId"]: line for line in fetched.json()["data"]["lines"]}
+        assert by_product[ids["phone"]]["currency"] == "USD"
+        assert by_product[ids["phone"]]["trackingType"] == "serial"
+        assert by_product[ids["case"]]["currency"] == "UZS"
+        assert by_product[ids["case"]]["trackingType"] == "quantity"
+
+    async def test_pricing_one_draft_line_leaves_the_other_untouched(
+        self, client, store
+    ):
+        owner, ids = store
+        order = await self._raise(
+            client,
+            owner,
+            ids,
+            [
+                {"productId": ids["phone"], "quantity": 1},
+                {"productId": ids["case"], "quantity": 5},
+            ],
+        )
+        target = next(
+            line for line in order["lines"] if line["productId"] == ids["phone"]
+        )
+
+        priced = await client.patch(
+            f"{API}/purchase-orders/{order['id']}/lines/{target['id']}",
+            headers=owner.auth,
+            json={"unitCost": "699.00"},
+        )
+        assert priced.status_code == 200, priced.text
+
+        fetched = await client.get(
+            f"{API}/purchase-orders/{order['id']}", headers=owner.auth
+        )
+        lines = fetched.json()["data"]["lines"]
+        assert len(lines) == 2
+        by_product = {line["productId"]: line for line in lines}
+        assert by_product[ids["phone"]]["unitCost"] == "699.00"
+        assert by_product[ids["case"]]["unitCost"] is None
+
+    async def test_the_browse_filters_by_status_supplier_and_number(
+        self, client, store
+    ):
+        owner, ids = store
+        other = await client.post(
+            f"{API}/suppliers", headers=owner.auth, json={"name": "Second Source"}
+        )
+        other_id = other.json()["data"]["id"]
+
+        one_phone = [{"productId": ids["phone"], "quantity": 1, "unitCost": "700.00"}]
+        kept_draft = await self._raise(client, owner, ids, one_phone)
+        to_confirm = await self._raise(client, owner, ids, one_phone)
+        await client.post(
+            f"{API}/purchase-orders",
+            headers=owner.auth,
+            json={"supplierId": other_id, "lines": one_phone},
+        )
+        await client.post(
+            f"{API}/purchase-orders/{to_confirm['id']}/confirm", headers=owner.auth, json={}
+        )
+
+        async def ids_for(query: str) -> set[str]:
+            response = await client.get(f"{API}/purchase-orders{query}", headers=owner.auth)
+            assert response.status_code == 200, response.text
+            return {row["id"] for row in response.json()["data"]}
+
+        assert await ids_for("?status=confirmed") == {to_confirm["id"]}
+        assert kept_draft["id"] in await ids_for("?status=draft")
+        assert await ids_for(f"?supplierId={other_id}") != set()
+        assert kept_draft["id"] not in await ids_for(f"?supplierId={other_id}")
+        assert await ids_for(f"?search={kept_draft['number']}") == {kept_draft["id"]}

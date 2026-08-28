@@ -8,16 +8,19 @@ and a fulfilment figure that stops counting it as outstanding.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
+from application.errors import NotFoundError
 from application.models import PurchaseOrderData
 from application.ports import (
     Clock,
     GoodsReceiptRepository,
-    PurchaseOrderRepository,
     TenantUnitOfWork,
 )
-from application.services import DocumentLoader
+from application.specs import PurchaseOrderForWrite
+from domain.entities import PurchaseOrder
+from infrastructure.persistence.tenant.models import PurchaseOrderModel
 
 
 class CancelPurchaseOrderCommandPayload(CamelModel):
@@ -36,16 +39,14 @@ class CancelPurchaseOrderHandler(
 ):
     def __init__(
         self,
-        orders: PurchaseOrderRepository,
+        orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
         receipts: GoodsReceiptRepository,
-        loader: DocumentLoader,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._orders = orders
         self._receipts = receipts
-        self._loader = loader
         self._clock = clock
         self._uow = uow
         self._current = current
@@ -53,10 +54,15 @@ class CancelPurchaseOrderHandler(
     async def handle(
         self, request: CancelPurchaseOrderCommand
     ) -> ResultWithData[PurchaseOrderData]:
-        order = await self._loader.load_order(request.purchase_order_id)
+        spec = PurchaseOrderForWrite(request.purchase_order_id)
+        order = await self._orders.find_one(spec)
+        if order is None:
+            raise NotFoundError(
+                f"purchase order {request.purchase_order_id} does not exist in this store"
+            )
 
         order.cancel(self._clock.now(), self._current.user_id, request.reason)
-        await self._orders.update(order)
+        await self._orders.update(order, spec)
         await self._uow.commit()
 
         received = await self._receipts.received_quantities(order.id)

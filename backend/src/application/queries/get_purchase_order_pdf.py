@@ -13,18 +13,20 @@ the history applies to the paperwork too.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
+from application.errors import NotFoundError
 from application.ports import (
     ProductRepository,
     PurchaseOrderRenderer,
-    SupplierRepository,
     TenantSettingsRepository,
 )
-from application.services import DocumentLoader
-from domain.entities import PurchaseOrder
+from application.specs import PurchaseOrderById, SupplierById
+from domain.entities import PurchaseOrder, Supplier
 from domain.enums import DocumentStatus
 from domain.errors import DocumentNotConfirmedError
+from infrastructure.persistence.tenant.models import PurchaseOrderModel, SupplierModel
 
 
 class GetPurchaseOrderPdfQuery(Query[ResultWithData[RenderedDocument]]):
@@ -36,13 +38,13 @@ class GetPurchaseOrderPdfHandler(
 ):
     def __init__(
         self,
-        loader: DocumentLoader,
+        orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
         products: ProductRepository,
-        suppliers: SupplierRepository,
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
         settings: TenantSettingsRepository,
         renderer: PurchaseOrderRenderer,
     ) -> None:
-        self._loader = loader
+        self._orders = orders
         self._products = products
         self._suppliers = suppliers
         self._settings = settings
@@ -51,14 +53,20 @@ class GetPurchaseOrderPdfHandler(
     async def handle(
         self, request: GetPurchaseOrderPdfQuery
     ) -> ResultWithData[RenderedDocument]:
-        order = await self._loader.load_order(request.purchase_order_id)
+        order = await self._orders.find_one(
+            PurchaseOrderById(request.purchase_order_id)
+        )
+        if order is None:
+            raise NotFoundError(
+                f"purchase order {request.purchase_order_id} does not exist in this store"
+            )
         if order.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{order.number} is still a draft and its lines may hold no cost — "
                 "confirm it before printing it"
             )
 
-        supplier = await self._suppliers.get(order.supplier_id)
+        supplier = await self._suppliers.find_one(SupplierById(order.supplier_id))
         content = self._renderer.render(
             order,
             await self._settings.get_letterhead(),

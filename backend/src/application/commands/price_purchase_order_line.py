@@ -9,14 +9,16 @@ still unpriced.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import PurchaseOrderData
-from application.ports import PurchaseOrderRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import TenantUnitOfWork
+from application.specs import PurchaseOrderForWrite
 from domain.entities import PurchaseOrder, PurchaseOrderLine
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import PurchaseOrderModel
 
 
 class PricePurchaseOrderLineCommandPayload(CamelModel):
@@ -36,20 +38,23 @@ class PricePurchaseOrderLineHandler(
 ):
     def __init__(
         self,
-        orders: PurchaseOrderRepository,
-        loader: DocumentLoader,
+        orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._orders = orders
-        self._loader = loader
         self._uow = uow
         self._current = current
 
     async def handle(
         self, request: PricePurchaseOrderLineCommand
     ) -> ResultWithData[PurchaseOrderData]:
-        order = await self._loader.load_order(request.purchase_order_id)
+        spec = PurchaseOrderForWrite(request.purchase_order_id)
+        order = await self._orders.find_one(spec)
+        if order is None:
+            raise NotFoundError(
+                f"purchase order {request.purchase_order_id} does not exist in this store"
+            )
         order.assert_editable()
 
         line = self._find(order, request.line_id)
@@ -58,7 +63,7 @@ class PricePurchaseOrderLineHandler(
         # fail here, not at the column.
         line.__post_init__()
 
-        await self._orders.update_line(line)
+        await self._orders.update(order, spec)
         await self._uow.commit()
 
         return ResultWithData[PurchaseOrderData].succeed_with_data(

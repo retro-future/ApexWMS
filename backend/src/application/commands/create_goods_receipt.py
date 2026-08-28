@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser, LineInput
 from application.errors import NotFoundError
@@ -25,15 +26,15 @@ from application.ports import (
     CustomerRepository,
     GoodsReceiptRepository,
     LocationRepository,
-    PurchaseOrderRepository,
-    SupplierRepository,
     TenantUnitOfWork,
 )
 from application.services import DocumentLineBuilder, DocumentNumberer
-from domain.entities import GoodsReceipt, PurchaseOrder
+from application.specs import PurchaseOrderById, SupplierById
+from domain.entities import GoodsReceipt, PurchaseOrder, Supplier
 from domain.enums import AcquisitionSource, DocumentStatus, DocumentType
 from domain.errors import DocumentNotConfirmedError, OverReceiptError
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import PurchaseOrderModel, SupplierModel
 
 
 class ReceiptLine(CamelModel):
@@ -63,8 +64,8 @@ class CreateGoodsReceiptHandler(
     def __init__(
         self,
         receipts: GoodsReceiptRepository,
-        orders: PurchaseOrderRepository,
-        suppliers: SupplierRepository,
+        orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
         customers: CustomerRepository,
         locations: LocationRepository,
         builder: DocumentLineBuilder,
@@ -127,9 +128,8 @@ class CreateGoodsReceiptHandler(
             raise NotFoundError(
                 f"location {request.location_id} does not exist in this store"
             )
-        if (
-            request.supplier_id is not None
-            and await self._suppliers.get(request.supplier_id) is None
+        if request.supplier_id is not None and not await self._suppliers.exists(
+            SupplierById(request.supplier_id)
         ):
             raise NotFoundError(
                 f"supplier {request.supplier_id} does not exist in this store"
@@ -147,7 +147,9 @@ class CreateGoodsReceiptHandler(
     ) -> PurchaseOrder | None:
         if request.purchase_order_id is None:
             return None
-        order = await self._orders.get(request.purchase_order_id)
+        order = await self._orders.find_one(
+            PurchaseOrderById(request.purchase_order_id)
+        )
         if order is None:
             raise NotFoundError(
                 f"purchase order {request.purchase_order_id} does not exist in this store"

@@ -9,19 +9,20 @@ from uuid import UUID, uuid4
 
 from pydantic import Field
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser, LineInput
 from application.errors import NotFoundError
 from application.models import PurchaseOrderData
 from application.ports import (
     Clock,
-    PurchaseOrderRepository,
-    SupplierRepository,
     TenantUnitOfWork,
 )
 from application.services import DocumentLineBuilder, DocumentNumberer
-from domain.entities import PurchaseOrder
+from application.specs import SupplierById
+from domain.entities import PurchaseOrder, Supplier
 from domain.enums import DocumentStatus, DocumentType
+from infrastructure.persistence.tenant.models import PurchaseOrderModel, SupplierModel
 
 
 class OrderLine(CamelModel):
@@ -44,8 +45,8 @@ class CreatePurchaseOrderHandler(
 ):
     def __init__(
         self,
-        orders: PurchaseOrderRepository,
-        suppliers: SupplierRepository,
+        orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
         builder: DocumentLineBuilder,
         numberer: DocumentNumberer,
         clock: Clock,
@@ -63,7 +64,7 @@ class CreatePurchaseOrderHandler(
     async def handle(
         self, request: CreatePurchaseOrderCommand
     ) -> ResultWithData[PurchaseOrderData]:
-        if await self._suppliers.get(request.supplier_id) is None:
+        if not await self._suppliers.exists(SupplierById(request.supplier_id)):
             raise NotFoundError(
                 f"supplier {request.supplier_id} does not exist in this store"
             )

@@ -6,10 +6,14 @@ screen is one request rather than one per order.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import PurchaseOrderData
-from application.ports import GoodsReceiptRepository, PurchaseOrderRepository
+from application.ports import GoodsReceiptRepository
+from application.specs import PurchaseOrderBrowse
+from domain.entities import PurchaseOrder
 from domain.enums import DocumentStatus
+from infrastructure.persistence.tenant.models import PurchaseOrderModel
 
 
 class ListPurchaseOrdersQuery(PagedQuery[PagedResult[PurchaseOrderData]]):
@@ -22,7 +26,9 @@ class ListPurchaseOrdersHandler(
     IRequestHandler[PagedResult[PurchaseOrderData], ListPurchaseOrdersQuery]
 ):
     def __init__(
-        self, orders: PurchaseOrderRepository, receipts: GoodsReceiptRepository
+        self,
+        orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
+        receipts: GoodsReceiptRepository,
     ) -> None:
         self._orders = orders
         self._receipts = receipts
@@ -30,12 +36,14 @@ class ListPurchaseOrdersHandler(
     async def handle(
         self, request: ListPurchaseOrdersQuery
     ) -> PagedResult[PurchaseOrderData]:
-        orders, total = await self._orders.list_page(
-            page=request.page,
-            page_size=request.page_size,
+        spec = PurchaseOrderBrowse(
             search=request.search,
             status=request.status,
             supplier_id=request.supplier_id,
+        )
+        total = await self._orders.count(spec)
+        orders = await self._orders.find(
+            spec.page(request.page, request.page_size)
         )
         data = [
             PurchaseOrderData.from_entity(
