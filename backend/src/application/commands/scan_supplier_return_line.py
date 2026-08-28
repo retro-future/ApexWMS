@@ -13,11 +13,15 @@ departure ``scan_invoice_line`` makes and for the same reason.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.errors import NotFoundError
 from application.models import SupplierReturnData
-from application.ports import SupplierReturnRepository, TenantUnitOfWork
-from application.services import DocumentLoader, RemovalScanner
+from application.ports import TenantUnitOfWork
+from application.services import RemovalScanner
+from application.specs import SupplierReturnForWrite
 from domain.entities import SupplierReturn, SupplierReturnLine
+from infrastructure.persistence.tenant.models import SupplierReturnModel
 
 
 class ScanSupplierReturnLineCommandPayload(CamelModel):
@@ -38,20 +42,23 @@ class ScanSupplierReturnLineHandler(
 ):
     def __init__(
         self,
-        returns: SupplierReturnRepository,
+        returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
         scanner: RemovalScanner,
-        loader: DocumentLoader,
         uow: TenantUnitOfWork,
     ) -> None:
         self._returns = returns
         self._scanner = scanner
-        self._loader = loader
         self._uow = uow
 
     async def handle(
         self, request: ScanSupplierReturnLineCommand
     ) -> ResultWithData[SupplierReturnData]:
-        document = await self._loader.load_return(request.supplier_return_id)
+        spec = SupplierReturnForWrite(request.supplier_return_id)
+        document = await self._returns.find_one(spec)
+        if document is None:
+            raise NotFoundError(
+                f"supplier return {request.supplier_return_id} does not exist in this store"
+            )
         document.assert_editable()
 
         product, unit = await self._scanner.resolve(
@@ -65,8 +72,7 @@ class ScanSupplierReturnLineHandler(
             if document.line_for_unit(unit.id) is not None:
                 # A double-fire of the same trigger pull (§6).
                 return self._result(document)
-            await self._append(
-                document,
+            document.lines.append(
                 SupplierReturnLine(
                     id=uuid4(),
                     supplier_return_id=document.id,
@@ -76,19 +82,16 @@ class ScanSupplierReturnLineHandler(
                     quantity=1,
                     currency=product.currency,
                     tracking_type=product.tracking_type,
-                ),
+                )
             )
-            return self._result(document)
+            return await self._save(document, spec)
 
         existing = document.line_for_product(product.id)
         if existing is not None:
             existing.quantity += 1
-            await self._returns.update_line(existing)
-            await self._uow.commit()
-            return self._result(document)
+            return await self._save(document, spec)
 
-        await self._append(
-            document,
+        document.lines.append(
             SupplierReturnLine(
                 id=uuid4(),
                 supplier_return_id=document.id,
@@ -96,16 +99,16 @@ class ScanSupplierReturnLineHandler(
                 quantity=1,
                 currency=product.currency,
                 tracking_type=product.tracking_type,
-            ),
+            )
         )
-        return self._result(document)
+        return await self._save(document, spec)
 
-    async def _append(
-        self, document: SupplierReturn, line: SupplierReturnLine
-    ) -> None:
-        document.lines.append(line)
-        await self._returns.add_line(line)
+    async def _save(
+        self, document: SupplierReturn, spec: SupplierReturnForWrite
+    ) -> ResultWithData[SupplierReturnData]:
+        await self._returns.update(document, spec)
         await self._uow.commit()
+        return self._result(document)
 
     @staticmethod
     def _result(document: SupplierReturn) -> ResultWithData[SupplierReturnData]:

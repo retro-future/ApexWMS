@@ -9,19 +9,21 @@ A **cancelled** return still renders, marked as cancelled.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
+from application.errors import NotFoundError
 from application.ports import (
     LocationRepository,
     ProductRepository,
-    SupplierRepository,
     SupplierReturnRenderer,
     TenantSettingsRepository,
 )
-from application.services import DocumentLoader
-from domain.entities import SupplierReturn
+from application.specs import SupplierById, SupplierReturnById
+from domain.entities import Supplier, SupplierReturn
 from domain.enums import DocumentStatus
 from domain.errors import DocumentNotConfirmedError
+from infrastructure.persistence.tenant.models import SupplierModel, SupplierReturnModel
 
 
 class GetSupplierReturnPdfQuery(Query[ResultWithData[RenderedDocument]]):
@@ -33,14 +35,14 @@ class GetSupplierReturnPdfHandler(
 ):
     def __init__(
         self,
-        loader: DocumentLoader,
+        returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
         products: ProductRepository,
-        suppliers: SupplierRepository,
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
         locations: LocationRepository,
         settings: TenantSettingsRepository,
         renderer: SupplierReturnRenderer,
     ) -> None:
-        self._loader = loader
+        self._returns = returns
         self._products = products
         self._suppliers = suppliers
         self._locations = locations
@@ -50,14 +52,20 @@ class GetSupplierReturnPdfHandler(
     async def handle(
         self, request: GetSupplierReturnPdfQuery
     ) -> ResultWithData[RenderedDocument]:
-        document = await self._loader.load_return(request.supplier_return_id)
+        document = await self._returns.find_one(
+            SupplierReturnById(request.supplier_return_id)
+        )
+        if document is None:
+            raise NotFoundError(
+                f"supplier return {request.supplier_return_id} does not exist in this store"
+            )
         if document.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{document.number} is still a draft and nothing has left the shelf — "
                 "confirm it before printing it"
             )
 
-        supplier = await self._suppliers.get(document.supplier_id)
+        supplier = await self._suppliers.find_one(SupplierById(document.supplier_id))
         location = await self._locations.get(document.location_id)
         content = self._renderer.render(
             document,

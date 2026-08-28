@@ -2,9 +2,13 @@
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
+from application.errors import NotFoundError
 from application.models import SupplierReturnData
-from application.services import DocumentLoader
+from application.specs import SupplierReturnById
+from domain.entities import SupplierReturn
+from infrastructure.persistence.tenant.models import SupplierReturnModel
 
 
 class GetSupplierReturnQuery(Query[ResultWithData[SupplierReturnData]]):
@@ -14,13 +18,21 @@ class GetSupplierReturnQuery(Query[ResultWithData[SupplierReturnData]]):
 class GetSupplierReturnHandler(
     IRequestHandler[ResultWithData[SupplierReturnData], GetSupplierReturnQuery]
 ):
-    def __init__(self, loader: DocumentLoader) -> None:
-        self._loader = loader
+    def __init__(
+        self, returns: TenantDbRepository[SupplierReturn, SupplierReturnModel]
+    ) -> None:
+        self._returns = returns
 
     async def handle(
         self, request: GetSupplierReturnQuery
     ) -> ResultWithData[SupplierReturnData]:
-        document = await self._loader.load_return(request.supplier_return_id)
+        document = await self._returns.find_one(
+            SupplierReturnById(request.supplier_return_id)
+        )
+        if document is None:
+            raise NotFoundError(
+                f"supplier return {request.supplier_return_id} does not exist in this store"
+            )
         return ResultWithData[SupplierReturnData].succeed_with_data(
             SupplierReturnData.from_entity(document)
         )

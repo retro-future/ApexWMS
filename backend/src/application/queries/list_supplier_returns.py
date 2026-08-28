@@ -7,10 +7,13 @@ trawl through free-text notes.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import SupplierReturnData
-from application.ports import SupplierReturnRepository
+from application.specs import SupplierReturnBrowse
+from domain.entities import SupplierReturn
 from domain.enums import DocumentStatus, SupplierReturnReason
+from infrastructure.persistence.tenant.models import SupplierReturnModel
 
 
 class ListSupplierReturnsQuery(PagedQuery[PagedResult[SupplierReturnData]]):
@@ -23,19 +26,23 @@ class ListSupplierReturnsQuery(PagedQuery[PagedResult[SupplierReturnData]]):
 class ListSupplierReturnsHandler(
     IRequestHandler[PagedResult[SupplierReturnData], ListSupplierReturnsQuery]
 ):
-    def __init__(self, returns: SupplierReturnRepository) -> None:
+    def __init__(
+        self, returns: TenantDbRepository[SupplierReturn, SupplierReturnModel]
+    ) -> None:
         self._returns = returns
 
     async def handle(
         self, request: ListSupplierReturnsQuery
     ) -> PagedResult[SupplierReturnData]:
-        documents, total = await self._returns.list_page(
-            page=request.page,
-            page_size=request.page_size,
+        spec = SupplierReturnBrowse(
             search=request.search,
             status=request.status,
             supplier_id=request.supplier_id,
             reason=request.reason,
+        )
+        total = await self._returns.count(spec)
+        documents = await self._returns.find(
+            spec.page(request.page, request.page_size)
         )
         return PagedResult[SupplierReturnData].succeed_with_data(
             data=[SupplierReturnData.from_entity(d) for d in documents],

@@ -1,8 +1,10 @@
 """Write-offs and the lines scanned onto them (PRD §4.4, §5.6).
 
-The same shape as ``SqlSupplierReturnRepository``, against its own two
-tables. See that module for why the join onto ``products`` is on every read
-and why the two do not share a base.
+The last scan-driven document still on the legacy named-method shape:
+every read joins ``products`` for the line's currency and tracking type
+(§4.5 rule 3), and ``add_line``/``remove_line`` exist because a scan is one
+row and §6 gives the round trip 200ms. ``SupplierReturn`` was the same and
+has moved to the generic repository; convert this one the same way.
 
 ``reason`` is filterable on the list because "what did theft cost us this
 quarter" is the question FR-6.5's closed set exists to make answerable.
@@ -65,7 +67,8 @@ class SqlWriteOffRepository(TenantRepository):
 
     async def update_line(self, line: WriteOffLine) -> None:
         row = await self._require_row(WriteOffLineModel, line.id)
-        # Only the quantity moves — see ``SqlSupplierReturnRepository``.
+        # Only the quantity moves: a line naming the wrong product is
+        # removed and re-scanned so the checks run against the new one.
         row.quantity = line.quantity
 
     async def remove_line(self, line_id: UUID) -> None:

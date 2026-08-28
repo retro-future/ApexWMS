@@ -458,3 +458,90 @@ class TestNeitherIsASellersJob:
         refused = await client.get(f"{API}/write-offs", headers=auth)
 
         assert refused.status_code == 403
+
+
+class TestTheReturnRepository:
+    """The supplier return is the first aggregate whose lines are added and
+    removed by scanning to move to the generic repository (ADR 0007), so
+    the mapper syncs the whole collection on every ``update``. These drive
+    the parts a fake cannot: currency, tracking type and the scanned IMEI
+    come off join rows, a scan inserts one child, an unscan deletes one, a
+    repeat barcode bumps a quantity in place."""
+
+    async def _lines(self, client, owner, document_id: str) -> list[dict]:
+        response = await client.get(
+            f"{API}/supplier-returns/{document_id}", headers=owner.auth
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["data"]["lines"]
+
+    async def _scan(self, client, owner, document_id: str, code: str):
+        return await client.post(
+            f"{API}/supplier-returns/{document_id}/scan",
+            headers=owner.auth,
+            json={"code": code},
+        )
+
+    async def test_a_scan_inserts_a_line_carrying_its_join_fields(
+        self, client, store
+    ):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+
+        assert (await self._scan(client, owner, document["id"], IMEIS[0])).status_code == 200
+        assert (
+            await self._scan(client, owner, document["id"], "4006381333931")
+        ).status_code == 200
+
+        lines = await self._lines(client, owner, document["id"])
+        by_product = {line["productId"]: line for line in lines}
+        phone_line = by_product[ids["phone"]]
+        assert phone_line["currency"] == "USD"
+        assert phone_line["trackingType"] == "serial"
+        assert phone_line["imei"] == IMEIS[0]
+        case_line = by_product[ids["case"]]
+        assert case_line["currency"] == "UZS"
+        assert case_line["trackingType"] == "quantity"
+        assert case_line["imei"] is None
+
+    async def test_an_unscan_deletes_only_that_line(self, client, store):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+        await self._scan(client, owner, document["id"], IMEIS[0])
+        await self._scan(client, owner, document["id"], IMEIS[1])
+
+        removed = await client.delete(
+            f"{API}/supplier-returns/{document['id']}/scan/{IMEIS[0]}",
+            headers=owner.auth,
+        )
+        assert removed.status_code == 200, removed.text
+
+        lines = await self._lines(client, owner, document["id"])
+        assert [line["imei"] for line in lines] == [IMEIS[1]]
+
+    async def test_a_repeat_barcode_bumps_the_quantity_in_place(self, client, store):
+        owner, ids = store
+        document = await open_return(client, owner, ids)
+
+        await self._scan(client, owner, document["id"], "4006381333931")
+        await self._scan(client, owner, document["id"], "4006381333931")
+
+        lines = await self._lines(client, owner, document["id"])
+        assert len(lines) == 1
+        assert lines[0]["quantity"] == 2
+
+    async def test_the_browse_filters_by_reason_and_supplier(self, client, store):
+        owner, ids = store
+        defective = await open_return(client, owner, ids, reason="defective")
+        await open_return(client, owner, ids, reason="unsold")
+
+        async def numbers(query: str) -> set[str]:
+            response = await client.get(
+                f"{API}/supplier-returns{query}", headers=owner.auth
+            )
+            assert response.status_code == 200, response.text
+            return {row["id"] for row in response.json()["data"]}
+
+        assert await numbers("?reason=defective") == {defective["id"]}
+        assert defective["id"] in await numbers(f"?supplierId={ids['supplier']}")
+        assert await numbers("?search=NOSUCHNUMBER") == set()

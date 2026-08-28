@@ -12,6 +12,7 @@ before they start scanning.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
@@ -19,13 +20,13 @@ from application.models import SupplierReturnData
 from application.ports import (
     Clock,
     LocationRepository,
-    SupplierRepository,
-    SupplierReturnRepository,
     TenantUnitOfWork,
 )
 from application.services import DocumentNumberer
-from domain.entities import SupplierReturn
+from application.specs import SupplierById
+from domain.entities import Supplier, SupplierReturn
 from domain.enums import DocumentStatus, DocumentType, SupplierReturnReason
+from infrastructure.persistence.tenant.models import SupplierModel, SupplierReturnModel
 
 
 class CreateSupplierReturnCommand(Command[ResultWithData[SupplierReturnData]]):
@@ -40,8 +41,8 @@ class CreateSupplierReturnHandler(
 ):
     def __init__(
         self,
-        returns: SupplierReturnRepository,
-        suppliers: SupplierRepository,
+        returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
+        suppliers: TenantDbRepository[Supplier, SupplierModel],
         locations: LocationRepository,
         numberer: DocumentNumberer,
         clock: Clock,
@@ -80,7 +81,7 @@ class CreateSupplierReturnHandler(
         )
 
     async def _assert_parties_exist(self, request: CreateSupplierReturnCommand) -> None:
-        if await self._suppliers.get(request.supplier_id) is None:
+        if not await self._suppliers.exists(SupplierById(request.supplier_id)):
             raise NotFoundError(
                 f"supplier {request.supplier_id} does not exist in this store"
             )

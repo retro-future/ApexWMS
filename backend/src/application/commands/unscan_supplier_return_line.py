@@ -10,11 +10,14 @@ cancelled and re-entered rather than edited (§4.4).
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, Result
 from application.errors import NotFoundError
-from application.ports import DeviceUnitRepository, SupplierReturnRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import DeviceUnitRepository, TenantUnitOfWork
+from application.specs import SupplierReturnForWrite
+from domain.entities import SupplierReturn
 from domain.value_objects import IMEI
+from infrastructure.persistence.tenant.models import SupplierReturnModel
 
 
 class UnscanSupplierReturnLineCommand(Command[Result]):
@@ -29,18 +32,21 @@ class UnscanSupplierReturnLineHandler(
 ):
     def __init__(
         self,
-        returns: SupplierReturnRepository,
+        returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
         units: DeviceUnitRepository,
-        loader: DocumentLoader,
         uow: TenantUnitOfWork,
     ) -> None:
         self._returns = returns
         self._units = units
-        self._loader = loader
         self._uow = uow
 
     async def handle(self, request: UnscanSupplierReturnLineCommand) -> Result:
-        document = await self._loader.load_return(request.supplier_return_id)
+        spec = SupplierReturnForWrite(request.supplier_return_id)
+        document = await self._returns.find_one(spec)
+        if document is None:
+            raise NotFoundError(
+                f"supplier return {request.supplier_return_id} does not exist in this store"
+            )
         document.assert_editable()
 
         wanted = IMEI.parse(request.imei)
@@ -50,6 +56,6 @@ class UnscanSupplierReturnLineHandler(
             raise NotFoundError(f"{document.number} has no scan of IMEI {wanted}")
 
         document.lines.remove(line)
-        await self._returns.remove_line(line.id)
+        await self._returns.update(document, spec)
         await self._uow.commit()
         return Result.succeed(f"{wanted} removed from {document.number}")

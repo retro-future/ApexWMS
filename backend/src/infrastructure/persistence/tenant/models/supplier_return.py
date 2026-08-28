@@ -2,9 +2,11 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .device_unit import DeviceUnitModel
+from .product import ProductModel
 
 
 class SupplierReturnModel(TenantBase):
@@ -44,6 +46,16 @@ class SupplierReturnModel(TenantBase):
     )
     cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Scanning adds and removes these while the return is a draft, so the
+    # mapper syncs the collection on update. lazy="raise": a spec that
+    # forgets to eager-load it fails at the query.
+    lines: Mapped[list[SupplierReturnLineModel]] = relationship(
+        back_populates="supplier_return",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="SupplierReturnLineModel.id",
+    )
+
 
 class SupplierReturnLineModel(TenantBase):
     """One handset or one count of an accessory going back.
@@ -66,3 +78,13 @@ class SupplierReturnLineModel(TenantBase):
     )
     # Counts goods, not money — the name deliberately does not end in _minor.
     quantity: Mapped[int] = mapped_column(Integer)
+
+    supplier_return: Mapped[SupplierReturnModel] = relationship(
+        back_populates="lines", lazy="raise"
+    )
+    # viewonly: the line reads the product's currency and tracking type
+    # (§4.5 rule 3) and the handset's IMEI, and writes neither back.
+    product: Mapped[ProductModel] = relationship(lazy="raise", viewonly=True)
+    device_unit: Mapped[DeviceUnitModel | None] = relationship(
+        lazy="raise", viewonly=True
+    )
