@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .product import ProductModel
 
 
 class GoodsReceiptModel(TenantBase):
@@ -49,6 +50,13 @@ class GoodsReceiptModel(TenantBase):
     )
     cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    lines: Mapped[list[GoodsReceiptLineModel]] = relationship(
+        back_populates="goods_receipt",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="GoodsReceiptLineModel.product_id, GoodsReceiptLineModel.id",
+    )
+
 
 class GoodsReceiptLineModel(TenantBase):
     """What is expected on this receipt, one product at a time.
@@ -68,6 +76,19 @@ class GoodsReceiptLineModel(TenantBase):
     product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"))
     quantity: Mapped[int] = mapped_column(Integer)
     unit_cost_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    goods_receipt: Mapped[GoodsReceiptModel] = relationship(
+        back_populates="lines", lazy="raise"
+    )
+    units: Mapped[list[ReceivedUnitModel]] = relationship(
+        back_populates="line",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="ReceivedUnitModel.imei",
+    )
+    # viewonly: the line carries the product's currency and tracking type
+    # for display (§4.5 rule 3), but never writes the product back.
+    product: Mapped[ProductModel] = relationship(lazy="raise", viewonly=True)
 
 
 class ReceivedUnitModel(TenantBase):
@@ -104,6 +125,10 @@ class ReceivedUnitModel(TenantBase):
     # total anywhere.
     cash_paid_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     cash_paid_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+
+    line: Mapped[GoodsReceiptLineModel] = relationship(
+        back_populates="units", lazy="raise"
+    )
 
 
 class DocumentSequenceModel(TenantBase):

@@ -4,9 +4,10 @@ Infrastructure implements these; application never imports the
 implementations. This is what lets every use case run against
 in-memory fakes with no database.
 
-Layout mirrors the two databases: ``repository.py``/``uow.py`` hold the
-generic interfaces, ``master/`` the tenant registry and identity,
-``tenant/`` what a store owns — including who works there.
+The generic repository port lives in ``application/common/repository.py``;
+``uow.py`` holds the unit-of-work interface. ``master/`` and ``tenant/``
+hold the ports specific to each database — mostly query services now, plus
+the settings row and the document-number counter.
 """
 
 from application.ports.clock import Clock
@@ -16,82 +17,43 @@ from application.ports.documents import (
     SupplierReturnRenderer,
 )
 from application.ports.master import (
-    InvitationRepository,
     MasterUnitOfWork,
-    RefreshTokenRepository,
-    TenantRepository,
-    UserAppRoleRepository,
-    UserRepository,
-    UserTenantAccessRepository,
 )
 from application.ports.provisioning import TenantProvisioner
-from application.ports.repository import AppendOnlyRepository, LegacyRepository
 from application.ports.security import PasswordHasher, TokenService
 from application.ports.tenancy import TenantScope, TenantWorkspace
 from application.ports.tenant import (
-    CreditCompanyRepository,
-    CustomerRepository,
-    DeviceUnitPriceChangeRepository,
-    DeviceUnitRepository,
-    DocumentNumberRepository,
-    EmployeeRepository,
-    FinancialTransactionRepository,
-    GoodsReceiptRepository,
-    LocationRepository,
-    PaymentRepository,
-    ProductPriceChangeRepository,
-    ProductRepository,
-    SalesInvoiceRepository,
-    SalesReportRepository,
-    StockCountRepository,
-    StockLevelRepository,
-    StockMovementRepository,
-    StockOnHandRepository,
+    DeviceUnitQueries,
+    DocumentNumberAllocator,
+    FinancialTransactionQueries,
+    GoodsReceiptQueries,
+    SalesInvoiceQueries,
+    StockMovementQueries,
+    StockOnHandQueries,
     TenantSettingsRepository,
     TenantUnitOfWork,
-    WriteOffRepository,
 )
 from application.ports.uow import UnitOfWork
 
 __all__ = [
-    "AppendOnlyRepository",
     "Clock",
-    "CreditCompanyRepository",
-    "CustomerRepository",
-    "DeviceUnitPriceChangeRepository",
-    "DeviceUnitRepository",
-    "DocumentNumberRepository",
-    "EmployeeRepository",
-    "FinancialTransactionRepository",
-    "GoodsReceiptRepository",
-    "InvitationRepository",
+    "DeviceUnitQueries",
+    "DocumentNumberAllocator",
+    "FinancialTransactionQueries",
+    "GoodsReceiptQueries",
+    "StockMovementQueries",
     "InvoiceRenderer",
-    "LegacyRepository",
-    "LocationRepository",
     "MasterUnitOfWork",
     "PasswordHasher",
-    "PaymentRepository",
-    "ProductPriceChangeRepository",
-    "ProductRepository",
-    "SalesInvoiceRepository",
-    "SalesReportRepository",
+    "SalesInvoiceQueries",
     "PurchaseOrderRenderer",
-    "RefreshTokenRepository",
-    "StockCountRepository",
-    "StockLevelRepository",
-    "StockOnHandRepository",
-    "StockMovementRepository",
+    "StockOnHandQueries",
     "SupplierReturnRenderer",
     "TenantProvisioner",
-    "TenantRepository",
     "TenantScope",
     "TenantSettingsRepository",
     "TenantUnitOfWork",
     "TenantWorkspace",
     "TokenService",
     "UnitOfWork",
-    "UserAppRoleRepository",
-    "UserRepository",
-    "UserTenantAccessRepository",
-    "WriteOffRepository",
 ]

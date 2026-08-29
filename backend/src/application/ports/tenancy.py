@@ -18,15 +18,17 @@ from contextlib import AbstractAsyncContextManager
 from typing import Protocol
 from uuid import UUID
 
-from application.ports.tenant.repositories import EmployeeRepository
+from application.common.repository import TenantDbRepository
 from application.ports.uow import UnitOfWork
+from domain.entities import Employee
+from infrastructure.persistence.tenant.models import EmployeeModel
 
 
 class TenantWorkspace(Protocol):
     """A live session on one tenant's database."""
 
     @property
-    def employees(self) -> EmployeeRepository: ...
+    def employees(self) -> TenantDbRepository[Employee, EmployeeModel]: ...
 
     @property
     def uow(self) -> UnitOfWork: ...

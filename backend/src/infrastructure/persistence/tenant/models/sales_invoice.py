@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .product import ProductModel
 
 
 class SalesInvoiceModel(TenantBase):
@@ -54,6 +55,17 @@ class SalesInvoiceModel(TenantBase):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Scanning adds and removes these while the invoice is a draft, and
+    # confirm writes every line's price snapshot at once, so the mapper
+    # syncs the collection on update. lazy="raise": a spec that forgets to
+    # eager-load it fails at the query.
+    lines: Mapped[list[SalesInvoiceLineModel]] = relationship(
+        back_populates="sales_invoice",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="SalesInvoiceLineModel.id",
+    )
+
 
 class SalesInvoiceLineModel(TenantBase):
     """What is being sold, and for how much.
@@ -91,3 +103,10 @@ class SalesInvoiceLineModel(TenantBase):
     price_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     resolved_price_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     charged_price_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    sales_invoice: Mapped[SalesInvoiceModel] = relationship(
+        back_populates="lines", lazy="raise"
+    )
+    # viewonly: the line reads the product's currency and tracking type
+    # (§4.5 rule 3) and writes neither back.
+    product: Mapped[ProductModel] = relationship(lazy="raise", viewonly=True)

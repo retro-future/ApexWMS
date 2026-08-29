@@ -143,12 +143,12 @@ def main(argv: list[str] | None = None) -> int:
 
 async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
     # Local imports: provisioning pulls in the tenant models and Alembic.
+    from domain.entities import User
     from infrastructure.clock import SystemClock
-    from infrastructure.persistence.master.repositories import (
-        SqlTenantRepository,
-        SqlUserRepository,
-    )
+    from infrastructure.persistence.mappers import AutoMapper, TenantMapper
+    from infrastructure.persistence.master.models import TenantModel, UserModel
     from infrastructure.persistence.master.uow import SqlMasterUnitOfWork
+    from infrastructure.persistence.repositories import MasterSqlRepository
     from infrastructure.provisioning import DefaultTenantProvisioner
     from infrastructure.security.password import Argon2PasswordHasher
     from infrastructure.security.tokens import JwtTokenService
@@ -159,8 +159,8 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
             master = MasterSession(session)
             clock = SystemClock()
             handler = CreateTenantHandler(
-                tenants=SqlTenantRepository(master),
-                users=SqlUserRepository(master),
+                tenants=MasterSqlRepository(master, TenantModel, TenantMapper()),
+                users=MasterSqlRepository(master, UserModel, AutoMapper(User, UserModel)),
                 hasher=Argon2PasswordHasher(),
                 tokens=JwtTokenService(
                     settings.jwt_secret,
@@ -201,12 +201,12 @@ async def _create_tenant(settings: Settings, args: argparse.Namespace) -> int:
 
 
 async def _create_superadmin(settings: Settings, args: argparse.Namespace) -> int:
+    from domain.entities import User
     from infrastructure.clock import SystemClock
-    from infrastructure.persistence.master.repositories import (
-        SqlUserAppRoleRepository,
-        SqlUserRepository,
-    )
+    from infrastructure.persistence.mappers import AutoMapper, UserAppRoleMapper
+    from infrastructure.persistence.master.models import UserAppRoleModel, UserModel
     from infrastructure.persistence.master.uow import SqlMasterUnitOfWork
+    from infrastructure.persistence.repositories import MasterSqlRepository
     from infrastructure.security.password import Argon2PasswordHasher
     from infrastructure.security.tokens import JwtTokenService
 
@@ -216,8 +216,8 @@ async def _create_superadmin(settings: Settings, args: argparse.Namespace) -> in
             master = MasterSession(session)
             clock = SystemClock()
             handler = CreateSuperAdminHandler(
-                users=SqlUserRepository(master),
-                app_roles=SqlUserAppRoleRepository(master),
+                users=MasterSqlRepository(master, UserModel, AutoMapper(User, UserModel)),
+                app_roles=MasterSqlRepository(master, UserAppRoleModel, UserAppRoleMapper()),
                 hasher=Argon2PasswordHasher(),
                 tokens=JwtTokenService(
                     settings.jwt_secret,
@@ -368,51 +368,87 @@ async def _verify_one(url: str, command: str) -> list[str]:
         LedgerReconciler,
         ProjectionVerifier,
     )
+    from domain.entities import StockLevel
     from domain.services import UnitProjector
-    from infrastructure.persistence.tenant.repositories import (
-        SqlDeviceUnitPriceChangeRepository,
-        SqlDeviceUnitRepository,
-        SqlFinancialTransactionRepository,
-        SqlPaymentRepository,
-        SqlProductPriceChangeRepository,
-        SqlProductRepository,
-        SqlSalesInvoiceRepository,
-        SqlStockLevelRepository,
-        SqlStockMovementRepository,
+    from infrastructure.persistence.mappers import (
+        AutoMapper,
+        DeviceUnitMapper,
+        DeviceUnitPriceChangeMapper,
+        FinancialTransactionMapper,
+        PaymentMapper,
+        ProductMapper,
+        ProductPriceChangeMapper,
+        SalesInvoiceMapper,
+        StockMovementMapper,
+    )
+    from infrastructure.persistence.repositories import (
+        TenantSqlAppendOnlyRepository,
+        TenantSqlRepository,
+    )
+    from infrastructure.persistence.tenant.models import (
+        DeviceUnitModel,
+        DeviceUnitPriceChangeModel,
+        FinancialTransactionModel,
+        PaymentModel,
+        ProductModel,
+        ProductPriceChangeModel,
+        SalesInvoiceModel,
+        StockLevelModel,
+        StockMovementModel,
+    )
+    from infrastructure.persistence.tenant.queries import (
+        SqlFinancialTransactionQueries,
+        SqlStockMovementQueries,
     )
 
     engine = create_async_engine(url)
     try:
         async with async_sessionmaker(engine)() as raw:
             session = TenantSession(raw)
-            units = SqlDeviceUnitRepository(session)
-            movements = SqlStockMovementRepository(session)
-            products = SqlProductRepository(session)
+            units = TenantSqlRepository(session, DeviceUnitModel, DeviceUnitMapper())
+            movements = TenantSqlAppendOnlyRepository(
+                session, StockMovementModel, StockMovementMapper()
+            )
+            movement_queries = SqlStockMovementQueries(session)
+            transactions = TenantSqlAppendOnlyRepository(
+                session, FinancialTransactionModel, FinancialTransactionMapper()
+            )
+            transaction_queries = SqlFinancialTransactionQueries(session)
+            products = TenantSqlRepository(session, ProductModel, ProductMapper())
+            levels = TenantSqlRepository(
+                session, StockLevelModel, AutoMapper(StockLevel, StockLevelModel)
+            )
             if command == "verify-balances":
                 balances = BalanceVerifier(
-                    SqlSalesInvoiceRepository(session),
-                    SqlPaymentRepository(session),
-                    SqlFinancialTransactionRepository(session),
+                    TenantSqlRepository(
+                        session, SalesInvoiceModel, SalesInvoiceMapper()
+                    ),
+                    TenantSqlAppendOnlyRepository(session, PaymentModel, PaymentMapper()),
+                    transaction_queries,
                 )
                 return [str(finding) for finding in await balances.verify()]
 
             if command == "verify-financials":
-                transactions = SqlFinancialTransactionRepository(session)
                 checker = LedgerReconciler(
                     units,
-                    transactions,
-                    movements,
+                    transaction_queries,
+                    movement_queries,
                     CostPoolReader(products, movements, transactions),
                 )
                 return [str(finding) for finding in await checker.reconcile()]
 
             verifier = ProjectionVerifier(
                 movements,
-                SqlStockLevelRepository(session),
+                movement_queries,
+                levels,
                 units,
-                SqlDeviceUnitPriceChangeRepository(session),
+                TenantSqlAppendOnlyRepository(
+                    session, DeviceUnitPriceChangeModel, DeviceUnitPriceChangeMapper()
+                ),
                 products,
-                SqlProductPriceChangeRepository(session),
+                TenantSqlAppendOnlyRepository(
+                    session, ProductPriceChangeModel, ProductPriceChangeMapper()
+                ),
                 UnitProjector(),
             )
             return [str(finding) for finding in await verifier.verify()]

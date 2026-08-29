@@ -32,7 +32,7 @@ from infrastructure.persistence.tenant.models import (
     LocationModel,
     TenantSettingsModel,
 )
-from infrastructure.persistence.tenant.repositories import SETTINGS_ROW_ID
+from infrastructure.persistence.tenant.settings import SETTINGS_ROW_ID
 from infrastructure.tenancy import tenant_db_url
 
 

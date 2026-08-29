@@ -17,7 +17,6 @@ from application.services import (
     DeviceUnitLoader,
     DeviceUnitRepricer,
     DocumentLineBuilder,
-    DocumentLoader,
     DocumentNumberer,
     InvoicePoster,
     LedgerPoster,
@@ -50,7 +49,6 @@ class ApplicationServicesProvider(Provider):
         # --- M4 purchasing & receiving ---
         DocumentNumberer,
         DocumentLineBuilder,
-        DocumentLoader,
         ReceiptPoster,
         # --- M5 outbound ---
         CostPoolReader,
@@ -61,7 +59,6 @@ class ApplicationServicesProvider(Provider):
         # --- M6 returns, counts & write-offs ---
         UnitOriginGuard,
         UnitTraceAssembler,
-    UnitTraceAssembler,
         RemovalScanner,
         RemovalPoster,
         CountPoster,

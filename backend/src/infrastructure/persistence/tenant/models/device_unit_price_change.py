@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .device_unit import DeviceUnitModel
 
 
 class DeviceUnitPriceChangeModel(TenantBase):
@@ -30,3 +31,6 @@ class DeviceUnitPriceChangeModel(TenantBase):
     new_price_minor: Mapped[int] = mapped_column(BigInteger)
     reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"))
+    # viewonly: the amounts inherit the unit's product currency (§4.5 rule
+    # 3), reached device_unit -> product; the log never writes either back.
+    device_unit: Mapped[DeviceUnitModel] = relationship(lazy="raise", viewonly=True)

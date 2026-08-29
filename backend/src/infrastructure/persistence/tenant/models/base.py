@@ -18,21 +18,12 @@ class TenantActivatableRow(TenantBase):
     every list endpoint pages by, and ``id`` because that order needs a
     unique tie-break to page stably.
 
-    ``__abstract__ = True`` is what makes this an *abstract declarative
-    base* rather than a plain mixin: SQLAlchemy still copies these columns
-    into each concrete subclass's own table exactly as a mixin would (no
-    shared table, no shared ``Column`` objects), but — unlike a plain
-    mixin, which must not inherit ``DeclarativeBase`` — this class genuinely
-    *is* one. That is what lets ``TenantCrudRepository`` bind its ``ModelT``
-    to ``TenantActivatableRow`` while still satisfying ``CrudRepository``'s
-    own ``ModelT: DeclarativeBase`` bound, which in turn is what lets
-    ``SqlRepository._insert`` be typed as ``DeclarativeBase`` instead of
-    ``object``.
-
-    Declared once here rather than per model so ``TenantCrudRepository``
-    can *require* these columns: it is the upper bound on the repository's
-    model parameter, which is what lets ``_browse_page`` filter and order
-    without each subclass re-supplying its own columns.
+    ``__abstract__ = True`` makes this an abstract declarative base rather
+    than a plain mixin: SQLAlchemy copies these columns into each concrete
+    subclass's own table (no shared table, no shared ``Column`` objects),
+    but the class genuinely is a ``DeclarativeBase``. The browse
+    specifications (``application/specs/*.py``) read ``created_at``/``id``
+    for their total ordering and ``is_active`` for the active filter.
     """
 
     __abstract__ = True

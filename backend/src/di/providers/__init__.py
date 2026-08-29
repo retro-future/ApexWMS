@@ -20,6 +20,7 @@ from di.providers.handlers import HandlersProvider
 from di.providers.mappers import MapperProvider
 from di.providers.master_db import MasterDbProvider
 from di.providers.master_repositories import MasterRepositoriesProvider
+from di.providers.master_repository import MasterRepositoryProvider
 from di.providers.security import SecurityProvider
 from di.providers.services import ApplicationServicesProvider
 from di.providers.tenant_db import TenantDbProvider
@@ -37,6 +38,7 @@ __all__ = [
     "MapperProvider",
     "MasterDbProvider",
     "MasterRepositoriesProvider",
+    "MasterRepositoryProvider",
     "TenantRepositoryProvider",
     "SecurityProvider",
     "TenantDbProvider",

@@ -14,7 +14,7 @@ needs something registered under that literal type, which a concrete
 
 The trade: the entity/model pairing is checked when the registry is built,
 not by ``ty`` at each call site. ``TenantDbRepository[Location,
-SupplierModel]`` resolves and hands back a ``SupplierMapper``. An
+SupplierModel]`` resolves and hands back the supplier mapper. An
 unconverted model raises ``UnmappedModelError``, which names the fix.
 """
 

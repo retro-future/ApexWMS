@@ -13,8 +13,6 @@ that one factory would have to take a plain ``AsyncSession``, erasing the
 enforcing (``docs/architecture/multi-tenancy.md``). ``M`` is bound to
 ``TenantBase`` for the same reason — a master model requested here does not
 type-check.
-
-Aggregates that have not converted are still in ``tenant_repositories.py``.
 """
 
 from typing import TypeVar
@@ -22,10 +20,13 @@ from typing import TypeVar
 from dishka import Provider, Scope, provide
 
 from application.common.mapper import EntityMapper
-from application.common.repository import TenantDbRepository
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from domain.core import Entity
+from infrastructure.persistence.repositories import (
+    TenantSqlAppendOnlyRepository,
+    TenantSqlRepository,
+)
 from infrastructure.persistence.tenant.models.base import TenantBase
-from infrastructure.persistence.tenant.repositories.base import TenantSqlRepository
 from infrastructure.types import TenantSession
 
 E = TypeVar("E", bound=Entity)
@@ -43,3 +44,12 @@ class TenantRepositoryProvider(Provider):
         mapper: EntityMapper[E, M],
     ) -> TenantDbRepository[E, M]:
         return TenantSqlRepository(session, model_cls, mapper)
+
+    @provide
+    def tenant_append_only_repository(
+        self,
+        session: TenantSession,
+        model_cls: type[M],
+        mapper: EntityMapper[E, M],
+    ) -> TenantAppendOnlyRepository[E, M]:
+        return TenantSqlAppendOnlyRepository(session, model_cls, mapper)

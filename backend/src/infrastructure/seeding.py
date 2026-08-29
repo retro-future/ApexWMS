@@ -25,21 +25,30 @@ from application.commands.create_customer import CreateCustomerCommand, CreateCu
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
 from application.commands.create_supplier import CreateSupplierCommand, CreateSupplierHandler
 from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.dtos import CurrentUser
 from application.errors import ApplicationError
 from application.services import ProductRepricer, SalePriceParser
-from domain.entities import Supplier
+from domain.entities import Customer, Employee, Product, Supplier
 from domain.enums import TenantRole, TrackingType
 from infrastructure.clock import SystemClock
-from infrastructure.persistence.mappers import SupplierMapper
-from infrastructure.persistence.tenant.models import SupplierModel
-from infrastructure.persistence.tenant.repositories import (
-    SqlCustomerRepository,
-    SqlEmployeeRepository,
-    SqlProductPriceChangeRepository,
-    SqlProductRepository,
+from infrastructure.persistence.mappers import (
+    AutoMapper,
+    EmployeeMapper,
+    ProductMapper,
+    ProductPriceChangeMapper,
 )
-from infrastructure.persistence.tenant.repositories.base import TenantSqlRepository
+from infrastructure.persistence.repositories import (
+    TenantSqlAppendOnlyRepository,
+    TenantSqlRepository,
+)
+from infrastructure.persistence.tenant.models import (
+    CustomerModel,
+    EmployeeModel,
+    ProductModel,
+    ProductPriceChangeModel,
+    SupplierModel,
+)
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
 from infrastructure.types import TenantSession
 
@@ -100,23 +109,34 @@ async def seed_catalog(
             # log's author is a real foreign key into ``employees`` — so the
             # seeder acts as the store's Owner rather than inventing a UUID
             # that would fail the constraint.
-            owner = await _owner_of(SqlEmployeeRepository(tenant_session))
+            employee_repo: TenantDbRepository[Employee, EmployeeModel] = TenantSqlRepository(
+                tenant_session, EmployeeModel, EmployeeMapper()
+            )
+            owner = await _owner_of(employee_repo)
+            product_repo: TenantDbRepository[Product, ProductModel] = TenantSqlRepository(
+                tenant_session, ProductModel, ProductMapper()
+            )
             product_handler = CreateProductHandler(
-                products=SqlProductRepository(tenant_session),
+                products=product_repo,
                 clock=clock,
                 uow=uow,
                 sale_price=SalePriceParser(),
                 repricer=ProductRepricer(
-                    SqlProductPriceChangeRepository(tenant_session),
+                    TenantSqlAppendOnlyRepository(
+                        tenant_session, ProductPriceChangeModel, ProductPriceChangeMapper()
+                    ),
                     clock,
                     CurrentUser(user_id=owner, permissions=frozenset()),
                 ),
             )
+            customer_repo: TenantDbRepository[Customer, CustomerModel] = TenantSqlRepository(
+                tenant_session, CustomerModel, AutoMapper(Customer, CustomerModel)
+            )
             customer_handler = CreateCustomerHandler(
-                customers=SqlCustomerRepository(tenant_session), clock=clock, uow=uow
+                customers=customer_repo, clock=clock, uow=uow
             )
             supplier_repo: TenantDbRepository[Supplier, SupplierModel] = TenantSqlRepository(
-                tenant_session, SupplierModel, SupplierMapper()
+                tenant_session, SupplierModel, AutoMapper(Supplier, SupplierModel)
             )
             supplier_handler = CreateSupplierHandler(
                 suppliers=supplier_repo,
@@ -137,14 +157,16 @@ async def seed_catalog(
     )
 
 
-async def _owner_of(employees: SqlEmployeeRepository) -> UUID:
+async def _owner_of(employees: TenantDbRepository[Employee, EmployeeModel]) -> UUID:
     """The store's Owner, seeded at provisioning (PRD §3.4).
 
     There is always one — provisioning writes it before the tenant is
     usable — so an empty result means the database was not provisioned,
     which is worth failing loudly rather than seeding around.
     """
-    staff = await employees.list_all()
+    staff = await employees.find(
+        Specification(EmployeeModel).order(EmployeeModel.created_at, EmployeeModel.id)
+    )
     owner = next((e for e in staff if e.role is TenantRole.OWNER), None)
     if owner is None:
         raise ApplicationError("this tenant database has no Owner — is it provisioned?")

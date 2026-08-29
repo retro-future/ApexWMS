@@ -17,12 +17,16 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from application.common.repository import TenantDbRepository
 from application.errors import TenantNotActiveError
-from application.ports import EmployeeRepository, UnitOfWork
+from application.ports import UnitOfWork
+from domain.entities import Employee
 from domain.enums import TenantStatus
 from infrastructure.config import Settings
+from infrastructure.persistence.mappers import EmployeeMapper
 from infrastructure.persistence.master.models import TenantDatabaseModel, TenantModel
-from infrastructure.persistence.tenant.repositories import SqlEmployeeRepository
+from infrastructure.persistence.repositories import TenantSqlRepository
+from infrastructure.persistence.tenant.models import EmployeeModel
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
 from infrastructure.tenancy import TenantContext, TenantEngineRegistry, tenant_db_url
 from infrastructure.types import MasterSession, TenantSession
@@ -32,7 +36,7 @@ from infrastructure.types import MasterSession, TenantSession
 class SqlTenantWorkspace:
     """A live session on one tenant's database."""
 
-    employees: EmployeeRepository
+    employees: TenantDbRepository[Employee, EmployeeModel]
     uow: UnitOfWork
 
 
@@ -57,7 +61,9 @@ class SqlTenantScope:
         async with factory() as session:
             tenant_session = TenantSession(session)
             yield SqlTenantWorkspace(
-                employees=SqlEmployeeRepository(tenant_session),
+                employees=TenantSqlRepository(
+                    tenant_session, EmployeeModel, EmployeeMapper()
+                ),
                 uow=SqlTenantUnitOfWork(tenant_session),
             )
 

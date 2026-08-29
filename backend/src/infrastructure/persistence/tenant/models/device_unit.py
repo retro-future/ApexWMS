@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .product import ProductModel
 
 
 class DeviceUnitModel(TenantBase):
@@ -48,3 +49,7 @@ class DeviceUnitModel(TenantBase):
     source_document_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     source_document_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    # viewonly: the unit reads its product's currency (§4.5 rule 3) to
+    # rebuild its money amounts, and writes nothing back.
+    product: Mapped[ProductModel] = relationship(lazy="raise", viewonly=True)

@@ -1,21 +1,7 @@
-"""Ports over the MasterDB: the tenant registry, identity, and its unit of work."""
+"""Ports over the MasterDB: its unit of work. The aggregates that used to
+live here have moved to the generic ``MasterDbRepository`` reached through
+a ``Specification`` (ADR 0007)."""
 
-from application.ports.master.repositories import (
-    InvitationRepository,
-    RefreshTokenRepository,
-    TenantRepository,
-    UserAppRoleRepository,
-    UserRepository,
-    UserTenantAccessRepository,
-)
 from application.ports.master.uow import MasterUnitOfWork
 
-__all__ = [
-    "InvitationRepository",
-    "MasterUnitOfWork",
-    "RefreshTokenRepository",
-    "TenantRepository",
-    "UserAppRoleRepository",
-    "UserRepository",
-    "UserTenantAccessRepository",
-]
+__all__ = ["MasterUnitOfWork"]

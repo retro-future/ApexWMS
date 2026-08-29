@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TenantBase
+from .product import ProductModel
 
 
 class StockCountModel(TenantBase):
@@ -44,6 +45,22 @@ class StockCountModel(TenantBase):
         DateTime(timezone=True), nullable=True
     )
     cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Scanning and counting change these while the count is open, so the
+    # mapper syncs both collections. lazy="raise": a spec that forgets to
+    # eager-load fails at the query.
+    units: Mapped[list[StockCountUnitModel]] = relationship(
+        back_populates="stock_count",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="StockCountUnitModel.imei",
+    )
+    lines: Mapped[list[StockCountLineModel]] = relationship(
+        back_populates="stock_count",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="StockCountLineModel.product_id",
+    )
 
 
 class StockCountUnitModel(TenantBase):
@@ -85,6 +102,13 @@ class StockCountUnitModel(TenantBase):
     scanned: Mapped[bool] = mapped_column(Boolean)
     acquisition_cost_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
+    stock_count: Mapped[StockCountModel] = relationship(
+        back_populates="units", lazy="raise"
+    )
+    # viewonly and nullable: a surprise IMEI names no product until somebody
+    # says which model it is, and the unit only reads the currency back.
+    product: Mapped[ProductModel | None] = relationship(lazy="raise", viewonly=True)
+
 
 class StockCountLineModel(TenantBase):
     """One accessory the count expects a number of (FR-6.2).
@@ -105,3 +129,7 @@ class StockCountLineModel(TenantBase):
     # Both count goods, not money — neither name ends in _minor.
     expected_quantity: Mapped[int] = mapped_column(Integer)
     counted_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    stock_count: Mapped[StockCountModel] = relationship(
+        back_populates="lines", lazy="raise"
+    )

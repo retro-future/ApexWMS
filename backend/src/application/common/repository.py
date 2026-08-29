@@ -16,13 +16,13 @@ side of the split is allowed to touch. A handler names the one it means, so
 "which database does this read hit" is answered by the constructor
 signature rather than by whatever the container happened to wire.
 
-Named for the *database*, not the entity: ``application/ports/master/``
-already has a ``TenantRepository``, and that one is the repository of
-tenants.
+Named for the *database*, not the entity: the port for the tenant-registry
+aggregate would otherwise be a ``TenantRepository`` that is nothing to do
+with which database a call reaches.
 """
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Any, Protocol
 
 from application.common.specification import Specification
 
@@ -31,6 +31,15 @@ class Repository[TEntity, TModel](Protocol):
     async def find(self, spec: Specification[TModel]) -> Sequence[TEntity]: ...
 
     async def find_one(self, spec: Specification[TModel]) -> TEntity | None: ...
+
+    async def get(self, entity_id: Any) -> TEntity | None:
+        """Load by primary key: the no-lock read a query handler needs.
+
+        No eager loading — an aggregate whose mapper walks a collection is
+        loaded through a ``Specification`` that ``selectinload``s it, not
+        through here.
+        """
+        ...
 
     async def count(self, spec: Specification[TModel]) -> int: ...
 
@@ -61,3 +70,30 @@ class MasterDbRepository[TEntity, TModel](Repository[TEntity, TModel], Protocol)
 class TenantDbRepository[TEntity, TModel](Repository[TEntity, TModel], Protocol):
     """One store's database. No method takes a tenant id — the session is
     the tenant, so there is no filter to forget."""
+
+
+class AppendOnlyDbRepository[TEntity, TModel](Protocol):
+    """``add`` plus the spec reads, and nothing else. The ledgers and logs
+    depend on this: a row goes in and is never touched again (§4.3 rule 2),
+    so ``update``/``delete`` are *absent*, not raising — a handler that
+    tries to edit history fails to type-check.
+
+    A projection read (a total, a bucket, a bare id list) is not a spec
+    read; it goes in a query service (`query-services.md`)."""
+
+    async def add(self, entity: TEntity) -> None: ...
+
+    async def get(self, entity_id: Any) -> TEntity | None: ...
+
+    async def find(self, spec: Specification[TModel]) -> Sequence[TEntity]: ...
+
+    async def find_one(self, spec: Specification[TModel]) -> TEntity | None: ...
+
+    async def count(self, spec: Specification[TModel]) -> int: ...
+
+
+class TenantAppendOnlyRepository[TEntity, TModel](
+    AppendOnlyDbRepository[TEntity, TModel], Protocol
+):
+    """One store's ledger or log. Its own DI key, the same reason
+    ``TenantDbRepository`` has one."""

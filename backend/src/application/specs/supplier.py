@@ -11,15 +11,6 @@ from application.common.specification import Specification
 from infrastructure.persistence.tenant.models import SupplierModel
 
 
-class SupplierById(Specification[SupplierModel]):
-    """Read-only: no lock. For the reads that only display a supplier."""
-
-    def __init__(self, supplier_id: UUID) -> None:
-        super().__init__(SupplierModel)
-        self.supplier_id = supplier_id
-        self.where(SupplierModel.id == supplier_id)
-
-
 class SupplierForWrite(Specification[SupplierModel]):
     """The specification a command uses to load a supplier it will mutate.
 
@@ -33,23 +24,6 @@ class SupplierForWrite(Specification[SupplierModel]):
         self.supplier_id = supplier_id
         self.where(SupplierModel.id == supplier_id)
         self.lock()
-
-
-class SupplierByName(Specification[SupplierModel]):
-    """Supplier names are unique (FR-2.x), so this is a uniqueness probe."""
-
-    def __init__(self, name: str) -> None:
-        super().__init__(SupplierModel)
-        self.where(SupplierModel.name == name)
-
-
-class SupplierNameTakenByAnother(Specification[SupplierModel]):
-    """``SupplierByName`` for a rename: the supplier being renamed does not
-    count as a collision with itself."""
-
-    def __init__(self, name: str, supplier_id: UUID) -> None:
-        super().__init__(SupplierModel)
-        self.where(SupplierModel.name == name, SupplierModel.id != supplier_id)
 
 
 class SupplierBrowse(Specification[SupplierModel]):

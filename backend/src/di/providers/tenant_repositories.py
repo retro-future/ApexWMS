@@ -1,11 +1,11 @@
-"""TenantDB repositories and units of work (REQUEST scope), keyed by their
-ports.
+"""TenantDB query services, the settings row, the number counter, the unit
+of work and the tenant scope (REQUEST scope), keyed by their ports.
 
-What a store owns — including who works there (PRD §3.1). See
-``master_repositories.py`` for master-side identity and the tenant
-registry.
+Aggregate repositories are wired generically in ``tenant_repository.py``;
+this module holds only what does not fit that one factory.
 
-``tenant_scope`` lives here rather than there because its *output*
+``tenant_scope`` lives here rather than in the master module because its
+*output*
 (``TenantScope``) is about reaching a tenant's data, even though its own
 inputs (``MasterSession`` + the engine registry) are master-side — it is
 how ``ClaimsFactory``/``AcceptInvite`` open a tenant workspace discovered
@@ -15,52 +15,28 @@ mid-request rather than resolved at the edge (PRD §3.3).
 from dishka import Provider, Scope, provide
 
 from application.ports import (
-    CreditCompanyRepository,
-    CustomerRepository,
-    DeviceUnitPriceChangeRepository,
-    DeviceUnitRepository,
-    DocumentNumberRepository,
-    EmployeeRepository,
-    FinancialTransactionRepository,
-    GoodsReceiptRepository,
-    LocationRepository,
-    PaymentRepository,
-    ProductPriceChangeRepository,
-    ProductRepository,
-    SalesInvoiceRepository,
-    SalesReportRepository,
-    StockCountRepository,
-    StockLevelRepository,
-    StockMovementRepository,
-    StockOnHandRepository,
+    DeviceUnitQueries,
+    DocumentNumberAllocator,
+    FinancialTransactionQueries,
+    GoodsReceiptQueries,
+    SalesInvoiceQueries,
+    StockMovementQueries,
+    StockOnHandQueries,
     TenantScope,
     TenantSettingsRepository,
     TenantUnitOfWork,
-    WriteOffRepository,
 )
 from infrastructure.config import Settings
-from infrastructure.persistence.tenant.repositories import (
-    SqlCreditCompanyRepository,
-    SqlCustomerRepository,
-    SqlDeviceUnitPriceChangeRepository,
-    SqlDeviceUnitRepository,
-    SqlDocumentNumberRepository,
-    SqlEmployeeRepository,
-    SqlFinancialTransactionRepository,
-    SqlGoodsReceiptRepository,
-    SqlLocationRepository,
-    SqlPaymentRepository,
-    SqlProductPriceChangeRepository,
-    SqlProductRepository,
-    SqlSalesInvoiceRepository,
-    SqlSalesReportRepository,
-    SqlStockCountRepository,
-    SqlStockLevelRepository,
-    SqlStockMovementRepository,
-    SqlStockOnHandRepository,
-    SqlTenantSettingsRepository,
-    SqlWriteOffRepository,
+from infrastructure.persistence.tenant.document_number import SqlDocumentNumberAllocator
+from infrastructure.persistence.tenant.queries import (
+    SqlDeviceUnitQueries,
+    SqlFinancialTransactionQueries,
+    SqlGoodsReceiptQueries,
+    SqlSalesInvoiceQueries,
+    SqlStockMovementQueries,
+    SqlStockOnHandQueries,
 )
+from infrastructure.persistence.tenant.settings import SqlTenantSettingsRepository
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
 from infrastructure.tenancy import TenantEngineRegistry
 from infrastructure.tenant_scope import SqlTenantScope
@@ -71,96 +47,44 @@ class TenantRepositoriesProvider(Provider):
     scope = Scope.REQUEST
 
     @provide
-    def employees(self, session: TenantSession) -> EmployeeRepository:
-        return SqlEmployeeRepository(session)
-
-    @provide
     def tenant_settings(self, session: TenantSession) -> TenantSettingsRepository:
         return SqlTenantSettingsRepository(session)
-
-    @provide
-    def products(self, session: TenantSession) -> ProductRepository:
-        return SqlProductRepository(session)
-
-    @provide
-    def product_price_changes(self, session: TenantSession) -> ProductPriceChangeRepository:
-        return SqlProductPriceChangeRepository(session)
-
-    @provide
-    def locations(self, session: TenantSession) -> LocationRepository:
-        return SqlLocationRepository(session)
-
-    @provide
-    def customers(self, session: TenantSession) -> CustomerRepository:
-        return SqlCustomerRepository(session)
-
-    @provide
-    def credit_companies(self, session: TenantSession) -> CreditCompanyRepository:
-        return SqlCreditCompanyRepository(session)
 
     # --- M3 ledgers and their projections ------------------------------
 
     @provide
-    def device_units(self, session: TenantSession) -> DeviceUnitRepository:
-        return SqlDeviceUnitRepository(session)
+    def device_unit_queries(self, session: TenantSession) -> DeviceUnitQueries:
+        return SqlDeviceUnitQueries(session)
 
     @provide
-    def device_unit_price_changes(
+    def stock_movement_queries(
         self, session: TenantSession
-    ) -> DeviceUnitPriceChangeRepository:
-        return SqlDeviceUnitPriceChangeRepository(session)
+    ) -> StockMovementQueries:
+        return SqlStockMovementQueries(session)
 
     @provide
-    def stock_movements(self, session: TenantSession) -> StockMovementRepository:
-        return SqlStockMovementRepository(session)
-
-    @provide
-    def financial_transactions(
+    def financial_transaction_queries(
         self, session: TenantSession
-    ) -> FinancialTransactionRepository:
-        return SqlFinancialTransactionRepository(session)
+    ) -> FinancialTransactionQueries:
+        return SqlFinancialTransactionQueries(session)
 
     @provide
-    def stock_levels(self, session: TenantSession) -> StockLevelRepository:
-        return SqlStockLevelRepository(session)
-
-    @provide
-    def stock_on_hand(self, session: TenantSession) -> StockOnHandRepository:
-        return SqlStockOnHandRepository(session)
+    def stock_on_hand_queries(self, session: TenantSession) -> StockOnHandQueries:
+        return SqlStockOnHandQueries(session)
 
     # --- M4 inbound documents (PRD §4.4, §5.3) -------------------------
 
     @provide
-    def document_numbers(self, session: TenantSession) -> DocumentNumberRepository:
-        return SqlDocumentNumberRepository(session)
+    def document_numbers(self, session: TenantSession) -> DocumentNumberAllocator:
+        return SqlDocumentNumberAllocator(session)
 
     @provide
-    def goods_receipts(self, session: TenantSession) -> GoodsReceiptRepository:
-        return SqlGoodsReceiptRepository(session)
+    def goods_receipt_queries(self, session: TenantSession) -> GoodsReceiptQueries:
+        return SqlGoodsReceiptQueries(session)
 
     @provide
-    def sales_invoices(self, session: TenantSession) -> SalesInvoiceRepository:
-        return SqlSalesInvoiceRepository(session)
-
-    @provide
-    def sales_reports(self, session: TenantSession) -> SalesReportRepository:
-        return SqlSalesReportRepository(session)
-
-    # --- M5b credit sales (PRD §4.7) -----------------------------------
-
-    @provide
-    def payments(self, session: TenantSession) -> PaymentRepository:
-        return SqlPaymentRepository(session)
-
-    # --- M6 returns, counts and write-offs (PRD §5.5, §5.6) -------------
-
-    @provide
-    def write_offs(self, session: TenantSession) -> WriteOffRepository:
-        return SqlWriteOffRepository(session)
-
-    @provide
-    def stock_counts(self, session: TenantSession) -> StockCountRepository:
-        return SqlStockCountRepository(session)
+    def sales_invoice_queries(self, session: TenantSession) -> SalesInvoiceQueries:
+        return SqlSalesInvoiceQueries(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:
