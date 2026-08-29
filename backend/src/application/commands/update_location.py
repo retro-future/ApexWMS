@@ -5,10 +5,15 @@ from uuid import UUID
 
 from pydantic import Field
 
+from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError, NotFoundError
 from application.models import LocationData
-from application.ports import LocationRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
+from application.specs import LocationForWrite
+from domain.entities import Location
+from infrastructure.persistence.tenant.models import LocationModel
 
 
 class UpdateLocationCommand(Command[ResultWithData[LocationData]]):
@@ -20,20 +25,26 @@ class UpdateLocationCommand(Command[ResultWithData[LocationData]]):
 class UpdateLocationHandler(
     IRequestHandler[ResultWithData[LocationData], UpdateLocationCommand]
 ):
-    def __init__(self, locations: LocationRepository, uow: TenantUnitOfWork) -> None:
+    def __init__(
+        self,
+        locations: TenantDbRepository[Location, LocationModel],
+        uow: TenantUnitOfWork,
+    ) -> None:
         self._locations = locations
         self._uow = uow
 
     async def handle(self, request: UpdateLocationCommand) -> ResultWithData[LocationData]:
         assert request.location_id is not None
-        location = await self._locations.get(request.location_id)
+        location = await self._locations.find_one(LocationForWrite(request.location_id))
         if location is None:
             raise NotFoundError("no such location in this store")
 
         if request.name is not None:
             name = request.name.strip()
-            owner = await self._locations.get_by_name(name)
-            if owner is not None and owner.id != location.id:
+            taken = Specification(LocationModel).where(
+                LocationModel.name == name, LocationModel.id != location.id
+            )
+            if await self._locations.exists(taken):
                 raise DuplicateNameError(f"a location called {name!r} already exists")
             location.name = name
         if request.is_active is not None:

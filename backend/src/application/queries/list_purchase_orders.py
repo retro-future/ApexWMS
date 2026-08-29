@@ -9,7 +9,7 @@ from uuid import UUID
 from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import PurchaseOrderData
-from application.ports import GoodsReceiptRepository
+from application.ports import GoodsReceiptQueries
 from application.specs import PurchaseOrderBrowse
 from domain.entities import PurchaseOrder
 from domain.enums import DocumentStatus
@@ -28,10 +28,10 @@ class ListPurchaseOrdersHandler(
     def __init__(
         self,
         orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
-        receipts: GoodsReceiptRepository,
+        queries: GoodsReceiptQueries,
     ) -> None:
         self._orders = orders
-        self._receipts = receipts
+        self._queries = queries
 
     async def handle(
         self, request: ListPurchaseOrdersQuery
@@ -47,7 +47,7 @@ class ListPurchaseOrdersHandler(
         )
         data = [
             PurchaseOrderData.from_entity(
-                order, await self._receipts.received_quantities(order.id)
+                order, await self._queries.received_quantities(order.id)
             )
             for order in orders
         ]

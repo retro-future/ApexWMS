@@ -21,22 +21,31 @@ its moment in the document's ``created_at``.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import StockCountData
-from application.ports import (
-    Clock,
-    DeviceUnitRepository,
-    LocationRepository,
-    StockCountRepository,
-    StockLevelRepository,
-    TenantUnitOfWork,
-)
+from application.ports import Clock, TenantUnitOfWork
 from application.services import DocumentNumberer
-from domain.entities import StockCount, StockCountLine, StockCountUnit
+from application.specs import OnHandDeviceUnits
+from domain.entities import (
+    DeviceUnit,
+    Location,
+    StockCount,
+    StockCountLine,
+    StockCountUnit,
+    StockLevel,
+)
 from domain.enums import DocumentStatus, DocumentType
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    LocationModel,
+    StockCountModel,
+    StockLevelModel,
+)
 
 
 class OpenStockCountCommand(Command[ResultWithData[StockCountData]]):
@@ -49,10 +58,10 @@ class OpenStockCountHandler(
 ):
     def __init__(
         self,
-        counts: StockCountRepository,
-        units: DeviceUnitRepository,
-        levels: StockLevelRepository,
-        locations: LocationRepository,
+        counts: TenantDbRepository[StockCount, StockCountModel],
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        levels: TenantDbRepository[StockLevel, StockLevelModel],
+        locations: TenantDbRepository[Location, LocationModel],
         numberer: DocumentNumberer,
         clock: Clock,
         uow: TenantUnitOfWork,
@@ -103,7 +112,7 @@ class OpenStockCountHandler(
                 expected=True,
                 scanned=False,
             )
-            for unit in await self._units.list_on_hand(count.location_id)
+            for unit in await self._units.find(OnHandDeviceUnits(count.location_id))
         ]
 
     async def _expected_lines(self, count: StockCount) -> list[StockCountLine]:
@@ -113,6 +122,11 @@ class OpenStockCountHandler(
         found three" is a discrepancy, and dropping the row would make it
         invisible until somebody scanned a barcode nobody expected.
         """
+        at_location = (
+            Specification(StockLevelModel)
+            .where(StockLevelModel.location_id == count.location_id)
+            .order(StockLevelModel.product_id)
+        )
         return [
             StockCountLine(
                 id=uuid4(),
@@ -120,7 +134,7 @@ class OpenStockCountHandler(
                 product_id=level.product_id,
                 expected_quantity=level.quantity,
             )
-            for level in await self._levels.list_for_location(count.location_id)
+            for level in await self._levels.find(at_location)
         ]
 
     def _result(self, count: StockCount) -> ResultWithData[StockCountData]:

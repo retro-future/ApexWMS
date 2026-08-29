@@ -17,20 +17,23 @@ only known once the customer has agreed to them.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import SalesInvoiceData
 from application.ports import (
     Clock,
-    CustomerRepository,
-    LocationRepository,
-    SalesInvoiceRepository,
     TenantUnitOfWork,
 )
 from application.services import DocumentNumberer
-from domain.entities import SalesInvoice
+from domain.entities import Customer, Location, SalesInvoice
 from domain.enums import DocumentStatus, DocumentType, PaymentType
+from infrastructure.persistence.tenant.models import (
+    CustomerModel,
+    LocationModel,
+    SalesInvoiceModel,
+)
 
 
 class CreateSalesInvoiceCommand(Command[ResultWithData[SalesInvoiceData]]):
@@ -47,9 +50,9 @@ class CreateSalesInvoiceHandler(
 ):
     def __init__(
         self,
-        invoices: SalesInvoiceRepository,
-        locations: LocationRepository,
-        customers: CustomerRepository,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        locations: TenantDbRepository[Location, LocationModel],
+        customers: TenantDbRepository[Customer, CustomerModel],
         numberer: DocumentNumberer,
         clock: Clock,
         uow: TenantUnitOfWork,

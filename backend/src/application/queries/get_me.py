@@ -5,11 +5,13 @@ the request already carried, which the claims factory built from the
 store's ``employees`` row.
 """
 
+from application.common.repository import MasterDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import InvalidTokenError
 from application.models import MeData
-from application.ports import UserRepository
+from domain.entities import User
+from infrastructure.persistence.master.models import UserModel
 
 
 class GetMeQuery(Query[ResultWithData[MeData]]):
@@ -17,7 +19,9 @@ class GetMeQuery(Query[ResultWithData[MeData]]):
 
 
 class GetMeHandler(IRequestHandler[ResultWithData[MeData], GetMeQuery]):
-    def __init__(self, users: UserRepository, current_user: CurrentUser) -> None:
+    def __init__(
+        self, users: MasterDbRepository[User, UserModel], current_user: CurrentUser
+    ) -> None:
         self._users = users
         self._current = current_user
 

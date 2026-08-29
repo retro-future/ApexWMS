@@ -25,27 +25,30 @@ sold in memory, and not the down payment.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import SalesInvoiceData
 from application.ports import (
     Clock,
-    CreditCompanyRepository,
-    PaymentRepository,
-    SalesInvoiceRepository,
     TenantUnitOfWork,
 )
 from application.services import (
-    DocumentLoader,
     InvoicePoster,
     PaymentPoster,
     SalePriceParser,
 )
-from domain.entities import SalesInvoice
+from application.specs import PaymentsForInvoice, SalesInvoiceForWrite
+from domain.entities import CreditCompany, Payment, SalesInvoice
 from domain.enums import PaymentMethod, PaymentType
 from domain.errors import CreditTermsError
 from domain.value_objects import Currency
+from infrastructure.persistence.tenant.models import (
+    CreditCompanyModel,
+    PaymentModel,
+    SalesInvoiceModel,
+)
 
 
 class ConfirmSalesInvoiceCommandPayload(CamelModel):
@@ -76,10 +79,9 @@ class ConfirmSalesInvoiceHandler(
 ):
     def __init__(
         self,
-        invoices: SalesInvoiceRepository,
-        companies: CreditCompanyRepository,
-        payments: PaymentRepository,
-        loader: DocumentLoader,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        companies: TenantDbRepository[CreditCompany, CreditCompanyModel],
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
         poster: InvoicePoster,
         payment_poster: PaymentPoster,
         prices: SalePriceParser,
@@ -90,7 +92,6 @@ class ConfirmSalesInvoiceHandler(
         self._invoices = invoices
         self._companies = companies
         self._payments = payments
-        self._loader = loader
         self._poster = poster
         self._payment_poster = payment_poster
         self._prices = prices
@@ -101,18 +102,23 @@ class ConfirmSalesInvoiceHandler(
     async def handle(
         self, request: ConfirmSalesInvoiceCommand
     ) -> ResultWithData[SalesInvoiceData]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        spec = SalesInvoiceForWrite(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(spec)
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
         await self._apply_terms(invoice, request)
 
         invoice.confirm(self._clock.now(), self._current.user_id)
         await self._poster.sell(invoice)
         await self._take_down_payment(invoice, request)
-        await self._invoices.update(invoice)
+        await self._invoices.update(invoice, spec)
         await self._uow.commit()
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.list_for_invoice(invoice.id)
+                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
             )
         )
 

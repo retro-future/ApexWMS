@@ -33,22 +33,24 @@ or the cost the first one lacked.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import CountScanResultData
-from application.ports import (
-    DeviceUnitRepository,
-    ProductRepository,
-    StockCountRepository,
-    TenantUnitOfWork,
+from application.ports import TenantUnitOfWork
+from application.specs import (
+    DeviceUnitByImei,
+    ProductByBarcode,
+    ProductBySku,
+    StockCountForWrite,
 )
-from application.services import DocumentLoader
-from domain.entities import Product, StockCount, StockCountLine, StockCountUnit
+from domain.entities import DeviceUnit, Product, StockCount, StockCountLine, StockCountUnit
 from domain.enums import TrackingType
 from domain.errors import InvalidIMEIError
 from domain.permissions import Permission
 from domain.value_objects import IMEI, Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel, StockCountModel
 
 
 class ScanStockCountUnitCommandPayload(CamelModel):
@@ -73,24 +75,28 @@ class ScanStockCountUnitHandler(
 ):
     def __init__(
         self,
-        counts: StockCountRepository,
-        units: DeviceUnitRepository,
-        products: ProductRepository,
-        loader: DocumentLoader,
+        counts: TenantDbRepository[StockCount, StockCountModel],
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        products: TenantDbRepository[Product, ProductModel],
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._counts = counts
         self._units = units
         self._products = products
-        self._loader = loader
         self._uow = uow
         self._current = current
+        self._spec: StockCountForWrite | None = None
 
     async def handle(
         self, request: ScanStockCountUnitCommand
     ) -> ResultWithData[CountScanResultData]:
-        count = await self._loader.load_count(request.stock_count_id)
+        self._spec = StockCountForWrite(request.stock_count_id)
+        count = await self._counts.find_one(self._spec)
+        if count is None:
+            raise NotFoundError(
+                f"stock count {request.stock_count_id} does not exist in this store"
+            )
 
         imei = self._as_imei(request.code)
         if imei is not None:
@@ -112,7 +118,7 @@ class ScanStockCountUnitHandler(
 
         # Whether the *store* knows it decides whether confirming has to
         # create a handset (FR-6.4b).
-        known = await self._units.get_by_imei(str(imei))
+        known = await self._units.find_one(DeviceUnitByImei(str(imei)))
         product_id = known.product_id if known is not None else request.product_id
         row = StockCountUnit(
             id=uuid4(),
@@ -125,9 +131,7 @@ class ScanStockCountUnitHandler(
             acquisition_cost=await self._stated_cost(request, product_id),
         )
         count.units.append(row)
-        await self._counts.add_unit(row)
-        await self._uow.commit()
-        return self._result(count, row)
+        return await self._save(count, row)
 
     async def _mark_present(
         self,
@@ -160,9 +164,7 @@ class ScanStockCountUnitHandler(
                 row.acquisition_cost = cost
         row.__post_init__()
 
-        await self._counts.update_unit(row)
-        await self._uow.commit()
-        return self._result(count, row)
+        return await self._save(count, row)
 
     async def _count_accessory(
         self, count: StockCount, code: str
@@ -186,13 +188,17 @@ class ScanStockCountUnitHandler(
                 counted_quantity=0,
             )
             count.lines.append(line)
-            await self._counts.add_lines([line])
 
         # None means nobody has counted yet, which is not zero (FR-6.2).
         line.counted_quantity = (line.counted_quantity or 0) + 1
-        await self._counts.update_line(line)
+        return await self._save(count, line)
+
+    async def _save(
+        self, count: StockCount, found: StockCountUnit | StockCountLine
+    ) -> ResultWithData[CountScanResultData]:
+        await self._counts.update(count, self._spec)
         await self._uow.commit()
-        return self._result(count, line)
+        return self._result(count, found)
 
     async def _stated_cost(
         self, request: ScanStockCountUnitCommand, product_id: UUID | None
@@ -228,9 +234,9 @@ class ScanStockCountUnitHandler(
             return None
 
     async def _as_product(self, code: str) -> Product:
-        product = await self._products.get_by_barcode(code)
+        product = await self._products.find_one(ProductByBarcode(code))
         if product is None:
-            product = await self._products.get_by_sku(code)
+            product = await self._products.find_one(ProductBySku(code))
         if product is None:
             raise NotFoundError(f"nothing in this store is identified by {code!r}")
         return product

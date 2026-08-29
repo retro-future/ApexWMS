@@ -6,12 +6,12 @@ draft is created rather than at confirm, so an operator can name the
 document they are working on; a deleted draft therefore leaves a gap in
 the sequence, which is the honest outcome and not a problem to solve.
 
-Uniqueness comes from the repository holding a row lock, not from this
+Uniqueness comes from the allocator holding a row lock, not from this
 class: two storekeepers opening a receipt at the same counter in the same
 second must not be handed the same number.
 """
 
-from application.ports import Clock, DocumentNumberRepository
+from application.ports import Clock, DocumentNumberAllocator
 from domain.enums import DocumentType
 
 _PREFIXES: dict[DocumentType, str] = {
@@ -25,7 +25,7 @@ _PREFIXES: dict[DocumentType, str] = {
 
 
 class DocumentNumberer:
-    def __init__(self, numbers: DocumentNumberRepository, clock: Clock) -> None:
+    def __init__(self, numbers: DocumentNumberAllocator, clock: Clock) -> None:
         self._numbers = numbers
         self._clock = clock
 

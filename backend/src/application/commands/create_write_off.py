@@ -9,19 +9,16 @@ theft from breakage.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import WriteOffData
-from application.ports import (
-    Clock,
-    LocationRepository,
-    TenantUnitOfWork,
-    WriteOffRepository,
-)
+from application.ports import Clock, TenantUnitOfWork
 from application.services import DocumentNumberer
-from domain.entities import WriteOff
+from domain.entities import Location, WriteOff
 from domain.enums import DocumentStatus, DocumentType, WriteOffReason
+from infrastructure.persistence.tenant.models import LocationModel, WriteOffModel
 
 
 class CreateWriteOffCommand(Command[ResultWithData[WriteOffData]]):
@@ -35,8 +32,8 @@ class CreateWriteOffHandler(
 ):
     def __init__(
         self,
-        write_offs: WriteOffRepository,
-        locations: LocationRepository,
+        write_offs: TenantDbRepository[WriteOff, WriteOffModel],
+        locations: TenantDbRepository[Location, LocationModel],
         numberer: DocumentNumberer,
         clock: Clock,
         uow: TenantUnitOfWork,

@@ -14,16 +14,21 @@ from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
 from application.ports import (
-    LocationRepository,
-    ProductRepository,
     SupplierReturnRenderer,
     TenantSettingsRepository,
 )
-from application.specs import SupplierById, SupplierReturnById
-from domain.entities import Supplier, SupplierReturn
+from application.specs import (
+    SupplierReturnById,
+)
+from domain.entities import Location, Product, Supplier, SupplierReturn
 from domain.enums import DocumentStatus
 from domain.errors import DocumentNotConfirmedError
-from infrastructure.persistence.tenant.models import SupplierModel, SupplierReturnModel
+from infrastructure.persistence.tenant.models import (
+    LocationModel,
+    ProductModel,
+    SupplierModel,
+    SupplierReturnModel,
+)
 
 
 class GetSupplierReturnPdfQuery(Query[ResultWithData[RenderedDocument]]):
@@ -36,9 +41,9 @@ class GetSupplierReturnPdfHandler(
     def __init__(
         self,
         returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
-        products: ProductRepository,
+        products: TenantDbRepository[Product, ProductModel],
         suppliers: TenantDbRepository[Supplier, SupplierModel],
-        locations: LocationRepository,
+        locations: TenantDbRepository[Location, LocationModel],
         settings: TenantSettingsRepository,
         renderer: SupplierReturnRenderer,
     ) -> None:
@@ -65,7 +70,7 @@ class GetSupplierReturnPdfHandler(
                 "confirm it before printing it"
             )
 
-        supplier = await self._suppliers.find_one(SupplierById(document.supplier_id))
+        supplier = await self._suppliers.get(document.supplier_id)
         location = await self._locations.get(document.location_id)
         content = self._renderer.render(
             document,

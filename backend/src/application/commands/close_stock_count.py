@@ -18,12 +18,16 @@ three counts sit on the payload, so there is no separate report to fetch.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
+from application.errors import NotFoundError
 from application.models import StockCountData
-from application.ports import Clock, StockCountRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import Clock, TenantUnitOfWork
+from application.specs import StockCountForWrite
+from domain.entities import StockCount
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import StockCountModel
 
 
 class CloseStockCountCommand(Command[ResultWithData[StockCountData]]):
@@ -36,14 +40,12 @@ class CloseStockCountHandler(
 ):
     def __init__(
         self,
-        counts: StockCountRepository,
-        loader: DocumentLoader,
+        counts: TenantDbRepository[StockCount, StockCountModel],
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._counts = counts
-        self._loader = loader
         self._clock = clock
         self._uow = uow
         self._current = current
@@ -51,10 +53,15 @@ class CloseStockCountHandler(
     async def handle(
         self, request: CloseStockCountCommand
     ) -> ResultWithData[StockCountData]:
-        count = await self._loader.load_count(request.stock_count_id)
+        spec = StockCountForWrite(request.stock_count_id)
+        count = await self._counts.find_one(spec)
+        if count is None:
+            raise NotFoundError(
+                f"stock count {request.stock_count_id} does not exist in this store"
+            )
 
         count.close(self._clock.now(), self._current.user_id)
-        await self._counts.update(count)
+        await self._counts.update(count, spec)
         await self._uow.commit()
 
         return ResultWithData[StockCountData].succeed_with_data(

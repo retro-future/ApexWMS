@@ -13,6 +13,8 @@ nothing to guess about.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
+from application.common.specification import Specification
 from application.dtos import (
     LedgerActor,
     MovementLogRow,
@@ -21,13 +23,17 @@ from application.dtos import (
     UnitSale,
 )
 from application.ports import (
-    DeviceUnitPriceChangeRepository,
-    EmployeeRepository,
-    GoodsReceiptRepository,
-    SalesReportRepository,
-    StockMovementRepository,
+    GoodsReceiptQueries,
+    SalesInvoiceQueries,
+    StockMovementQueries,
 )
+from application.specs import PriceChangesForUnit
+from domain.entities import DeviceUnitPriceChange, Employee
 from domain.enums import DocumentType, MovementType
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitPriceChangeModel,
+    EmployeeModel,
+)
 
 _OF_MOVEMENT = {
     MovementType.RECEIPT: TraceEventKind.RECEIVED,
@@ -41,11 +47,13 @@ _OF_MOVEMENT = {
 class UnitTraceAssembler:
     def __init__(
         self,
-        movements: StockMovementRepository,
-        prices: DeviceUnitPriceChangeRepository,
-        receipts: GoodsReceiptRepository,
-        sales: SalesReportRepository,
-        employees: EmployeeRepository,
+        movements: StockMovementQueries,
+        prices: TenantAppendOnlyRepository[
+            DeviceUnitPriceChange, DeviceUnitPriceChangeModel
+        ],
+        receipts: GoodsReceiptQueries,
+        sales: SalesInvoiceQueries,
+        employees: TenantDbRepository[Employee, EmployeeModel],
     ) -> None:
         self._movements = movements
         self._prices = prices
@@ -56,7 +64,10 @@ class UnitTraceAssembler:
     async def events(self, device_unit_id: UUID) -> list[TraceEvent]:
         moved = await self._movements.trace_for_unit(device_unit_id)
         sales = await self._sales.sales_of_unit(device_unit_id)
-        names = {one.id: one.full_name for one in await self._employees.list_all()}
+        roster = Specification(EmployeeModel).order(
+            EmployeeModel.created_at, EmployeeModel.id
+        )
+        names = {one.id: one.full_name for one in await self._employees.find(roster)}
 
         events = [await self._from_movement(row, sales) for row in moved]
         events.extend(await self._pricings(device_unit_id, names))
@@ -105,5 +116,5 @@ class UnitTraceAssembler:
                 old_price=change.old_price,
                 new_price=change.new_price,
             )
-            for change in await self._prices.list_for_unit(device_unit_id)
+            for change in await self._prices.find(PriceChangesForUnit(device_unit_id))
         ]

@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import CustomerData
-from application.ports import CustomerRepository
+from domain.entities import Customer
+from infrastructure.persistence.tenant.models import CustomerModel
 
 
 class GetCustomerQuery(Query[ResultWithData[CustomerData]]):
@@ -13,7 +15,7 @@ class GetCustomerQuery(Query[ResultWithData[CustomerData]]):
 
 
 class GetCustomerHandler(IRequestHandler[ResultWithData[CustomerData], GetCustomerQuery]):
-    def __init__(self, customers: CustomerRepository) -> None:
+    def __init__(self, customers: TenantDbRepository[Customer, CustomerModel]) -> None:
         self._customers = customers
 
     async def handle(self, request: GetCustomerQuery) -> ResultWithData[CustomerData]:

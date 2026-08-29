@@ -11,12 +11,15 @@ value, even below cost (FR-2.17) — see ``DeviceUnitRepricer``.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.models import DeviceUnitData
-from application.ports import DeviceUnitRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
 from application.services import DeviceUnitLoader, DeviceUnitRepricer, SalePriceParser
+from domain.entities import DeviceUnit
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import DeviceUnitModel
 
 
 class RepriceDeviceUnitCommandPayload(CamelModel):
@@ -39,7 +42,7 @@ class RepriceDeviceUnitHandler(
 ):
     def __init__(
         self,
-        units: DeviceUnitRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         loader: DeviceUnitLoader,
         repricer: DeviceUnitRepricer,
         sale_price: SalePriceParser,

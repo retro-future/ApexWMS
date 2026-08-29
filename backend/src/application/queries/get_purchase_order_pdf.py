@@ -18,15 +18,18 @@ from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
 from application.ports import (
-    ProductRepository,
     PurchaseOrderRenderer,
     TenantSettingsRepository,
 )
-from application.specs import PurchaseOrderById, SupplierById
-from domain.entities import PurchaseOrder, Supplier
+from application.specs import PurchaseOrderById
+from domain.entities import Product, PurchaseOrder, Supplier
 from domain.enums import DocumentStatus
 from domain.errors import DocumentNotConfirmedError
-from infrastructure.persistence.tenant.models import PurchaseOrderModel, SupplierModel
+from infrastructure.persistence.tenant.models import (
+    ProductModel,
+    PurchaseOrderModel,
+    SupplierModel,
+)
 
 
 class GetPurchaseOrderPdfQuery(Query[ResultWithData[RenderedDocument]]):
@@ -39,7 +42,7 @@ class GetPurchaseOrderPdfHandler(
     def __init__(
         self,
         orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
-        products: ProductRepository,
+        products: TenantDbRepository[Product, ProductModel],
         suppliers: TenantDbRepository[Supplier, SupplierModel],
         settings: TenantSettingsRepository,
         renderer: PurchaseOrderRenderer,
@@ -66,7 +69,7 @@ class GetPurchaseOrderPdfHandler(
                 "confirm it before printing it"
             )
 
-        supplier = await self._suppliers.find_one(SupplierById(order.supplier_id))
+        supplier = await self._suppliers.get(order.supplier_id)
         content = self._renderer.render(
             order,
             await self._settings.get_letterhead(),

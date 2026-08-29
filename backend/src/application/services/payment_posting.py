@@ -20,9 +20,12 @@ Nothing here commits — the calling handler owns the transaction, like every
 other poster.
 """
 
+from application.common.repository import TenantAppendOnlyRepository
+from application.common.specification import Specification
 from application.dtos import CurrentUser, MoneyEffect
-from application.ports import Clock, PaymentRepository
+from application.ports import Clock
 from application.services.ledger import LedgerPoster
+from application.specs import PaymentsForInvoice
 from domain.entities import Payment, SalesInvoice
 from domain.enums import DocumentStatus, DocumentType, PaymentMethod, TransactionType
 from domain.errors import (
@@ -32,12 +35,13 @@ from domain.errors import (
     PaymentAlreadyReversedError,
 )
 from domain.value_objects import Currency, Money
+from infrastructure.persistence.tenant.models import PaymentModel
 
 
 class PaymentPoster:
     def __init__(
         self,
-        payments: PaymentRepository,
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
         poster: LedgerPoster,
         clock: Clock,
         current: CurrentUser,
@@ -74,7 +78,10 @@ class PaymentPoster:
         The original stays. A reversed payment is two rows, not zero,
         because a mistake is part of the history.
         """
-        if await self._payments.reversal_of(original.id) is not None:
+        reversal = Specification(PaymentModel).where(
+            PaymentModel.reverses_payment_id == original.id
+        )
+        if await self._payments.find_one(reversal) is not None:
             raise PaymentAlreadyReversedError(
                 f"payment {original.id} has already been reversed — reversing it "
                 "again would re-apply it"
@@ -111,7 +118,10 @@ class PaymentPoster:
                 "customer debt is written in som (§4.7)"
             )
 
-        remaining = invoice.debt - await self._payments.paid_for(invoice.id)
+        paid = Money.zero(Currency.UZS)
+        for payment in await self._payments.find(PaymentsForInvoice(invoice.id)):
+            paid = paid + payment.amount
+        remaining = invoice.debt - paid
         if amount > remaining:
             raise OverpaymentError(
                 f"{amount.format()} is more than the {remaining.format()} still owed "

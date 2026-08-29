@@ -10,10 +10,16 @@ the same shape on purpose, so a client that can render one renders both.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import PriceChangeData
-from application.ports import DeviceUnitPriceChangeRepository, DeviceUnitRepository
+from application.specs import DeviceUnitById, PriceChangesForUnit
+from domain.entities import DeviceUnit, DeviceUnitPriceChange
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    DeviceUnitPriceChangeModel,
+)
 
 
 class GetDeviceUnitPriceHistoryQuery(Query[ResultWithData[list[PriceChangeData]]]):
@@ -25,8 +31,10 @@ class GetDeviceUnitPriceHistoryHandler(
 ):
     def __init__(
         self,
-        units: DeviceUnitRepository,
-        changes: DeviceUnitPriceChangeRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        changes: TenantAppendOnlyRepository[
+            DeviceUnitPriceChange, DeviceUnitPriceChangeModel
+        ],
     ) -> None:
         self._units = units
         self._changes = changes
@@ -36,10 +44,10 @@ class GetDeviceUnitPriceHistoryHandler(
     ) -> ResultWithData[list[PriceChangeData]]:
         # An unpriced handset and an unknown one are different answers, and
         # only the lookup can tell them apart.
-        if await self._units.get(request.device_unit_id) is None:
+        if not await self._units.exists(DeviceUnitById(request.device_unit_id)):
             raise NotFoundError("no such device unit in this store")
 
-        changes = await self._changes.list_for_unit(request.device_unit_id)
+        changes = await self._changes.find(PriceChangesForUnit(request.device_unit_id))
         return ResultWithData[list[PriceChangeData]].succeed_with_data(
             [PriceChangeData.from_entity(change) for change in changes]
         )

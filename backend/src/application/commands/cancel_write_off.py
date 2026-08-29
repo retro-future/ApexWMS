@@ -12,12 +12,17 @@ what it asked before.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
+from application.errors import NotFoundError
 from application.models import WriteOffData
-from application.ports import Clock, TenantUnitOfWork, WriteOffRepository
-from application.services import DocumentLoader, LedgerPoster
+from application.ports import Clock, TenantUnitOfWork
+from application.services import LedgerPoster
+from application.specs import WriteOffForWrite
+from domain.entities import WriteOff
 from domain.enums import DocumentType
+from infrastructure.persistence.tenant.models import WriteOffModel
 
 
 class CancelWriteOffCommandPayload(CamelModel):
@@ -36,15 +41,13 @@ class CancelWriteOffHandler(
 ):
     def __init__(
         self,
-        write_offs: WriteOffRepository,
-        loader: DocumentLoader,
+        write_offs: TenantDbRepository[WriteOff, WriteOffModel],
         poster: LedgerPoster,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._write_offs = write_offs
-        self._loader = loader
         self._poster = poster
         self._clock = clock
         self._uow = uow
@@ -53,11 +56,16 @@ class CancelWriteOffHandler(
     async def handle(
         self, request: CancelWriteOffCommand
     ) -> ResultWithData[WriteOffData]:
-        document = await self._loader.load_write_off(request.write_off_id)
+        spec = WriteOffForWrite(request.write_off_id)
+        document = await self._write_offs.find_one(spec)
+        if document is None:
+            raise NotFoundError(
+                f"write-off {request.write_off_id} does not exist in this store"
+            )
 
         document.cancel(self._clock.now(), self._current.user_id, request.reason)
         await self._poster.reverse(DocumentType.WRITE_OFF, document.id)
-        await self._write_offs.update(document)
+        await self._write_offs.update(document, spec)
         await self._uow.commit()
 
         return ResultWithData[WriteOffData].succeed_with_data(

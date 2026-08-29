@@ -13,16 +13,18 @@ moment the receipt is confirmed and the unit is created (FR-3.11).
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import ReceivedUnitData
-from application.ports import GoodsReceiptRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import TenantUnitOfWork
+from application.specs import GoodsReceiptForWrite
 from domain.entities import GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.enums import DeviceCondition
 from domain.permissions import Permission
 from domain.value_objects import IMEI, Currency, Money
+from infrastructure.persistence.tenant.models import GoodsReceiptModel
 
 
 class PriceReceiptUnitCommandPayload(CamelModel):
@@ -46,20 +48,23 @@ class PriceReceiptUnitHandler(
 ):
     def __init__(
         self,
-        receipts: GoodsReceiptRepository,
-        loader: DocumentLoader,
+        receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._receipts = receipts
-        self._loader = loader
         self._uow = uow
         self._current = current
 
     async def handle(
         self, request: PriceReceiptUnitCommand
     ) -> ResultWithData[ReceivedUnitData]:
-        receipt = await self._loader.load_receipt(request.goods_receipt_id)
+        spec = GoodsReceiptForWrite(request.goods_receipt_id)
+        receipt = await self._receipts.find_one(spec)
+        if receipt is None:
+            raise NotFoundError(
+                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+            )
         receipt.assert_editable()
 
         line, unit = self._find(receipt, request.imei)
@@ -91,7 +96,7 @@ class PriceReceiptUnitHandler(
         # Re-run the invariants over the edited row: a negative amount or a
         # half-stated cash_paid pair must fail here, not at the column.
         unit.__post_init__()
-        await self._receipts.update_unit(unit)
+        await self._receipts.update(receipt, spec)
         await self._uow.commit()
 
         return ResultWithData[ReceivedUnitData].succeed_with_data(

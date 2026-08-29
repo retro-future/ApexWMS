@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import CreditCompanyData
-from application.ports import CreditCompanyRepository
+from domain.entities import CreditCompany
+from infrastructure.persistence.tenant.models import CreditCompanyModel
 
 
 class GetCreditCompanyQuery(Query[ResultWithData[CreditCompanyData]]):
@@ -15,7 +17,9 @@ class GetCreditCompanyQuery(Query[ResultWithData[CreditCompanyData]]):
 class GetCreditCompanyHandler(
     IRequestHandler[ResultWithData[CreditCompanyData], GetCreditCompanyQuery]
 ):
-    def __init__(self, companies: CreditCompanyRepository) -> None:
+    def __init__(
+        self, companies: TenantDbRepository[CreditCompany, CreditCompanyModel]
+    ) -> None:
         self._companies = companies
 
     async def handle(

@@ -2,12 +2,15 @@
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.dtos import CurrentUser
 from application.models import StockCountData
-from application.ports import StockCountRepository
+from application.specs import StockCountBrowse
+from domain.entities import StockCount
 from domain.enums import DocumentStatus
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import StockCountModel
 
 
 class ListStockCountsQuery(PagedQuery[PagedResult[StockCountData]]):
@@ -19,18 +22,22 @@ class ListStockCountsQuery(PagedQuery[PagedResult[StockCountData]]):
 class ListStockCountsHandler(
     IRequestHandler[PagedResult[StockCountData], ListStockCountsQuery]
 ):
-    def __init__(self, counts: StockCountRepository, current: CurrentUser) -> None:
+    def __init__(
+        self,
+        counts: TenantDbRepository[StockCount, StockCountModel],
+        current: CurrentUser,
+    ) -> None:
         self._counts = counts
         self._current = current
 
     async def handle(self, request: ListStockCountsQuery) -> PagedResult[StockCountData]:
-        counts, total = await self._counts.list_page(
-            page=request.page,
-            page_size=request.page_size,
+        spec = StockCountBrowse(
             search=request.search,
             status=request.status,
             location_id=request.location_id,
         )
+        total = await self._counts.count(spec)
+        counts = await self._counts.find(spec.page(request.page, request.page_size))
         show_cost = Permission.COST_VIEW in self._current.permissions
         return PagedResult[StockCountData].succeed_with_data(
             data=[StockCountData.from_entity(c, show_cost=show_cost) for c in counts],

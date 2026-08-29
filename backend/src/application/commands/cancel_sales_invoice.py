@@ -27,17 +27,20 @@ exactly the figure refund handling needs.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
+from application.errors import NotFoundError
 from application.models import SalesInvoiceData
 from application.ports import (
     Clock,
-    PaymentRepository,
-    SalesInvoiceRepository,
     TenantUnitOfWork,
 )
-from application.services import DocumentLoader, LedgerPoster
+from application.services import LedgerPoster
+from application.specs import PaymentsForInvoice, SalesInvoiceForWrite
+from domain.entities import Payment, SalesInvoice
 from domain.enums import DocumentType
+from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
 class CancelSalesInvoiceCommandPayload(CamelModel):
@@ -56,9 +59,8 @@ class CancelSalesInvoiceHandler(
 ):
     def __init__(
         self,
-        invoices: SalesInvoiceRepository,
-        payments: PaymentRepository,
-        loader: DocumentLoader,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
         poster: LedgerPoster,
         clock: Clock,
         uow: TenantUnitOfWork,
@@ -66,7 +68,6 @@ class CancelSalesInvoiceHandler(
     ) -> None:
         self._invoices = invoices
         self._payments = payments
-        self._loader = loader
         self._poster = poster
         self._clock = clock
         self._uow = uow
@@ -75,15 +76,20 @@ class CancelSalesInvoiceHandler(
     async def handle(
         self, request: CancelSalesInvoiceCommand
     ) -> ResultWithData[SalesInvoiceData]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        spec = SalesInvoiceForWrite(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(spec)
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
 
         invoice.cancel(self._clock.now(), self._current.user_id, request.reason)
         await self._poster.reverse(DocumentType.SALES_INVOICE, invoice.id)
-        await self._invoices.update(invoice)
+        await self._invoices.update(invoice, spec)
         await self._uow.commit()
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.list_for_invoice(invoice.id)
+                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
             )
         )

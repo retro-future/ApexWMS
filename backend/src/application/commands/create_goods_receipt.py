@@ -23,18 +23,24 @@ from application.errors import NotFoundError
 from application.models import GoodsReceiptData
 from application.ports import (
     Clock,
-    CustomerRepository,
-    GoodsReceiptRepository,
-    LocationRepository,
+    GoodsReceiptQueries,
     TenantUnitOfWork,
 )
 from application.services import DocumentLineBuilder, DocumentNumberer
-from application.specs import PurchaseOrderById, SupplierById
-from domain.entities import GoodsReceipt, PurchaseOrder, Supplier
+from application.specs import (
+    PurchaseOrderById,
+)
+from domain.entities import Customer, GoodsReceipt, Location, PurchaseOrder, Supplier
 from domain.enums import AcquisitionSource, DocumentStatus, DocumentType
 from domain.errors import DocumentNotConfirmedError, OverReceiptError
 from domain.permissions import Permission
-from infrastructure.persistence.tenant.models import PurchaseOrderModel, SupplierModel
+from infrastructure.persistence.tenant.models import (
+    CustomerModel,
+    GoodsReceiptModel,
+    LocationModel,
+    PurchaseOrderModel,
+    SupplierModel,
+)
 
 
 class ReceiptLine(CamelModel):
@@ -63,11 +69,12 @@ class CreateGoodsReceiptHandler(
 ):
     def __init__(
         self,
-        receipts: GoodsReceiptRepository,
+        receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
+        queries: GoodsReceiptQueries,
         orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
         suppliers: TenantDbRepository[Supplier, SupplierModel],
-        customers: CustomerRepository,
-        locations: LocationRepository,
+        customers: TenantDbRepository[Customer, CustomerModel],
+        locations: TenantDbRepository[Location, LocationModel],
         builder: DocumentLineBuilder,
         numberer: DocumentNumberer,
         clock: Clock,
@@ -75,6 +82,7 @@ class CreateGoodsReceiptHandler(
         current: CurrentUser,
     ) -> None:
         self._receipts = receipts
+        self._queries = queries
         self._orders = orders
         self._suppliers = suppliers
         self._customers = customers
@@ -90,7 +98,7 @@ class CreateGoodsReceiptHandler(
     ) -> ResultWithData[GoodsReceiptData]:
         await self._assert_parties_exist(request)
         order = await self._linked_order(request)
-        received = await self._receipts.received_quantities(order.id) if order else {}
+        received = await self._queries.received_quantities(order.id) if order else {}
 
         line_inputs = self._line_inputs(request, order, received)
         if order is not None:
@@ -128,8 +136,9 @@ class CreateGoodsReceiptHandler(
             raise NotFoundError(
                 f"location {request.location_id} does not exist in this store"
             )
-        if request.supplier_id is not None and not await self._suppliers.exists(
-            SupplierById(request.supplier_id)
+        if (
+            request.supplier_id is not None
+            and await self._suppliers.get(request.supplier_id) is None
         ):
             raise NotFoundError(
                 f"supplier {request.supplier_id} does not exist in this store"

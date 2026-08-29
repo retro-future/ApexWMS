@@ -5,14 +5,17 @@ is recomputed from stock and checked against what the financial ledger
 says the store should be holding — one figure per currency, never a sum.
 """
 
+from application.common.repository import TenantDbRepository
 from application.dtos import Discrepancy
 from application.ports import (
-    DeviceUnitRepository,
-    FinancialTransactionRepository,
-    StockMovementRepository,
+    FinancialTransactionQueries,
+    StockMovementQueries,
 )
 from application.services.cost_pools import INVENTORY_SIGN, CostPoolReader
+from application.specs import OnHandDeviceUnits
+from domain.entities import DeviceUnit
 from domain.value_objects import Currency, CurrencyTotals, Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel
 
 
 class LedgerReconciler:
@@ -20,9 +23,9 @@ class LedgerReconciler:
 
     def __init__(
         self,
-        units: DeviceUnitRepository,
-        transactions: FinancialTransactionRepository,
-        movements: StockMovementRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        transactions: FinancialTransactionQueries,
+        movements: StockMovementQueries,
         pools: CostPoolReader,
     ) -> None:
         self._units = units
@@ -44,9 +47,9 @@ class LedgerReconciler:
         with what the money ledger thinks it is holding.
         """
         totals = CurrencyTotals.empty()
-        for unit in await self._units.list_on_hand():
+        for unit in await self._units.find(OnHandDeviceUnits()):
             totals = totals.add(unit.acquisition_cost)
-        for product_id, location_id in await self._movements.list_moved_pairs():
+        for product_id, location_id in await self._movements.moved_pairs():
             pool = await self._pools.pool_for(product_id, location_id)
             if pool is not None and not pool.value.is_zero:
                 totals = totals.add(pool.value)

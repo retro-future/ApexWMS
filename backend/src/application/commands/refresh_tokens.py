@@ -12,6 +12,7 @@ access-token lifetime after it is made.
 
 import hmac
 
+from application.common.repository import MasterDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import RequestedTenant
 from application.errors import InvalidTokenError
@@ -19,11 +20,12 @@ from application.models import AuthTokensData
 from application.ports import (
     Clock,
     MasterUnitOfWork,
-    RefreshTokenRepository,
     TokenService,
-    UserRepository,
 )
 from application.services import ClaimsFactory, TokenIssuer
+from application.specs import RefreshTokenForWrite
+from domain.entities import RefreshTokenRecord, User
+from infrastructure.persistence.master.models import RefreshTokenModel, UserModel
 
 
 class RefreshTokensCommand(Command[ResultWithData[AuthTokensData]]):
@@ -35,8 +37,8 @@ class RefreshTokensHandler(
 ):
     def __init__(
         self,
-        users: UserRepository,
-        refresh_tokens: RefreshTokenRepository,
+        users: MasterDbRepository[User, UserModel],
+        refresh_tokens: MasterDbRepository[RefreshTokenRecord, RefreshTokenModel],
         tokens: TokenService,
         claims: ClaimsFactory,
         issuer: TokenIssuer,
@@ -60,7 +62,7 @@ class RefreshTokensHandler(
         if parsed is None:
             raise InvalidTokenError()
         jti, secret = parsed
-        record = await self._refresh_tokens.get(jti)
+        record = await self._refresh_tokens.find_one(RefreshTokenForWrite(jti))
         if record is None or not hmac.compare_digest(
             record.token_hash, self._tokens.hash_opaque(secret)
         ):
@@ -68,7 +70,7 @@ class RefreshTokensHandler(
 
         now = self._clock.now()
         if record.is_revoked:
-            await self._refresh_tokens.revoke_all_for_user(record.user_id, now)
+            await self._issuer.revoke_all_for_user(record.user_id, now)
             await self._uow.commit()
             raise InvalidTokenError("refresh token reuse detected")
         if record.is_expired(now):

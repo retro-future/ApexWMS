@@ -31,27 +31,37 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.dtos import CurrentUser, MoneyEffect, Posting, PostingEntry
-from application.ports import (
-    Clock,
-    DeviceUnitRepository,
-    FinancialTransactionRepository,
-    StockLevelRepository,
-    StockMovementRepository,
+from application.ports import Clock
+from application.specs import (
+    DeviceUnitById,
+    MovementsForDocument,
+    MovementsForUnit,
+    StockLevelForPair,
+    TransactionsForDocument,
 )
-from domain.entities import FinancialTransaction, StockLevel, StockMovement
+from domain.entities import DeviceUnit, FinancialTransaction, StockLevel, StockMovement
 from domain.enums import DocumentType
 from domain.errors import InvalidMovementError
 from domain.services import UnitProjector
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    FinancialTransactionModel,
+    StockLevelModel,
+    StockMovementModel,
+)
 
 
 class LedgerPoster:
     def __init__(
         self,
-        movements: StockMovementRepository,
-        transactions: FinancialTransactionRepository,
-        levels: StockLevelRepository,
-        units: DeviceUnitRepository,
+        movements: TenantAppendOnlyRepository[StockMovement, StockMovementModel],
+        transactions: TenantAppendOnlyRepository[
+            FinancialTransaction, FinancialTransactionModel
+        ],
+        levels: TenantDbRepository[StockLevel, StockLevelModel],
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         clock: Clock,
         current: CurrentUser,
         projector: UnitProjector,
@@ -124,14 +134,14 @@ class LedgerPoster:
         occurred_at = self._clock.now()
         actor = self._current.user_id
 
-        original = await self._movements.list_for_document(document_type, document_id)
+        original = await self._movements.find(MovementsForDocument(document_type, document_id))
         for movement in original:
             compensating = movement.reversed(occurred_at, actor)
             await self._movements.add(compensating)
             await self._apply_to_level(compensating)
 
-        for transaction in await self._transactions.list_for_document(
-            document_type, document_id
+        for transaction in await self._transactions.find(
+            TransactionsForDocument(document_type, document_id)
         ):
             await self._transactions.add(transaction.reversed(occurred_at, actor))
 
@@ -186,7 +196,9 @@ class LedgerPoster:
         if movement.device_unit_id is not None:
             return
 
-        level = await self._levels.get_for(movement.product_id, movement.location_id)
+        level = await self._levels.find_one(
+            StockLevelForPair(movement.product_id, movement.location_id)
+        )
         if level is None:
             # Constructing validates, so an issue against a location that
             # never received anything fails here rather than persisting a
@@ -218,7 +230,7 @@ class LedgerPoster:
         """
         assert entry.device_unit_id is not None and entry.new_status is not None
 
-        unit = await self._units.get(entry.device_unit_id)
+        unit = await self._units.find_one(DeviceUnitById(entry.device_unit_id))
         if unit is None:
             raise InvalidMovementError(
                 f"movement names device unit {entry.device_unit_id}, which does not exist"
@@ -239,12 +251,12 @@ class LedgerPoster:
         so a cancellation cannot leave the unit in a state the ledger
         would disagree with.
         """
-        unit = await self._units.get(unit_id)
+        unit = await self._units.find_one(DeviceUnitById(unit_id))
         if unit is None:
             return
 
         status, location_id = self._projector.project(
-            await self._movements.list_for_unit(unit_id)
+            await self._movements.find(MovementsForUnit(unit_id))
         )
         unit.status = status
         unit.location_id = location_id

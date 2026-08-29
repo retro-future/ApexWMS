@@ -16,20 +16,22 @@ from uuid import uuid4
 
 from pydantic import EmailStr
 
+from application.common.repository import MasterDbRepository, TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import AlreadyMemberError
 from application.models import InviteResultData
 from application.ports import (
     Clock,
-    EmployeeRepository,
-    InvitationRepository,
     MasterUnitOfWork,
     TokenService,
 )
 from application.types import InviteTtl, ResolvedTenantId
-from domain.entities import Invitation, InvitationKind
+from domain.entities import Employee, Invitation, InvitationKind
 from domain.enums import TenantRole
+from infrastructure.persistence.master.models import InvitationModel
+from infrastructure.persistence.tenant.models import EmployeeModel
 
 
 class InviteEmployeeCommand(Command[ResultWithData[InviteResultData]]):
@@ -42,8 +44,8 @@ class InviteUserHandler(
 ):
     def __init__(
         self,
-        employees: EmployeeRepository,
-        invitations: InvitationRepository,
+        employees: TenantDbRepository[Employee, EmployeeModel],
+        invitations: MasterDbRepository[Invitation, InvitationModel],
         tokens: TokenService,
         clock: Clock,
         uow: MasterUnitOfWork,
@@ -66,7 +68,9 @@ class InviteUserHandler(
         self, request: InviteEmployeeCommand
     ) -> ResultWithData[InviteResultData]:
         email = request.email.strip().lower()
-        if await self._employees.get_by_email(email) is not None:
+        if await self._employees.exists(
+            Specification(EmployeeModel).where(EmployeeModel.email == email)
+        ):
             raise AlreadyMemberError(email)
 
         secret = self._tokens.new_opaque_secret()

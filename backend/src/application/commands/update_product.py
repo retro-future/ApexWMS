@@ -19,13 +19,16 @@ it projects from has no row shape meaning "no longer priced".
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, NotFoundError
 from application.models import ProductData
-from application.ports import ProductRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
 from application.services import ProductRepricer, SalePriceParser
+from application.specs import ProductBarcodeTakenByAnother, ProductForWrite
 from domain.entities import Product
 from domain.value_objects import Barcode
+from infrastructure.persistence.tenant.models import ProductModel
 
 
 class UpdateProductCommandPayload(CamelModel):
@@ -50,7 +53,7 @@ class UpdateProductHandler(
 ):
     def __init__(
         self,
-        products: ProductRepository,
+        products: TenantDbRepository[Product, ProductModel],
         uow: TenantUnitOfWork,
         sale_price: SalePriceParser,
         repricer: ProductRepricer,
@@ -61,7 +64,7 @@ class UpdateProductHandler(
         self._repricer = repricer
 
     async def handle(self, request: UpdateProductCommand) -> ResultWithData[ProductData]:
-        product = await self._products.get(request.product_id)
+        product = await self._products.find_one(ProductForWrite(request.product_id))
         if product is None:
             raise NotFoundError("no such product in this store")
 
@@ -98,7 +101,6 @@ class UpdateProductHandler(
         if raw is None:
             return None
         barcode = Barcode.parse(raw)
-        owner = await self._products.get_by_barcode(str(barcode))
-        if owner is not None and owner.id != product.id:
+        if await self._products.exists(ProductBarcodeTakenByAnother(str(barcode), product.id)):
             raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
         return barcode

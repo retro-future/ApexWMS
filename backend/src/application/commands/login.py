@@ -11,12 +11,16 @@ stores land directly in one, and is ignored when absent.
 
 from pydantic import EmailStr
 
+from application.common.repository import MasterDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import RequestedTenant
 from application.errors import InvalidCredentialsError
 from application.models import LoginData
-from application.ports import MasterUnitOfWork, PasswordHasher, UserRepository
+from application.ports import MasterUnitOfWork, PasswordHasher
 from application.services import ClaimsFactory, TokenIssuer
+from domain.entities import User
+from infrastructure.persistence.master.models import UserModel
 
 
 class LoginCommand(Command[ResultWithData[LoginData]]):
@@ -31,7 +35,7 @@ class LoginCommand(Command[ResultWithData[LoginData]]):
 class LoginHandler(IRequestHandler[ResultWithData[LoginData], LoginCommand]):
     def __init__(
         self,
-        users: UserRepository,
+        users: MasterDbRepository[User, UserModel],
         hasher: PasswordHasher,
         claims: ClaimsFactory,
         issuer: TokenIssuer,
@@ -46,7 +50,9 @@ class LoginHandler(IRequestHandler[ResultWithData[LoginData], LoginCommand]):
         self._requested_tenant_id = requested.tenant_id
 
     async def handle(self, request: LoginCommand) -> ResultWithData[LoginData]:
-        user = await self._users.get_by_email(request.email.strip().lower())
+        user = await self._users.find_one(
+            Specification(UserModel).where(UserModel.email == request.email.strip().lower())
+        )
         if (
             user is None
             or user.password_hash is None

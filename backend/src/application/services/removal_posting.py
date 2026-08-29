@@ -34,24 +34,26 @@ sold on the tenth line rolls back the nine before it.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import NotFoundError
-from application.ports import DeviceUnitRepository, ProductRepository, StockLevelRepository
 from application.services.cost_pools import CostPoolReader
 from application.services.ledger import LedgerPoster
 from application.services.unit_origin import UnitOriginGuard
-from domain.entities import RemovalLine, SupplierReturn, WriteOff
+from application.specs import DeviceUnitById, StockLevelForPair
+from domain.entities import DeviceUnit, Product, RemovalLine, StockLevel, SupplierReturn, WriteOff
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
 from domain.errors import InsufficientStockError, UnitNotRemovableError, WrongLocationError
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel, StockLevelModel
 
 
 class RemovalPoster:
     def __init__(
         self,
-        units: DeviceUnitRepository,
-        products: ProductRepository,
-        levels: StockLevelRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        products: TenantDbRepository[Product, ProductModel],
+        levels: TenantDbRepository[StockLevel, StockLevelModel],
         pools: CostPoolReader,
         poster: LedgerPoster,
         origin: UnitOriginGuard,
@@ -146,7 +148,7 @@ class RemovalPoster:
         supplier_id: UUID | None,
     ) -> Money:
         assert line.device_unit_id is not None
-        unit = await self._units.get(line.device_unit_id)
+        unit = await self._units.find_one(DeviceUnitById(line.device_unit_id))
         if unit is None:
             raise NotFoundError(
                 f"handset {line.device_unit_id} does not exist in this store"
@@ -179,7 +181,9 @@ class RemovalPoster:
         if product is None:
             raise NotFoundError(f"product {line.product_id} does not exist in this store")
 
-        level = await self._levels.get_for(line.product_id, document.location_id)
+        level = await self._levels.find_one(
+            StockLevelForPair(line.product_id, document.location_id)
+        )
         on_hand = 0 if level is None else level.quantity
         if on_hand < line.quantity:
             raise InsufficientStockError(

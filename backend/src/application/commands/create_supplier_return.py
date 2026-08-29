@@ -19,14 +19,16 @@ from application.errors import NotFoundError
 from application.models import SupplierReturnData
 from application.ports import (
     Clock,
-    LocationRepository,
     TenantUnitOfWork,
 )
 from application.services import DocumentNumberer
-from application.specs import SupplierById
-from domain.entities import Supplier, SupplierReturn
+from domain.entities import Location, Supplier, SupplierReturn
 from domain.enums import DocumentStatus, DocumentType, SupplierReturnReason
-from infrastructure.persistence.tenant.models import SupplierModel, SupplierReturnModel
+from infrastructure.persistence.tenant.models import (
+    LocationModel,
+    SupplierModel,
+    SupplierReturnModel,
+)
 
 
 class CreateSupplierReturnCommand(Command[ResultWithData[SupplierReturnData]]):
@@ -43,7 +45,7 @@ class CreateSupplierReturnHandler(
         self,
         returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
         suppliers: TenantDbRepository[Supplier, SupplierModel],
-        locations: LocationRepository,
+        locations: TenantDbRepository[Location, LocationModel],
         numberer: DocumentNumberer,
         clock: Clock,
         uow: TenantUnitOfWork,
@@ -81,7 +83,7 @@ class CreateSupplierReturnHandler(
         )
 
     async def _assert_parties_exist(self, request: CreateSupplierReturnCommand) -> None:
-        if not await self._suppliers.exists(SupplierById(request.supplier_id)):
+        if await self._suppliers.get(request.supplier_id) is None:
             raise NotFoundError(
                 f"supplier {request.supplier_id} does not exist in this store"
             )

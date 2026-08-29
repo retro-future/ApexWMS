@@ -12,7 +12,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import PurchaseOrderData
-from application.ports import GoodsReceiptRepository
+from application.ports import GoodsReceiptQueries
 from application.specs import PurchaseOrderById
 from domain.entities import PurchaseOrder
 from infrastructure.persistence.tenant.models import PurchaseOrderModel
@@ -28,10 +28,10 @@ class GetPurchaseOrderHandler(
     def __init__(
         self,
         orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
-        receipts: GoodsReceiptRepository,
+        queries: GoodsReceiptQueries,
     ) -> None:
         self._orders = orders
-        self._receipts = receipts
+        self._queries = queries
 
     async def handle(
         self, request: GetPurchaseOrderQuery
@@ -43,7 +43,7 @@ class GetPurchaseOrderHandler(
             raise NotFoundError(
                 f"purchase order {request.purchase_order_id} does not exist in this store"
             )
-        received = await self._receipts.received_quantities(order.id)
+        received = await self._queries.received_quantities(order.id)
         return ResultWithData[PurchaseOrderData].succeed_with_data(
             PurchaseOrderData.from_entity(order, received)
         )

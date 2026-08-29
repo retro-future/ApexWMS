@@ -22,16 +22,17 @@ from uuid import UUID
 
 from pydantic import Field
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import NotFoundError
 from application.ports import (
-    DeviceUnitRepository,
-    ProductRepository,
     TenantUnitOfWork,
 )
 from application.services import DeviceUnitRepricer, SalePriceParser
-from domain.entities import DeviceUnit
+from application.specs import DeviceUnitsByIds
+from domain.entities import DeviceUnit, Product
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel
 
 
 class UnitPrice(CamelModel):
@@ -51,8 +52,8 @@ class RepriceDeviceUnitsHandler(
 ):
     def __init__(
         self,
-        units: DeviceUnitRepository,
-        products: ProductRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        products: TenantDbRepository[Product, ProductModel],
         repricer: DeviceUnitRepricer,
         sale_price: SalePriceParser,
         uow: TenantUnitOfWork,
@@ -89,7 +90,7 @@ class RepriceDeviceUnitsHandler(
         reasons and with the same messages as one unit.
         """
         wanted = [item.device_unit_id for item in request.prices]
-        found = {unit.id: unit for unit in await self._units.list_by_ids(wanted)}
+        found = {unit.id: unit for unit in await self._units.find(DeviceUnitsByIds(wanted))}
         missing = [str(unit_id) for unit_id in wanted if unit_id not in found]
         if missing:
             raise NotFoundError(

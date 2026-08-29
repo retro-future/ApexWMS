@@ -24,20 +24,23 @@ IMEI found on the tenth phone rolls back the nine before it.
 
 from datetime import datetime
 
+from application.common.repository import TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import DuplicateImeiError
-from application.ports import Clock, DeviceUnitRepository
+from application.ports import Clock
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.ledger import LedgerPoster
+from application.specs import DeviceUnitByImei
 from domain.entities import DeviceUnit, GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel
 
 
 class ReceiptPoster:
     def __init__(
         self,
-        units: DeviceUnitRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         repricer: DeviceUnitRepricer,
         poster: LedgerPoster,
         clock: Clock,
@@ -109,7 +112,7 @@ class ReceiptPoster:
         return unit
 
     async def _assert_imei_is_free(self, scanned: ReceivedUnit) -> None:
-        existing = await self._units.get_by_imei(str(scanned.imei))
+        existing = await self._units.find_one(DeviceUnitByImei(str(scanned.imei)))
         if existing is None:
             return
         raise DuplicateImeiError(

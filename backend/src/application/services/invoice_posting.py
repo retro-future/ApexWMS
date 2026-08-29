@@ -35,23 +35,25 @@ FR-4.5b2's "nothing is written to either ledger" true: a tenth line that
 will not resolve rolls back the nine before it.
 """
 
+from application.common.repository import TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import NotFoundError
-from application.ports import DeviceUnitRepository, ProductRepository, StockLevelRepository
 from application.services.cost_pools import CostPoolReader
 from application.services.ledger import LedgerPoster
-from domain.entities import DeviceUnit, Product, SalesInvoice, SalesInvoiceLine
+from application.specs import DeviceUnitById, StockLevelForPair
+from domain.entities import DeviceUnit, Product, SalesInvoice, SalesInvoiceLine, StockLevel
 from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
 from domain.errors import InsufficientStockError, UnitNotSellableError, WrongLocationError
 from domain.services import PriceResolver
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel, StockLevelModel
 
 
 class InvoicePoster:
     def __init__(
         self,
-        units: DeviceUnitRepository,
-        products: ProductRepository,
-        levels: StockLevelRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        products: TenantDbRepository[Product, ProductModel],
+        levels: TenantDbRepository[StockLevel, StockLevelModel],
         pools: CostPoolReader,
         poster: LedgerPoster,
     ) -> None:
@@ -138,7 +140,7 @@ class InvoicePoster:
 
     async def _load_unit(self, line: SalesInvoiceLine) -> DeviceUnit:
         assert line.device_unit_id is not None
-        unit = await self._units.get(line.device_unit_id)
+        unit = await self._units.find_one(DeviceUnitById(line.device_unit_id))
         if unit is None:
             raise NotFoundError(f"handset {line.device_unit_id} does not exist in this store")
         return unit
@@ -165,7 +167,7 @@ class InvoicePoster:
     async def _assert_in_stock(
         self, invoice: SalesInvoice, line: SalesInvoiceLine, sku: str
     ) -> None:
-        level = await self._levels.get_for(line.product_id, invoice.location_id)
+        level = await self._levels.find_one(StockLevelForPair(line.product_id, invoice.location_id))
         on_hand = 0 if level is None else level.quantity
         if on_hand < line.quantity:
             raise InsufficientStockError(

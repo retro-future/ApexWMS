@@ -20,16 +20,18 @@ same digits could be a barcode, and refusing to look would be a guess
 about what the operator scanned.
 """
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import DeviceUnitData, ProductData, ScanLookupData
-from application.ports import ProductRepository
 from application.services import DeviceUnitLoader
+from application.specs import ProductByBarcode, ProductBySku
 from domain.entities import DeviceUnit, Product
 from domain.errors import InvalidIMEIError
 from domain.permissions import Permission
 from domain.value_objects import IMEI
+from infrastructure.persistence.tenant.models import ProductModel
 
 
 class ScanLookupQuery(Query[ResultWithData[ScanLookupData]]):
@@ -40,7 +42,7 @@ class ScanLookupHandler(IRequestHandler[ResultWithData[ScanLookupData], ScanLook
     def __init__(
         self,
         units: DeviceUnitLoader,
-        products: ProductRepository,
+        products: TenantDbRepository[Product, ProductModel],
         current: CurrentUser,
     ) -> None:
         self._units = units
@@ -81,7 +83,7 @@ class ScanLookupHandler(IRequestHandler[ResultWithData[ScanLookupData], ScanLook
     async def _find_product(self, code: str) -> Product | None:
         # A barcode is scanned far more often than a SKU is typed, so it
         # goes first; both are unique within the store.
-        by_barcode = await self._products.get_by_barcode(code)
+        by_barcode = await self._products.find_one(ProductByBarcode(code))
         if by_barcode is not None:
             return by_barcode
-        return await self._products.get_by_sku(code)
+        return await self._products.find_one(ProductBySku(code))

@@ -17,13 +17,13 @@ per pair is the real cost, and it is the same one FR-10.7 already pays.
 from uuid import UUID
 
 from application.dtos import OnHandBucket, StockGroupBy, StockOnHandGroup
-from application.ports import StockOnHandRepository
+from application.ports import StockOnHandQueries
 from application.services.cost_pools import CostPoolReader
 from domain.value_objects import CurrencyTotals
 
 
 class StockOnHandReader:
-    def __init__(self, stock: StockOnHandRepository, pools: CostPoolReader) -> None:
+    def __init__(self, stock: StockOnHandQueries, pools: CostPoolReader) -> None:
         self._stock = stock
         self._pools = pools
 

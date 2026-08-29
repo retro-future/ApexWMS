@@ -19,14 +19,17 @@ the catalog with no author and no timestamp.
 
 from uuid import uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, DuplicateSkuError
 from application.models import ProductData
-from application.ports import Clock, ProductRepository, TenantUnitOfWork
+from application.ports import Clock, TenantUnitOfWork
 from application.services import ProductRepricer, SalePriceParser
+from application.specs import ProductByBarcode, ProductBySku
 from domain.entities import Product
 from domain.enums import TrackingType
 from domain.value_objects import SKU, Barcode, Currency
+from infrastructure.persistence.tenant.models import ProductModel
 
 
 class CreateProductCommand(Command[ResultWithData[ProductData]]):
@@ -47,7 +50,7 @@ class CreateProductHandler(
 ):
     def __init__(
         self,
-        products: ProductRepository,
+        products: TenantDbRepository[Product, ProductModel],
         clock: Clock,
         uow: TenantUnitOfWork,
         sale_price: SalePriceParser,
@@ -61,11 +64,11 @@ class CreateProductHandler(
 
     async def handle(self, request: CreateProductCommand) -> ResultWithData[ProductData]:
         sku = SKU.parse(request.sku)
-        if await self._products.get_by_sku(str(sku)) is not None:
+        if await self._products.exists(ProductBySku(str(sku))):
             raise DuplicateSkuError(f"a product with SKU {sku} already exists")
 
         barcode = Barcode.parse(request.barcode) if request.barcode else None
-        if barcode is not None and await self._products.get_by_barcode(str(barcode)):
+        if barcode is not None and await self._products.exists(ProductByBarcode(str(barcode))):
             raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
 
         currency = request.currency or Product.default_currency_for(request.tracking_type)

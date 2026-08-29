@@ -8,11 +8,14 @@ from uuid import uuid4
 
 from pydantic import EmailStr
 
+from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError
 from application.models import CreditCompanyData
-from application.ports import Clock, CreditCompanyRepository, TenantUnitOfWork
+from application.ports import Clock, TenantUnitOfWork
 from domain.entities import CreditCompany
+from infrastructure.persistence.tenant.models import CreditCompanyModel
 
 
 class CreateCreditCompanyCommand(Command[ResultWithData[CreditCompanyData]]):
@@ -27,7 +30,7 @@ class CreateCreditCompanyHandler(
 ):
     def __init__(
         self,
-        companies: CreditCompanyRepository,
+        companies: TenantDbRepository[CreditCompany, CreditCompanyModel],
         clock: Clock,
         uow: TenantUnitOfWork,
     ) -> None:
@@ -39,7 +42,9 @@ class CreateCreditCompanyHandler(
         self, request: CreateCreditCompanyCommand
     ) -> ResultWithData[CreditCompanyData]:
         name = request.name.strip()
-        if await self._companies.get_by_name(name) is not None:
+        if await self._companies.exists(
+            Specification(CreditCompanyModel).where(CreditCompanyModel.name == name)
+        ):
             raise DuplicateNameError(f"a credit company called {name!r} already exists")
 
         company = CreditCompany(

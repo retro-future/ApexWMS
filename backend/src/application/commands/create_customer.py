@@ -6,10 +6,12 @@ the second one at the till would be absurd.
 
 from uuid import uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.models import CustomerData
-from application.ports import Clock, CustomerRepository, TenantUnitOfWork
+from application.ports import Clock, TenantUnitOfWork
 from domain.entities import Customer
+from infrastructure.persistence.tenant.models import CustomerModel
 
 
 class CreateCustomerCommand(Command[ResultWithData[CustomerData]]):
@@ -21,7 +23,10 @@ class CreateCustomerHandler(
     IRequestHandler[ResultWithData[CustomerData], CreateCustomerCommand]
 ):
     def __init__(
-        self, customers: CustomerRepository, clock: Clock, uow: TenantUnitOfWork
+        self,
+        customers: TenantDbRepository[Customer, CustomerModel],
+        clock: Clock,
+        uow: TenantUnitOfWork,
     ) -> None:
         self._customers = customers
         self._clock = clock

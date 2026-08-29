@@ -31,16 +31,19 @@ aloud — a quote, not a reservation. Resolution runs again at confirm
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import NotFoundError
 from application.models import InvoiceScanResultData
-from application.ports import ProductRepository, SalesInvoiceRepository, TenantUnitOfWork
-from application.services import DeviceUnitLoader, DocumentLoader
+from application.ports import TenantUnitOfWork
+from application.services import DeviceUnitLoader
+from application.specs import ProductByBarcode, ProductBySku, SalesInvoiceForWrite
 from domain.entities import DeviceUnit, Product, SalesInvoice, SalesInvoiceLine
 from domain.enums import DeviceStatus, TrackingType
 from domain.errors import InvalidIMEIError, UnitNotSellableError, WrongLocationError
 from domain.services import PriceResolver
 from domain.value_objects import IMEI, Money
+from infrastructure.persistence.tenant.models import ProductModel, SalesInvoiceModel
 
 
 class ScanInvoiceLineCommandPayload(CamelModel):
@@ -61,40 +64,48 @@ class ScanInvoiceLineHandler(
 ):
     def __init__(
         self,
-        invoices: SalesInvoiceRepository,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         units: DeviceUnitLoader,
-        products: ProductRepository,
-        loader: DocumentLoader,
+        products: TenantDbRepository[Product, ProductModel],
         uow: TenantUnitOfWork,
     ) -> None:
         self._invoices = invoices
         self._units = units
         self._products = products
-        self._loader = loader
         self._uow = uow
 
     async def handle(
         self, request: ScanInvoiceLineCommand
     ) -> ResultWithData[InvoiceScanResultData]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        spec = SalesInvoiceForWrite(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(spec)
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
         invoice.assert_editable()
 
         found = await self._as_device(request.code)
         if found is not None:
             unit, product = found
-            return await self._sell_unit(invoice, unit, product)
+            line, resolved, changed = self._sell_unit(invoice, unit, product)
+        else:
+            product = await self._as_product(request.code)
+            line, resolved, changed = self._sell_accessory(invoice, product)
 
-        product = await self._as_product(request.code)
-        return await self._sell_accessory(invoice, product)
+        if changed:
+            await self._invoices.update(invoice, spec)
+            await self._uow.commit()
+        return self._result(invoice, line, resolved)
 
-    async def _sell_unit(
+    def _sell_unit(
         self, invoice: SalesInvoice, unit: DeviceUnit, product: Product
-    ) -> ResultWithData[InvoiceScanResultData]:
+    ) -> tuple[SalesInvoiceLine, Money, bool]:
         already = invoice.line_for_unit(unit.id)
         if already is not None:
             # A double-fire of the same trigger pull. One phone, one line
             # — nothing changes and the same answer comes back (§6).
-            return self._result(invoice, already, PriceResolver.resolve(unit, product))
+            return already, PriceResolver.resolve(unit, product), False
 
         self._assert_sellable(invoice, unit)
         # Raises PriceNotSetError naming who can fix it (FR-4.2b). Refused
@@ -110,11 +121,12 @@ class ScanInvoiceLineHandler(
             currency=product.currency,
             tracking_type=product.tracking_type,
         )
-        return await self._append(invoice, line, resolved)
+        invoice.lines.append(line)
+        return line, resolved, True
 
-    async def _sell_accessory(
+    def _sell_accessory(
         self, invoice: SalesInvoice, product: Product
-    ) -> ResultWithData[InvoiceScanResultData]:
+    ) -> tuple[SalesInvoiceLine, Money, bool]:
         if product.tracking_type is TrackingType.SERIAL:
             raise UnitNotSellableError(
                 f"{product.sku} is a serialized model, and a sale is of one named "
@@ -127,9 +139,7 @@ class ScanInvoiceLineHandler(
         existing = invoice.line_for_product(product.id)
         if existing is not None:
             existing.quantity += 1
-            await self._invoices.update_line(existing)
-            await self._uow.commit()
-            return self._result(invoice, existing, resolved)
+            return existing, resolved, True
 
         line = SalesInvoiceLine(
             id=uuid4(),
@@ -139,15 +149,8 @@ class ScanInvoiceLineHandler(
             currency=product.currency,
             tracking_type=product.tracking_type,
         )
-        return await self._append(invoice, line, resolved)
-
-    async def _append(
-        self, invoice: SalesInvoice, line: SalesInvoiceLine, resolved: Money
-    ) -> ResultWithData[InvoiceScanResultData]:
         invoice.lines.append(line)
-        await self._invoices.add_line(line)
-        await self._uow.commit()
-        return self._result(invoice, line, resolved)
+        return line, resolved, True
 
     async def _as_device(self, code: str) -> tuple[DeviceUnit, Product] | None:
         """A scanned string is an IMEI only if it parses as one.
@@ -163,9 +166,9 @@ class ScanInvoiceLineHandler(
         return await self._units.load_by_imei(str(imei))
 
     async def _as_product(self, code: str) -> Product:
-        product = await self._products.get_by_barcode(code)
+        product = await self._products.find_one(ProductByBarcode(code))
         if product is None:
-            product = await self._products.get_by_sku(code)
+            product = await self._products.find_one(ProductBySku(code))
         if product is None:
             raise NotFoundError(f"nothing in this store is identified by {code!r}")
         return product

@@ -7,11 +7,14 @@ ambiguous to the person reading a report.
 
 from uuid import uuid4
 
+from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError
 from application.models import LocationData
-from application.ports import Clock, LocationRepository, TenantUnitOfWork
+from application.ports import Clock, TenantUnitOfWork
 from domain.entities import Location
+from infrastructure.persistence.tenant.models import LocationModel
 
 
 class CreateLocationCommand(Command[ResultWithData[LocationData]]):
@@ -22,7 +25,10 @@ class CreateLocationHandler(
     IRequestHandler[ResultWithData[LocationData], CreateLocationCommand]
 ):
     def __init__(
-        self, locations: LocationRepository, clock: Clock, uow: TenantUnitOfWork
+        self,
+        locations: TenantDbRepository[Location, LocationModel],
+        clock: Clock,
+        uow: TenantUnitOfWork,
     ) -> None:
         self._locations = locations
         self._clock = clock
@@ -30,7 +36,9 @@ class CreateLocationHandler(
 
     async def handle(self, request: CreateLocationCommand) -> ResultWithData[LocationData]:
         name = request.name.strip()
-        if await self._locations.get_by_name(name) is not None:
+        if await self._locations.exists(
+            Specification(LocationModel).where(LocationModel.name == name)
+        ):
             raise DuplicateNameError(f"a location called {name!r} already exists")
 
         location = Location(

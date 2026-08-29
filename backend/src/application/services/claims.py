@@ -18,21 +18,22 @@ login the tenant is not known until the master user row has been read.
 
 from uuid import UUID
 
+from application.common.repository import MasterDbRepository
+from application.common.specification import Specification
 from application.dtos import IssuedClaims
 from application.errors import AuthorizationError, InvalidCredentialsError
 from application.ports import (
     TenantScope,
-    UserAppRoleRepository,
-    UserTenantAccessRepository,
 )
-from domain.entities import User
+from domain.entities import User, UserAppRole, UserTenantAccess
+from infrastructure.persistence.master.models import UserAppRoleModel, UserTenantAccessModel
 
 
 class ClaimsFactory:
     def __init__(
         self,
-        app_roles: UserAppRoleRepository,
-        access: UserTenantAccessRepository,
+        app_roles: MasterDbRepository[UserAppRole, UserAppRoleModel],
+        access: MasterDbRepository[UserTenantAccess, UserTenantAccessModel],
         scope: TenantScope,
     ) -> None:
         self._app_roles = app_roles
@@ -42,17 +43,22 @@ class ClaimsFactory:
     async def build(
         self, user: User, requested_tenant_id: UUID | None = None
     ) -> IssuedClaims:
+        roles_of_user = Specification(UserAppRoleModel).where(
+            UserAppRoleModel.user_id == user.id
+        )
         granted = tuple(
-            assignment.role for assignment in await self._app_roles.list_for_user(user.id)
+            assignment.role for assignment in await self._app_roles.find(roles_of_user)
         )
 
         tenant_id = requested_tenant_id or user.tenant_id
         if tenant_id is None:
             return IssuedClaims(tenant_id=None, tenant_role=None, app_roles=granted)
 
-        if tenant_id != user.tenant_id and not await self._access.exists(
-            user.id, tenant_id
-        ):
+        has_access = Specification(UserTenantAccessModel).where(
+            UserTenantAccessModel.user_id == user.id,
+            UserTenantAccessModel.tenant_id == tenant_id,
+        )
+        if tenant_id != user.tenant_id and not await self._access.exists(has_access):
             raise AuthorizationError("no access to the requested tenant")
 
         async with self._scope.for_tenant(tenant_id) as workspace:

@@ -9,6 +9,7 @@ password is a property of the person, not of any store they work at.
 
 from pydantic import Field
 
+from application.common.repository import MasterDbRepository
 from application.core import Command, IRequestHandler, Result
 from application.dtos import CurrentUser
 from application.errors import InvalidCredentialsError, NotFoundError
@@ -16,9 +17,11 @@ from application.ports import (
     Clock,
     MasterUnitOfWork,
     PasswordHasher,
-    RefreshTokenRepository,
-    UserRepository,
 )
+from application.services import TokenIssuer
+from application.specs import UserForWrite
+from domain.entities import User
+from infrastructure.persistence.master.models import UserModel
 
 
 class ChangePasswordCommand(Command[Result]):
@@ -29,22 +32,22 @@ class ChangePasswordCommand(Command[Result]):
 class ChangePasswordHandler(IRequestHandler[Result, ChangePasswordCommand]):
     def __init__(
         self,
-        users: UserRepository,
-        refresh_tokens: RefreshTokenRepository,
+        users: MasterDbRepository[User, UserModel],
+        issuer: TokenIssuer,
         hasher: PasswordHasher,
         clock: Clock,
         uow: MasterUnitOfWork,
         current_user: CurrentUser,
     ) -> None:
         self._users = users
-        self._refresh_tokens = refresh_tokens
+        self._issuer = issuer
         self._hasher = hasher
         self._clock = clock
         self._uow = uow
         self._user_id = current_user.user_id
 
     async def handle(self, request: ChangePasswordCommand) -> Result:
-        user = await self._users.get(self._user_id)
+        user = await self._users.find_one(UserForWrite(self._user_id))
         if user is None:
             raise NotFoundError("no such user")
         if user.password_hash is None or not self._hasher.verify(
@@ -57,6 +60,6 @@ class ChangePasswordHandler(IRequestHandler[Result, ChangePasswordCommand]):
         await self._users.update(user)
         # A password change invalidates sessions opened with the old one —
         # including the temporary password an operator may have seen.
-        await self._refresh_tokens.revoke_all_for_user(self._user_id, self._clock.now())
+        await self._issuer.revoke_all_for_user(self._user_id, self._clock.now())
         await self._uow.commit()
         return Result.succeed()

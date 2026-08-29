@@ -24,20 +24,19 @@ from uuid import uuid4
 
 from pydantic import Field
 
+from application.common.repository import MasterDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import AlreadyMemberError, InvitationError
 from application.models import AcceptInviteData
 from application.ports import (
     Clock,
-    InvitationRepository,
     MasterUnitOfWork,
     PasswordHasher,
     TenantScope,
     TokenService,
-    UserAppRoleRepository,
-    UserRepository,
-    UserTenantAccessRepository,
 )
+from application.specs import InvitationForWrite
 from domain.entities import (
     Employee,
     Invitation,
@@ -45,6 +44,12 @@ from domain.entities import (
     User,
     UserAppRole,
     UserTenantAccess,
+)
+from infrastructure.persistence.master.models import (
+    InvitationModel,
+    UserAppRoleModel,
+    UserModel,
+    UserTenantAccessModel,
 )
 
 
@@ -59,10 +64,10 @@ class AcceptInviteHandler(
 ):
     def __init__(
         self,
-        users: UserRepository,
-        invitations: InvitationRepository,
-        app_roles: UserAppRoleRepository,
-        access: UserTenantAccessRepository,
+        users: MasterDbRepository[User, UserModel],
+        invitations: MasterDbRepository[Invitation, InvitationModel],
+        app_roles: MasterDbRepository[UserAppRole, UserAppRoleModel],
+        access: MasterDbRepository[UserTenantAccess, UserTenantAccessModel],
         scope: TenantScope,
         tokens: TokenService,
         hasher: PasswordHasher,
@@ -85,7 +90,9 @@ class AcceptInviteHandler(
         invitation = await self._validate(request.token)
         now = self._clock.now()
 
-        user = await self._users.get_by_email(invitation.email)
+        user = await self._users.find_one(
+            Specification(UserModel).where(UserModel.email == invitation.email)
+        )
         is_new = user is None
         if user is None:
             if not request.password:
@@ -116,7 +123,10 @@ class AcceptInviteHandler(
     async def _grant_app_role(self, invitation: Invitation, user: User) -> None:
         if invitation.app_role is None:
             raise InvitationError("platform invitation carries no role")
-        held = {a.role for a in await self._app_roles.list_for_user(user.id)}
+        roles_of_user = Specification(UserAppRoleModel).where(
+            UserAppRoleModel.user_id == user.id
+        )
+        held = {a.role for a in await self._app_roles.find(roles_of_user)}
         if invitation.app_role in held:
             raise AlreadyMemberError(invitation.email)
         await self._app_roles.add(
@@ -131,10 +141,14 @@ class AcceptInviteHandler(
 
         # An existing user joining a second store keeps their home tenant and
         # gains an access grant — that is what makes X-Tenant switching work.
+        has_access = Specification(UserTenantAccessModel).where(
+            UserTenantAccessModel.user_id == user.id,
+            UserTenantAccessModel.tenant_id == invitation.tenant_id,
+        )
         if (
             not is_new
             and user.tenant_id != invitation.tenant_id
-            and not await self._access.exists(user.id, invitation.tenant_id)
+            and not await self._access.exists(has_access)
         ):
             await self._access.add(
                 UserTenantAccess(
@@ -164,7 +178,7 @@ class AcceptInviteHandler(
         if parsed is None:
             raise InvitationError("malformed invitation token")
         invitation_id, secret = parsed
-        invitation = await self._invitations.get(invitation_id)
+        invitation = await self._invitations.find_one(InvitationForWrite(invitation_id))
         if invitation is None or not hmac.compare_digest(
             invitation.token_hash, self._tokens.hash_opaque(secret)
         ):

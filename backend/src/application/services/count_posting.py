@@ -44,17 +44,23 @@ cannot be valued on the fortieth line rolls back the thirty-nine before it.
 
 from datetime import datetime
 
+from application.common.repository import TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import NotFoundError
 from application.ports import (
     Clock,
-    DeviceUnitRepository,
-    ProductRepository,
-    StockLevelRepository,
 )
 from application.services.cost_pools import CostPoolReader
 from application.services.ledger import LedgerPoster
-from domain.entities import DeviceUnit, StockCount, StockCountLine, StockCountUnit
+from application.specs import DeviceUnitById, StockLevelForPair
+from domain.entities import (
+    DeviceUnit,
+    Product,
+    StockCount,
+    StockCountLine,
+    StockCountUnit,
+    StockLevel,
+)
 from domain.enums import (
     DeviceCondition,
     DeviceStatus,
@@ -64,14 +70,15 @@ from domain.enums import (
 )
 from domain.errors import UnpricedUnitError
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel, StockLevelModel
 
 
 class CountPoster:
     def __init__(
         self,
-        units: DeviceUnitRepository,
-        products: ProductRepository,
-        levels: StockLevelRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        products: TenantDbRepository[Product, ProductModel],
+        levels: TenantDbRepository[StockLevel, StockLevelModel],
         pools: CostPoolReader,
         poster: LedgerPoster,
         clock: Clock,
@@ -123,7 +130,7 @@ class CountPoster:
         # produce a row with no handset behind it, and a missing one was
         # never scanned.
         assert counted.device_unit_id is not None
-        unit = await self._units.get(counted.device_unit_id)
+        unit = await self._units.find_one(DeviceUnitById(counted.device_unit_id))
         if unit is None:
             raise NotFoundError(
                 f"handset {counted.device_unit_id} does not exist in this store"
@@ -195,7 +202,7 @@ class CountPoster:
         count has not changed what it paid.
         """
         assert counted.device_unit_id is not None
-        unit = await self._units.get(counted.device_unit_id)
+        unit = await self._units.find_one(DeviceUnitById(counted.device_unit_id))
         if unit is None:
             raise NotFoundError(
                 f"handset {counted.device_unit_id} does not exist in this store"
@@ -254,7 +261,7 @@ class CountPoster:
         if line.counted_quantity is None:
             return None
 
-        level = await self._levels.get_for(line.product_id, count.location_id)
+        level = await self._levels.find_one(StockLevelForPair(line.product_id, count.location_id))
         on_hand = 0 if level is None else level.quantity
         delta = line.counted_quantity - on_hand
         if delta == 0:

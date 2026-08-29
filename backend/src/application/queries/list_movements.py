@@ -11,7 +11,7 @@ from uuid import UUID
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import MovementRowData
-from application.ports import StockMovementRepository
+from application.ports import StockMovementQueries
 from domain.enums import MovementType
 
 
@@ -28,7 +28,7 @@ class ListMovementsQuery(PagedQuery[PagedResult[MovementRowData]]):
 class ListMovementsHandler(
     IRequestHandler[PagedResult[MovementRowData], ListMovementsQuery]
 ):
-    def __init__(self, movements: StockMovementRepository) -> None:
+    def __init__(self, movements: StockMovementQueries) -> None:
         self._movements = movements
 
     async def handle(self, request: ListMovementsQuery) -> PagedResult[MovementRowData]:

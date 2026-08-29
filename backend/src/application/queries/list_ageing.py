@@ -12,7 +12,7 @@ from pydantic import Field
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.dtos import CurrentUser
 from application.models import AgeingRowData
-from application.ports import Clock, DeviceUnitRepository
+from application.ports import Clock, DeviceUnitQueries
 from application.sorting import AgeingSort
 from domain.permissions import Permission
 
@@ -25,7 +25,7 @@ class ListAgeingQuery(PagedQuery[PagedResult[AgeingRowData]]):
 
 class ListAgeingHandler(IRequestHandler[PagedResult[AgeingRowData], ListAgeingQuery]):
     def __init__(
-        self, units: DeviceUnitRepository, clock: Clock, current: CurrentUser
+        self, units: DeviceUnitQueries, clock: Clock, current: CurrentUser
     ) -> None:
         self._units = units
         self._clock = clock

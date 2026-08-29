@@ -10,10 +10,15 @@ from uuid import UUID
 
 from pydantic import EmailStr
 
+from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError, NotFoundError
 from application.models import CreditCompanyData
-from application.ports import CreditCompanyRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
+from application.specs import CreditCompanyForWrite
+from domain.entities import CreditCompany
+from infrastructure.persistence.tenant.models import CreditCompanyModel
 
 
 class UpdateCreditCompanyCommandPayload(CamelModel):
@@ -35,7 +40,9 @@ class UpdateCreditCompanyHandler(
     IRequestHandler[ResultWithData[CreditCompanyData], UpdateCreditCompanyCommand]
 ):
     def __init__(
-        self, companies: CreditCompanyRepository, uow: TenantUnitOfWork
+        self,
+        companies: TenantDbRepository[CreditCompany, CreditCompanyModel],
+        uow: TenantUnitOfWork,
     ) -> None:
         self._companies = companies
         self._uow = uow
@@ -43,15 +50,19 @@ class UpdateCreditCompanyHandler(
     async def handle(
         self, request: UpdateCreditCompanyCommand
     ) -> ResultWithData[CreditCompanyData]:
-        company = await self._companies.get(request.credit_company_id)
+        company = await self._companies.find_one(
+            CreditCompanyForWrite(request.credit_company_id)
+        )
         if company is None:
             raise NotFoundError("no such credit company in this store")
 
         sent = request.model_fields_set
         if request.name is not None:
             name = request.name.strip()
-            owner = await self._companies.get_by_name(name)
-            if owner is not None and owner.id != company.id:
+            taken = Specification(CreditCompanyModel).where(
+                CreditCompanyModel.name == name, CreditCompanyModel.id != company.id
+            )
+            if await self._companies.exists(taken):
                 raise DuplicateNameError(
                     f"a credit company called {name!r} already exists"
                 )

@@ -19,7 +19,6 @@ from application.ports import (
     TenantUnitOfWork,
 )
 from application.services import DocumentLineBuilder, DocumentNumberer
-from application.specs import SupplierById
 from domain.entities import PurchaseOrder, Supplier
 from domain.enums import DocumentStatus, DocumentType
 from infrastructure.persistence.tenant.models import PurchaseOrderModel, SupplierModel
@@ -64,7 +63,7 @@ class CreatePurchaseOrderHandler(
     async def handle(
         self, request: CreatePurchaseOrderCommand
     ) -> ResultWithData[PurchaseOrderData]:
-        if not await self._suppliers.exists(SupplierById(request.supplier_id)):
+        if await self._suppliers.get(request.supplier_id) is None:
             raise NotFoundError(
                 f"supplier {request.supplier_id} does not exist in this store"
             )

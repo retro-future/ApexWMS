@@ -11,10 +11,13 @@ for, and a Seller must see all of them.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
+from application.errors import NotFoundError
 from application.models import SalesInvoiceData
-from application.ports import PaymentRepository
-from application.services import DocumentLoader
+from application.specs import PaymentsForInvoice, SalesInvoiceById
+from domain.entities import Payment, SalesInvoice
+from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
 class GetSalesInvoiceQuery(Query[ResultWithData[SalesInvoiceData]]):
@@ -24,16 +27,26 @@ class GetSalesInvoiceQuery(Query[ResultWithData[SalesInvoiceData]]):
 class GetSalesInvoiceHandler(
     IRequestHandler[ResultWithData[SalesInvoiceData], GetSalesInvoiceQuery]
 ):
-    def __init__(self, loader: DocumentLoader, payments: PaymentRepository) -> None:
-        self._loader = loader
+    def __init__(
+        self,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+    ) -> None:
+        self._invoices = invoices
         self._payments = payments
 
     async def handle(
         self, request: GetSalesInvoiceQuery
     ) -> ResultWithData[SalesInvoiceData]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(
+            SalesInvoiceById(request.sales_invoice_id)
+        )
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.list_for_invoice(invoice.id)
+                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
             )
         )

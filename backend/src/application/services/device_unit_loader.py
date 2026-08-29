@@ -2,13 +2,19 @@
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.errors import NotFoundError
-from application.ports import DeviceUnitRepository, ProductRepository
+from application.specs import DeviceUnitById, DeviceUnitByImei
 from domain.entities import DeviceUnit, Product
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel
 
 
 class DeviceUnitLoader:
-    def __init__(self, units: DeviceUnitRepository, products: ProductRepository) -> None:
+    def __init__(
+        self,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        products: TenantDbRepository[Product, ProductModel],
+    ) -> None:
         self._units = units
         self._products = products
 
@@ -20,7 +26,7 @@ class DeviceUnitLoader:
         the resolution rule may fall back to — so the pair is loaded in one
         place rather than in each handler.
         """
-        unit = await self._units.get(device_unit_id)
+        unit = await self._units.find_one(DeviceUnitById(device_unit_id))
         if unit is None:
             raise NotFoundError("no such device unit in this store")
         return unit, await self._catalog_row_of(unit)
@@ -33,7 +39,7 @@ class DeviceUnitLoader:
         barcodes and SKUs left to try before anyone may say the code is
         unknown.
         """
-        unit = await self._units.get_by_imei(imei)
+        unit = await self._units.find_one(DeviceUnitByImei(imei))
         if unit is None:
             return None
         return unit, await self._catalog_row_of(unit)

@@ -14,16 +14,17 @@ currency rather than a total.
 from collections.abc import Sequence
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.dtos import LineInput
 from application.errors import NotFoundError
-from application.ports import ProductRepository
 from domain.entities import GoodsReceiptLine, Product, PurchaseOrderLine
 from domain.enums import TrackingType
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import ProductModel
 
 
 class DocumentLineBuilder:
-    def __init__(self, products: ProductRepository) -> None:
+    def __init__(self, products: TenantDbRepository[Product, ProductModel]) -> None:
         self._products = products
 
     async def order_lines(

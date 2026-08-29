@@ -25,7 +25,6 @@ from application.services.count_posting import CountPoster
 from application.services.device_unit_loader import DeviceUnitLoader
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.document_lines import DocumentLineBuilder
-from application.services.document_loader import DocumentLoader
 from application.services.document_numbering import DocumentNumberer
 from application.services.invoice_posting import InvoicePoster
 from application.services.ledger import LedgerPoster
@@ -55,7 +54,6 @@ __all__ = [
     "DeviceUnitLoader",
     "DeviceUnitRepricer",
     "DocumentLineBuilder",
-    "DocumentLoader",
     "DocumentNumberer",
     "InvoicePoster",
     "LedgerPoster",

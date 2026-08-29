@@ -9,15 +9,15 @@ ledger's ``PAYMENT_RECEIVED`` rows.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
+from application.common.specification import Specification
 from application.dtos import Discrepancy
-from application.ports import (
-    FinancialTransactionRepository,
-    PaymentRepository,
-    SalesInvoiceRepository,
-)
-from domain.entities import Payment
+from application.ports import FinancialTransactionQueries
+from application.specs import SalesInvoiceById
+from domain.entities import Payment, SalesInvoice
 from domain.enums import TransactionType
 from domain.value_objects import Currency, Money
+from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
 class BalanceVerifier:
@@ -25,9 +25,9 @@ class BalanceVerifier:
 
     def __init__(
         self,
-        invoices: SalesInvoiceRepository,
-        payments: PaymentRepository,
-        transactions: FinancialTransactionRepository,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+        transactions: FinancialTransactionQueries,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
@@ -40,7 +40,13 @@ class BalanceVerifier:
         of whatever wrote it wrong — and this is the one sweep whose
         findings are somebody's money.
         """
-        payments = await self._payments.list_all()
+        payments = list(
+            await self._payments.find(
+                Specification(PaymentModel).order(
+                    PaymentModel.occurred_at, PaymentModel.id
+                )
+            )
+        )
         return [
             *await self._verify_invoices(payments),
             *await self._verify_ledger_agrees(payments),
@@ -60,7 +66,7 @@ class BalanceVerifier:
 
         found: list[Discrepancy] = []
         for invoice_id, paid in collected.items():
-            invoice = await self._invoices.get(invoice_id)
+            invoice = await self._invoices.find_one(SalesInvoiceById(invoice_id))
             if invoice is None:
                 found.append(
                     Discrepancy(

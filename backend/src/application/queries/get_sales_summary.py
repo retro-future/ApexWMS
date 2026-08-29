@@ -16,7 +16,7 @@ from application.dtos import (
     SalesTotalsRow,
 )
 from application.models import SalesSummaryData
-from application.ports import FinancialTransactionRepository, StockMovementRepository
+from application.ports import FinancialTransactionQueries, StockMovementQueries
 from domain.enums import TransactionType
 from domain.value_objects import CurrencyTotals
 
@@ -32,8 +32,8 @@ class GetSalesSummaryHandler(
 ):
     def __init__(
         self,
-        transactions: FinancialTransactionRepository,
-        movements: StockMovementRepository,
+        transactions: FinancialTransactionQueries,
+        movements: StockMovementQueries,
     ) -> None:
         self._transactions = transactions
         self._movements = movements

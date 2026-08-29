@@ -12,11 +12,15 @@ how the refund gets recorded.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import NotFoundError
 from application.models import SalesInvoiceData
-from application.ports import PaymentRepository, TenantUnitOfWork
-from application.services import DocumentLoader, PaymentPoster
+from application.ports import TenantUnitOfWork
+from application.services import PaymentPoster
+from application.specs import PaymentsForInvoice, SalesInvoiceById
+from domain.entities import Payment, SalesInvoice
+from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
 class ReversePaymentCommand(Command[ResultWithData[SalesInvoiceData]]):
@@ -29,13 +33,13 @@ class ReversePaymentHandler(
 ):
     def __init__(
         self,
-        payments: PaymentRepository,
-        loader: DocumentLoader,
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         poster: PaymentPoster,
         uow: TenantUnitOfWork,
     ) -> None:
         self._payments = payments
-        self._loader = loader
+        self._invoices = invoices
         self._poster = poster
         self._uow = uow
 
@@ -46,12 +50,18 @@ class ReversePaymentHandler(
         if original is None:
             raise NotFoundError(f"payment {request.payment_id} does not exist in this store")
 
-        invoice = await self._loader.load_invoice(original.sales_invoice_id)
+        invoice = await self._invoices.find_one(
+            SalesInvoiceById(original.sales_invoice_id)
+        )
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {original.sales_invoice_id} does not exist in this store"
+            )
         await self._poster.reverse(original, invoice)
         await self._uow.commit()
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.list_for_invoice(invoice.id)
+                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
             )
         )

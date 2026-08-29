@@ -11,6 +11,8 @@ having the MasterDB URL is the credential that authorizes it.
 
 from uuid import uuid4
 
+from application.common.repository import MasterDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import AlreadyMemberError
 from application.models import CreateSuperAdminData
@@ -19,11 +21,10 @@ from application.ports import (
     MasterUnitOfWork,
     PasswordHasher,
     TokenService,
-    UserAppRoleRepository,
-    UserRepository,
 )
 from domain.entities import User, UserAppRole
 from domain.enums import AppRole
+from infrastructure.persistence.master.models import UserAppRoleModel, UserModel
 
 
 class CreateSuperAdminCommand(Command[ResultWithData[CreateSuperAdminData]]):
@@ -37,8 +38,8 @@ class CreateSuperAdminHandler(
 ):
     def __init__(
         self,
-        users: UserRepository,
-        app_roles: UserAppRoleRepository,
+        users: MasterDbRepository[User, UserModel],
+        app_roles: MasterDbRepository[UserAppRole, UserAppRoleModel],
         hasher: PasswordHasher,
         tokens: TokenService,
         clock: Clock,
@@ -55,7 +56,9 @@ class CreateSuperAdminHandler(
         self, request: CreateSuperAdminCommand
     ) -> ResultWithData[CreateSuperAdminData]:
         email = request.email.strip().lower()
-        if await self._users.get_by_email(email) is not None:
+        if await self._users.exists(
+            Specification(UserModel).where(UserModel.email == email)
+        ):
             raise AlreadyMemberError(email)
 
         temporary_password = self._tokens.new_opaque_secret()

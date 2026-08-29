@@ -12,14 +12,14 @@ no receipt at all (FR-6.4b).
 
 from uuid import UUID
 
-from application.ports import GoodsReceiptRepository
+from application.ports import GoodsReceiptQueries
 from domain.entities import DeviceUnit
 from domain.enums import DocumentType
 from domain.errors import UnitNotFromSupplierError
 
 
 class UnitOriginGuard:
-    def __init__(self, receipts: GoodsReceiptRepository) -> None:
+    def __init__(self, receipts: GoodsReceiptQueries) -> None:
         self._receipts = receipts
 
     async def assert_from_supplier(

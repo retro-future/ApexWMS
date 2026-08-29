@@ -11,10 +11,13 @@ first row is where the product's pricing started, not a gap in the data.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import PriceChangeData
-from application.ports import ProductPriceChangeRepository, ProductRepository
+from application.specs import PriceChangesForProduct
+from domain.entities import Product, ProductPriceChange
+from infrastructure.persistence.tenant.models import ProductModel, ProductPriceChangeModel
 
 
 class GetProductPriceHistoryQuery(Query[ResultWithData[list[PriceChangeData]]]):
@@ -26,8 +29,8 @@ class GetProductPriceHistoryHandler(
 ):
     def __init__(
         self,
-        products: ProductRepository,
-        changes: ProductPriceChangeRepository,
+        products: TenantDbRepository[Product, ProductModel],
+        changes: TenantAppendOnlyRepository[ProductPriceChange, ProductPriceChangeModel],
     ) -> None:
         self._products = products
         self._changes = changes
@@ -40,7 +43,7 @@ class GetProductPriceHistoryHandler(
         if await self._products.get(request.product_id) is None:
             raise NotFoundError("no such product in this store")
 
-        changes = await self._changes.list_for_product(request.product_id)
+        changes = await self._changes.find(PriceChangesForProduct(request.product_id))
         return ResultWithData[list[PriceChangeData]].succeed_with_data(
             [PriceChangeData.from_entity(change) for change in changes]
         )

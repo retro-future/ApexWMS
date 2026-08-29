@@ -17,18 +17,23 @@ same every time it is asked for.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
+from application.errors import NotFoundError
 from application.ports import (
-    DeviceUnitRepository,
     InvoiceRenderer,
-    ProductRepository,
     TenantSettingsRepository,
 )
-from application.services import DocumentLoader
-from domain.entities import SalesInvoice
+from application.specs import DeviceUnitById, SalesInvoiceById
+from domain.entities import DeviceUnit, Product, SalesInvoice
 from domain.enums import DocumentStatus
 from domain.errors import DocumentNotConfirmedError
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    ProductModel,
+    SalesInvoiceModel,
+)
 
 
 class GetSalesInvoicePdfQuery(Query[ResultWithData[RenderedDocument]]):
@@ -40,13 +45,13 @@ class GetSalesInvoicePdfHandler(
 ):
     def __init__(
         self,
-        loader: DocumentLoader,
-        products: ProductRepository,
-        units: DeviceUnitRepository,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        products: TenantDbRepository[Product, ProductModel],
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         settings: TenantSettingsRepository,
         renderer: InvoiceRenderer,
     ) -> None:
-        self._loader = loader
+        self._invoices = invoices
         self._products = products
         self._units = units
         self._settings = settings
@@ -55,7 +60,13 @@ class GetSalesInvoicePdfHandler(
     async def handle(
         self, request: GetSalesInvoicePdfQuery
     ) -> ResultWithData[RenderedDocument]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(
+            SalesInvoiceById(request.sales_invoice_id)
+        )
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
         if invoice.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{invoice.number} is still a draft and holds no prices — "
@@ -85,7 +96,7 @@ class GetSalesInvoicePdfHandler(
             product = await self._products.get(line.product_id)
             name = str(line.product_id) if product is None else product.name
             if line.device_unit_id is not None:
-                unit = await self._units.get(line.device_unit_id)
+                unit = await self._units.find_one(DeviceUnitById(line.device_unit_id))
                 if unit is not None:
                     name = f"{name}  IMEI {unit.imei}"
             descriptions[line.id] = name

@@ -11,6 +11,8 @@ CLI-only: there is no HTTP surface that creates a tenant (PRD §3.4).
 
 from uuid import uuid4
 
+from application.common.repository import MasterDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.dtos import OwnerSeed
 from application.errors import AlreadyMemberError, SlugAlreadyTakenError
@@ -20,13 +22,12 @@ from application.ports import (
     MasterUnitOfWork,
     PasswordHasher,
     TenantProvisioner,
-    TenantRepository,
     TokenService,
-    UserRepository,
 )
 from application.services import SlugNormalizer, TimezoneValidator
 from domain.entities import Tenant, User
 from domain.enums import TenantStatus
+from infrastructure.persistence.master.models import TenantModel, UserModel
 
 
 class CreateTenantCommand(Command[ResultWithData[CreateTenantData]]):
@@ -42,8 +43,8 @@ class CreateTenantHandler(
 ):
     def __init__(
         self,
-        tenants: TenantRepository,
-        users: UserRepository,
+        tenants: MasterDbRepository[Tenant, TenantModel],
+        users: MasterDbRepository[User, UserModel],
         hasher: PasswordHasher,
         tokens: TokenService,
         provisioner: TenantProvisioner,
@@ -67,13 +68,17 @@ class CreateTenantHandler(
     ) -> ResultWithData[CreateTenantData]:
         self._timezones.validate(request.timezone)
         slug = self._slugs.normalize(request.slug)
-        if await self._tenants.get_by_slug(slug) is not None:
+        if await self._tenants.exists(
+            Specification(TenantModel).where(TenantModel.slug == slug)
+        ):
             raise SlugAlreadyTakenError(slug)
 
         owner_email = request.owner_email.strip().lower()
         # Email is unique platform-wide now, so an existing person cannot be
         # made the Owner this way — invite them into the store instead.
-        if await self._users.get_by_email(owner_email) is not None:
+        if await self._users.exists(
+            Specification(UserModel).where(UserModel.email == owner_email)
+        ):
             raise AlreadyMemberError(owner_email)
 
         now = self._clock.now()

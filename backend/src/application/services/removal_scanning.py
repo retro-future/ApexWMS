@@ -18,21 +18,23 @@ under an open return.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.errors import NotFoundError
-from application.ports import ProductRepository
 from application.services.device_unit_loader import DeviceUnitLoader
 from application.services.unit_origin import UnitOriginGuard
+from application.specs import ProductByBarcode, ProductBySku
 from domain.entities import DeviceUnit, Product
 from domain.enums import DeviceStatus, TrackingType
 from domain.errors import InvalidIMEIError, UnitNotRemovableError, WrongLocationError
 from domain.value_objects import IMEI
+from infrastructure.persistence.tenant.models import ProductModel
 
 
 class RemovalScanner:
     def __init__(
         self,
         units: DeviceUnitLoader,
-        products: ProductRepository,
+        products: TenantDbRepository[Product, ProductModel],
         origin: UnitOriginGuard,
     ) -> None:
         self._units = units
@@ -82,9 +84,9 @@ class RemovalScanner:
         return await self._units.load_by_imei(str(imei))
 
     async def _as_product(self, code: str) -> Product:
-        product = await self._products.get_by_barcode(code)
+        product = await self._products.find_one(ProductByBarcode(code))
         if product is None:
-            product = await self._products.get_by_sku(code)
+            product = await self._products.find_one(ProductBySku(code))
         if product is None:
             raise NotFoundError(f"nothing in this store is identified by {code!r}")
         return product

@@ -14,14 +14,17 @@ surfaces on the needs-pricing worklist (FR-9.6).
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.models import DeviceUnitData
-from application.ports import DeviceUnitRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
 from application.services import DeviceUnitLoader
+from domain.entities import DeviceUnit
 from domain.enums import DeviceCondition
 from domain.errors import UnitNotRepriceableError
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import DeviceUnitModel
 
 
 class ChangeDeviceUnitConditionCommandPayload(CamelModel):
@@ -40,7 +43,7 @@ class ChangeDeviceUnitConditionHandler(
 ):
     def __init__(
         self,
-        units: DeviceUnitRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         loader: DeviceUnitLoader,
         uow: TenantUnitOfWork,
         current: CurrentUser,

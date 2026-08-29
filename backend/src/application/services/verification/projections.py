@@ -6,18 +6,36 @@ the append-only rows that are supposed to imply it. A mismatch means
 something wrote a projection without writing the row behind it.
 """
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
+from application.common.specification import Specification
 from application.dtos import Discrepancy
-from application.ports import (
-    DeviceUnitPriceChangeRepository,
-    DeviceUnitRepository,
-    ProductPriceChangeRepository,
-    ProductRepository,
-    StockLevelRepository,
-    StockMovementRepository,
+from application.ports import StockMovementQueries
+from application.specs import (
+    DeviceUnitById,
+    LatestPriceChangeForProduct,
+    LatestPriceChangeForUnit,
+    MovementsForUnit,
+    OnHandDeviceUnits,
+    ProductBrowse,
 )
-from domain.entities import DeviceUnit
+from domain.entities import (
+    DeviceUnit,
+    DeviceUnitPriceChange,
+    Product,
+    ProductPriceChange,
+    StockLevel,
+    StockMovement,
+)
 from domain.services import UnitProjector
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    DeviceUnitPriceChangeModel,
+    ProductModel,
+    ProductPriceChangeModel,
+    StockLevelModel,
+    StockMovementModel,
+)
 
 # How many catalog rows a sweep pulls at a time.
 _PAGE_SIZE = 200
@@ -28,15 +46,21 @@ class ProjectionVerifier:
 
     def __init__(
         self,
-        movements: StockMovementRepository,
-        levels: StockLevelRepository,
-        units: DeviceUnitRepository,
-        unit_prices: DeviceUnitPriceChangeRepository,
-        products: ProductRepository,
-        product_prices: ProductPriceChangeRepository,
+        movements: TenantAppendOnlyRepository[StockMovement, StockMovementModel],
+        movement_queries: StockMovementQueries,
+        levels: TenantDbRepository[StockLevel, StockLevelModel],
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
+        unit_prices: TenantAppendOnlyRepository[
+            DeviceUnitPriceChange, DeviceUnitPriceChangeModel
+        ],
+        products: TenantDbRepository[Product, ProductModel],
+        product_prices: TenantAppendOnlyRepository[
+            ProductPriceChange, ProductPriceChangeModel
+        ],
         projector: UnitProjector,
     ) -> None:
         self._movements = movements
+        self._movement_queries = movement_queries
         self._levels = levels
         self._units = units
         self._unit_prices = unit_prices
@@ -64,16 +88,16 @@ class ProjectionVerifier:
         sweeping only the ledger would miss a level invented out of thin
         air. Each is a different bug and both are worth catching.
         """
-        pairs = set(await self._movements.list_moved_pairs())
+        pairs = set(await self._movement_queries.moved_pairs())
         stored = {
             (level.product_id, level.location_id): level
-            for level in await self._levels.list_all()
+            for level in await self._levels.find(Specification(StockLevelModel))
         }
         found: list[Discrepancy] = []
 
         for pair in pairs | set(stored):
             product_id, location_id = pair
-            expected = await self._movements.net_quantity(product_id, location_id)
+            expected = await self._movement_queries.net_quantity(product_id, location_id)
             level = stored.get(pair)
             actual = 0 if level is None else level.quantity
             if expected != actual:
@@ -96,10 +120,10 @@ class ProjectionVerifier:
         sales history is still not replayed: units that both sides agree
         have left are skipped.
         """
-        by_id = {unit.id: unit for unit in await self._units.list_on_hand()}
-        for unit_id in await self._movements.list_units_on_hand():
+        by_id = {unit.id: unit for unit in await self._units.find(OnHandDeviceUnits())}
+        for unit_id in await self._movement_queries.units_on_hand():
             if unit_id not in by_id:
-                unit = await self._units.get(unit_id)
+                unit = await self._units.find_one(DeviceUnitById(unit_id))
                 if unit is not None:
                     by_id[unit_id] = unit
         return list(by_id.values())
@@ -108,7 +132,7 @@ class ProjectionVerifier:
         """Each handset's status and location against its own timeline."""
         found: list[Discrepancy] = []
         for unit in units:
-            history = await self._movements.list_for_unit(unit.id)
+            history = await self._movements.find(MovementsForUnit(unit.id))
             if not history:
                 found.append(
                     Discrepancy(
@@ -133,7 +157,7 @@ class ProjectionVerifier:
         """``asking_price`` against the last row of the unit's price log."""
         found: list[Discrepancy] = []
         for unit in units:
-            latest = await self._unit_prices.latest_for_unit(unit.id)
+            latest = await self._unit_prices.find_one(LatestPriceChangeForUnit(unit.id))
             expected = latest.new_price if latest else None
             if expected != unit.asking_price:
                 found.append(
@@ -155,9 +179,13 @@ class ProjectionVerifier:
         found: list[Discrepancy] = []
         page = 1
         while True:
-            products, total = await self._products.list_page(page, _PAGE_SIZE)
+            spec = ProductBrowse()
+            total = await self._products.count(spec)
+            products = await self._products.find(spec.page(page, _PAGE_SIZE))
             for product in products:
-                latest = await self._product_prices.latest_for_product(product.id)
+                latest = await self._product_prices.find_one(
+                    LatestPriceChangeForProduct(product.id)
+                )
                 expected = latest.new_price if latest else None
                 if expected != product.default_sale_price:
                     found.append(

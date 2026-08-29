@@ -8,11 +8,14 @@ confirmed.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, Result
 from application.errors import NotFoundError
-from application.ports import GoodsReceiptRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import TenantUnitOfWork
+from application.specs import GoodsReceiptForWrite
+from domain.entities import GoodsReceipt
 from domain.value_objects import IMEI
+from infrastructure.persistence.tenant.models import GoodsReceiptModel
 
 
 class UnscanReceiptUnitCommand(Command[Result]):
@@ -25,16 +28,19 @@ class UnscanReceiptUnitCommand(Command[Result]):
 class UnscanReceiptUnitHandler(IRequestHandler[Result, UnscanReceiptUnitCommand]):
     def __init__(
         self,
-        receipts: GoodsReceiptRepository,
-        loader: DocumentLoader,
+        receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
         uow: TenantUnitOfWork,
     ) -> None:
         self._receipts = receipts
-        self._loader = loader
         self._uow = uow
 
     async def handle(self, request: UnscanReceiptUnitCommand) -> Result:
-        receipt = await self._loader.load_receipt(request.goods_receipt_id)
+        spec = GoodsReceiptForWrite(request.goods_receipt_id)
+        receipt = await self._receipts.find_one(spec)
+        if receipt is None:
+            raise NotFoundError(
+                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+            )
         receipt.assert_editable()
 
         wanted = IMEI.parse(request.imei)
@@ -43,7 +49,7 @@ class UnscanReceiptUnitHandler(IRequestHandler[Result, UnscanReceiptUnitCommand]
             if found is None:
                 continue
             line.units.remove(found)
-            await self._receipts.remove_unit(found.id)
+            await self._receipts.update(receipt, spec)
             await self._uow.commit()
             return Result.succeed(f"{wanted} removed from {receipt.number}")
 

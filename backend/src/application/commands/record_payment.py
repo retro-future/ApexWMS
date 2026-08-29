@@ -12,13 +12,18 @@ sees the recomputed remaining balance without a second round trip.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
+from application.errors import NotFoundError
 from application.models import SalesInvoiceData
-from application.ports import PaymentRepository, TenantUnitOfWork
-from application.services import DocumentLoader, PaymentPoster, SalePriceParser
+from application.ports import TenantUnitOfWork
+from application.services import PaymentPoster, SalePriceParser
+from application.specs import PaymentsForInvoice, SalesInvoiceById
+from domain.entities import Payment, SalesInvoice
 from domain.enums import PaymentMethod
 from domain.errors import InvalidMoneyError
 from domain.value_objects import Currency
+from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
 class RecordPaymentCommandPayload(CamelModel):
@@ -40,13 +45,13 @@ class RecordPaymentHandler(
 ):
     def __init__(
         self,
-        loader: DocumentLoader,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         poster: PaymentPoster,
-        payments: PaymentRepository,
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
         prices: SalePriceParser,
         uow: TenantUnitOfWork,
     ) -> None:
-        self._loader = loader
+        self._invoices = invoices
         self._poster = poster
         self._payments = payments
         self._prices = prices
@@ -55,7 +60,13 @@ class RecordPaymentHandler(
     async def handle(
         self, request: RecordPaymentCommand
     ) -> ResultWithData[SalesInvoiceData]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(
+            SalesInvoiceById(request.sales_invoice_id)
+        )
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
         amount = self._prices.parse(request.amount, Currency.UZS)
         if amount is None:
             raise InvalidMoneyError("a payment states an amount")
@@ -65,6 +76,6 @@ class RecordPaymentHandler(
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.list_for_invoice(invoice.id)
+                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
             )
         )

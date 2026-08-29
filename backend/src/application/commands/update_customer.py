@@ -8,10 +8,14 @@ from uuid import UUID
 
 from pydantic import Field
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import NotFoundError
 from application.models import CustomerData
-from application.ports import CustomerRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
+from application.specs import CustomerForWrite
+from domain.entities import Customer
+from infrastructure.persistence.tenant.models import CustomerModel
 
 
 class UpdateCustomerCommand(Command[ResultWithData[CustomerData]]):
@@ -24,13 +28,17 @@ class UpdateCustomerCommand(Command[ResultWithData[CustomerData]]):
 class UpdateCustomerHandler(
     IRequestHandler[ResultWithData[CustomerData], UpdateCustomerCommand]
 ):
-    def __init__(self, customers: CustomerRepository, uow: TenantUnitOfWork) -> None:
+    def __init__(
+        self,
+        customers: TenantDbRepository[Customer, CustomerModel],
+        uow: TenantUnitOfWork,
+    ) -> None:
         self._customers = customers
         self._uow = uow
 
     async def handle(self, request: UpdateCustomerCommand) -> ResultWithData[CustomerData]:
         assert request.customer_id is not None
-        customer = await self._customers.get(request.customer_id)
+        customer = await self._customers.find_one(CustomerForWrite(request.customer_id))
         if customer is None:
             raise NotFoundError("no such customer in this store")
 

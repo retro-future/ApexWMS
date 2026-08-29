@@ -15,17 +15,21 @@ when the unit sells, as a thin or negative margin, not when the owner
 changes the sticker.
 """
 
+from application.common.repository import TenantAppendOnlyRepository
 from application.dtos import CurrentUser
-from application.ports import Clock, DeviceUnitPriceChangeRepository
+from application.ports import Clock
 from domain.entities import DeviceUnit, DeviceUnitPriceChange
 from domain.errors import CurrencyMismatchError
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import DeviceUnitPriceChangeModel
 
 
 class DeviceUnitRepricer:
     def __init__(
         self,
-        changes: DeviceUnitPriceChangeRepository,
+        changes: TenantAppendOnlyRepository[
+            DeviceUnitPriceChange, DeviceUnitPriceChangeModel
+        ],
         clock: Clock,
         current: CurrentUser,
     ) -> None:

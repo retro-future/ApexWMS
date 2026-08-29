@@ -13,11 +13,11 @@ from uuid import UUID
 from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, Result
 from application.errors import NotFoundError
-from application.ports import DeviceUnitRepository, TenantUnitOfWork
-from application.specs import SupplierReturnForWrite
-from domain.entities import SupplierReturn
+from application.ports import TenantUnitOfWork
+from application.specs import DeviceUnitByImei, SupplierReturnForWrite
+from domain.entities import DeviceUnit, SupplierReturn
 from domain.value_objects import IMEI
-from infrastructure.persistence.tenant.models import SupplierReturnModel
+from infrastructure.persistence.tenant.models import DeviceUnitModel, SupplierReturnModel
 
 
 class UnscanSupplierReturnLineCommand(Command[Result]):
@@ -33,7 +33,7 @@ class UnscanSupplierReturnLineHandler(
     def __init__(
         self,
         returns: TenantDbRepository[SupplierReturn, SupplierReturnModel],
-        units: DeviceUnitRepository,
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         uow: TenantUnitOfWork,
     ) -> None:
         self._returns = returns
@@ -50,7 +50,7 @@ class UnscanSupplierReturnLineHandler(
         document.assert_editable()
 
         wanted = IMEI.parse(request.imei)
-        unit = await self._units.get_by_imei(str(wanted))
+        unit = await self._units.find_one(DeviceUnitByImei(str(wanted)))
         line = None if unit is None else document.line_for_unit(unit.id)
         if line is None:
             raise NotFoundError(f"{document.number} has no scan of IMEI {wanted}")

@@ -9,12 +9,17 @@ row. A list that showed ``remaining = 0`` on a store-credit sale because
 it never looked would be worse than one that showed nothing at all.
 """
 
+from collections import defaultdict
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
+from application.common.specification import Specification
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import SalesInvoiceData
-from application.ports import PaymentRepository, SalesInvoiceRepository
+from application.specs import SalesInvoiceBrowse
+from domain.entities import Payment, SalesInvoice
 from domain.enums import DocumentStatus
+from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
 class ListSalesInvoicesQuery(PagedQuery[PagedResult[SalesInvoiceData]]):
@@ -28,7 +33,9 @@ class ListSalesInvoicesHandler(
     IRequestHandler[PagedResult[SalesInvoiceData], ListSalesInvoicesQuery]
 ):
     def __init__(
-        self, invoices: SalesInvoiceRepository, payments: PaymentRepository
+        self,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
+        payments: TenantAppendOnlyRepository[Payment, PaymentModel],
     ) -> None:
         self._invoices = invoices
         self._payments = payments
@@ -36,15 +43,26 @@ class ListSalesInvoicesHandler(
     async def handle(
         self, request: ListSalesInvoicesQuery
     ) -> PagedResult[SalesInvoiceData]:
-        invoices, total = await self._invoices.list_page(
-            page=request.page,
-            page_size=request.page_size,
+        spec = SalesInvoiceBrowse(
             search=request.search,
             status=request.status,
             customer_id=request.customer_id,
             location_id=request.location_id,
         )
-        paid = await self._payments.list_for_invoices([i.id for i in invoices])
+        total = await self._invoices.count(spec)
+        invoices = await self._invoices.find(
+            spec.page(request.page, request.page_size)
+        )
+        ids = [invoice.id for invoice in invoices]
+        paid: defaultdict[UUID, list[Payment]] = defaultdict(list)
+        if ids:
+            spec = (
+                Specification(PaymentModel)
+                .where(PaymentModel.sales_invoice_id.in_(ids))
+                .order(PaymentModel.occurred_at, PaymentModel.id)
+            )
+            for payment in await self._payments.find(spec):
+                paid[payment.sales_invoice_id].append(payment)
         return PagedResult[SalesInvoiceData].succeed_with_data(
             data=[
                 SalesInvoiceData.from_entity(invoice, paid.get(invoice.id, []))

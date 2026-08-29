@@ -11,7 +11,7 @@ from uuid import UUID
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import FinancialLedgerRowData
-from application.ports import FinancialTransactionRepository
+from application.ports import FinancialTransactionQueries
 from domain.enums import DocumentType, TransactionType
 
 
@@ -26,7 +26,7 @@ class ListFinancialLedgerQuery(PagedQuery[PagedResult[FinancialLedgerRowData]]):
 class ListFinancialLedgerHandler(
     IRequestHandler[PagedResult[FinancialLedgerRowData], ListFinancialLedgerQuery]
 ):
-    def __init__(self, transactions: FinancialTransactionRepository) -> None:
+    def __init__(self, transactions: FinancialTransactionQueries) -> None:
         self._transactions = transactions
 
     async def handle(

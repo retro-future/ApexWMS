@@ -15,7 +15,7 @@ from application.errors import NotFoundError
 from application.models import PurchaseOrderData
 from application.ports import (
     Clock,
-    GoodsReceiptRepository,
+    GoodsReceiptQueries,
     TenantUnitOfWork,
 )
 from application.specs import PurchaseOrderForWrite
@@ -40,13 +40,13 @@ class CancelPurchaseOrderHandler(
     def __init__(
         self,
         orders: TenantDbRepository[PurchaseOrder, PurchaseOrderModel],
-        receipts: GoodsReceiptRepository,
+        queries: GoodsReceiptQueries,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._orders = orders
-        self._receipts = receipts
+        self._queries = queries
         self._clock = clock
         self._uow = uow
         self._current = current
@@ -65,7 +65,7 @@ class CancelPurchaseOrderHandler(
         await self._orders.update(order, spec)
         await self._uow.commit()
 
-        received = await self._receipts.received_quantities(order.id)
+        received = await self._queries.received_quantities(order.id)
         return ResultWithData[PurchaseOrderData].succeed_with_data(
             PurchaseOrderData.from_entity(order, received)
         )

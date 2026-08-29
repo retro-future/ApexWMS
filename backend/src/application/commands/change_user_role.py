@@ -11,10 +11,14 @@ path is parsed (see ``presentation/routers/users.py``).
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, Result
 from application.errors import LastOwnerError, NotFoundError
-from application.ports import EmployeeRepository, TenantUnitOfWork
+from application.ports import TenantUnitOfWork
+from application.specs import ActiveOwners, EmployeeForWrite
+from domain.entities import Employee
 from domain.enums import TenantRole
+from infrastructure.persistence.tenant.models import EmployeeModel
 
 
 class ChangeUserRoleCommandPayload(CamelModel):
@@ -26,18 +30,22 @@ class ChangeUserRoleCommand(ChangeUserRoleCommandPayload, Command[Result]):
 
 
 class ChangeUserRoleHandler(IRequestHandler[Result, ChangeUserRoleCommand]):
-    def __init__(self, employees: EmployeeRepository, uow: TenantUnitOfWork) -> None:
+    def __init__(
+        self,
+        employees: TenantDbRepository[Employee, EmployeeModel],
+        uow: TenantUnitOfWork,
+    ) -> None:
         self._employees = employees
         self._uow = uow
 
     async def handle(self, request: ChangeUserRoleCommand) -> Result:
-        employee = await self._employees.get(request.target_user_id)
+        employee = await self._employees.find_one(EmployeeForWrite(request.target_user_id))
         if employee is None:
             raise NotFoundError("no such employee at this store")
         if (
             employee.role is TenantRole.OWNER
             and request.role is not TenantRole.OWNER
-            and await self._employees.count_owners() <= 1
+            and await self._employees.count(ActiveOwners()) <= 1
         ):
             raise LastOwnerError("a store must keep at least one Owner")
         employee.role = request.role

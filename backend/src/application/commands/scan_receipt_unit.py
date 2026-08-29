@@ -20,17 +20,19 @@ nothing else (FR-3.4b); an Owner or Manager prices it, here or afterwards.
 
 from uuid import UUID, uuid4
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import DuplicateImeiError, NotFoundError
 from application.models import ScanResultData
-from application.ports import DeviceUnitRepository, GoodsReceiptRepository, TenantUnitOfWork
-from application.services import DocumentLoader
-from domain.entities import GoodsReceipt, GoodsReceiptLine, ReceivedUnit
+from application.ports import TenantUnitOfWork
+from application.specs import DeviceUnitByImei, GoodsReceiptForWrite
+from domain.entities import DeviceUnit, GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.enums import DeviceCondition
 from domain.errors import ReceiptIncompleteError
 from domain.permissions import Permission
 from domain.value_objects import IMEI, Currency, Money
+from infrastructure.persistence.tenant.models import DeviceUnitModel, GoodsReceiptModel
 
 
 class ScanReceiptUnitCommandPayload(CamelModel):
@@ -60,22 +62,25 @@ class ScanReceiptUnitHandler(
 ):
     def __init__(
         self,
-        receipts: GoodsReceiptRepository,
-        units: DeviceUnitRepository,
-        loader: DocumentLoader,
+        receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
+        units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._receipts = receipts
         self._units = units
-        self._loader = loader
         self._uow = uow
         self._current = current
 
     async def handle(
         self, request: ScanReceiptUnitCommand
     ) -> ResultWithData[ScanResultData]:
-        receipt = await self._loader.load_receipt(request.goods_receipt_id)
+        spec = GoodsReceiptForWrite(request.goods_receipt_id)
+        receipt = await self._receipts.find_one(spec)
+        if receipt is None:
+            raise NotFoundError(
+                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+            )
         receipt.assert_editable()
 
         imei = IMEI.parse(request.imei)
@@ -97,7 +102,7 @@ class ScanReceiptUnitHandler(
             # happened (§6).
             return self._result(already, line)
 
-        existing = await self._units.get_by_imei(str(imei))
+        existing = await self._units.find_one(DeviceUnitByImei(str(imei)))
         if existing is not None:
             where = f" at location {existing.location_id}" if existing.location_id else ""
             raise DuplicateImeiError(
@@ -124,7 +129,7 @@ class ScanReceiptUnitHandler(
             cash_paid_currency=request.cash_paid_currency,
         )
         line.units.append(unit)
-        await self._receipts.add_unit(unit)
+        await self._receipts.update(receipt, spec)
         await self._uow.commit()
         return self._result(unit, line)
 

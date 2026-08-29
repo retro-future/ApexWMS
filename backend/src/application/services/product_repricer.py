@@ -13,17 +13,19 @@ catalog at resolution time, a priced unit ignores it — FR-2.20). There is
 no cascade here because there is nothing to cascade to.
 """
 
+from application.common.repository import TenantAppendOnlyRepository
 from application.dtos import CurrentUser
-from application.ports import Clock, ProductPriceChangeRepository
+from application.ports import Clock
 from domain.entities import Product, ProductPriceChange
 from domain.errors import PriceCannotBeUnsetError
 from domain.value_objects import Money
+from infrastructure.persistence.tenant.models import ProductPriceChangeModel
 
 
 class ProductRepricer:
     def __init__(
         self,
-        changes: ProductPriceChangeRepository,
+        changes: TenantAppendOnlyRepository[ProductPriceChange, ProductPriceChangeModel],
         clock: Clock,
         current: CurrentUser,
     ) -> None:

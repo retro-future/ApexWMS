@@ -16,14 +16,17 @@ discrepancy in the check that exists to catch real ones.
 
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.errors import NotFoundError
-from application.ports import (
-    FinancialTransactionRepository,
-    ProductRepository,
-    StockMovementRepository,
-)
+from application.specs import MovementsForPair, TransactionsForPair
+from domain.entities import FinancialTransaction, Product, StockMovement
 from domain.enums import TransactionType
 from domain.value_objects import CostPool, Money
+from infrastructure.persistence.tenant.models import (
+    FinancialTransactionModel,
+    ProductModel,
+    StockMovementModel,
+)
 
 # How each category moves *inventory value*, which is not the same as how
 # it moves money — and the mismatch is the trap this table exists to close.
@@ -50,9 +53,11 @@ class CostPoolReader:
 
     def __init__(
         self,
-        products: ProductRepository,
-        movements: StockMovementRepository,
-        transactions: FinancialTransactionRepository,
+        products: TenantDbRepository[Product, ProductModel],
+        movements: TenantAppendOnlyRepository[StockMovement, StockMovementModel],
+        transactions: TenantAppendOnlyRepository[
+            FinancialTransaction, FinancialTransactionModel
+        ],
     ) -> None:
         self._products = products
         self._movements = movements
@@ -92,7 +97,9 @@ class CostPoolReader:
 
         value_in = await self._value_added_per_document(product_id, location_id)
         pool = CostPool.empty(product.currency)
-        for movement in await self._movements.list_for_pair(product_id, location_id):
+        for movement in await self._movements.find(
+            MovementsForPair(product_id, location_id)
+        ):
             if movement.quantity_delta > 0:
                 pool = pool.receive_total(
                     movement.quantity_delta,
@@ -112,7 +119,9 @@ class CostPoolReader:
         comparing the money ledger against itself.
         """
         added: dict[UUID, Money] = {}
-        for txn in await self._transactions.list_for_pair(product_id, location_id):
+        for txn in await self._transactions.find(
+            TransactionsForPair(product_id, location_id)
+        ):
             sign = INVENTORY_SIGN.get(txn.txn_type)
             if sign is None:
                 continue

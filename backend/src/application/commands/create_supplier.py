@@ -9,11 +9,11 @@ from uuid import uuid4
 from pydantic import EmailStr
 
 from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError
 from application.models import SupplierData
 from application.ports import Clock, TenantUnitOfWork
-from application.specs import SupplierByName
 from domain.entities import Supplier
 from infrastructure.persistence.tenant.models import SupplierModel
 
@@ -40,7 +40,9 @@ class CreateSupplierHandler(
 
     async def handle(self, request: CreateSupplierCommand) -> ResultWithData[SupplierData]:
         name = request.name.strip()
-        if await self._suppliers.exists(SupplierByName(name)):
+        if await self._suppliers.exists(
+            Specification(SupplierModel).where(SupplierModel.name == name)
+        ):
             raise DuplicateNameError(f"a supplier called {name!r} already exists")
 
         supplier = Supplier(

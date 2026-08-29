@@ -8,11 +8,14 @@ kept. The moment that stops being true is confirm, which is why
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import NotFoundError
 from application.models import SalesInvoiceData
-from application.ports import SalesInvoiceRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import TenantUnitOfWork
+from application.specs import SalesInvoiceForWrite
+from domain.entities import SalesInvoice
+from infrastructure.persistence.tenant.models import SalesInvoiceModel
 
 
 class UnscanInvoiceLineCommand(Command[ResultWithData[SalesInvoiceData]]):
@@ -26,18 +29,21 @@ class UnscanInvoiceLineHandler(
 ):
     def __init__(
         self,
-        invoices: SalesInvoiceRepository,
-        loader: DocumentLoader,
+        invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         uow: TenantUnitOfWork,
     ) -> None:
         self._invoices = invoices
-        self._loader = loader
         self._uow = uow
 
     async def handle(
         self, request: UnscanInvoiceLineCommand
     ) -> ResultWithData[SalesInvoiceData]:
-        invoice = await self._loader.load_invoice(request.sales_invoice_id)
+        spec = SalesInvoiceForWrite(request.sales_invoice_id)
+        invoice = await self._invoices.find_one(spec)
+        if invoice is None:
+            raise NotFoundError(
+                f"invoice {request.sales_invoice_id} does not exist in this store"
+            )
         invoice.assert_editable()
 
         line = next((one for one in invoice.lines if one.id == request.line_id), None)
@@ -45,7 +51,7 @@ class UnscanInvoiceLineHandler(
             raise NotFoundError(f"{invoice.number} has no line {request.line_id}")
 
         invoice.lines.remove(line)
-        await self._invoices.remove_line(line.id)
+        await self._invoices.update(invoice, spec)
         await self._uow.commit()
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(

@@ -17,13 +17,18 @@ guard of its own — the document's state is the one place that knows.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
+from application.errors import NotFoundError
 from application.models import GoodsReceiptData
-from application.ports import Clock, GoodsReceiptRepository, TenantUnitOfWork
-from application.services import DocumentLoader, LedgerPoster
+from application.ports import Clock, TenantUnitOfWork
+from application.services import LedgerPoster
+from application.specs import GoodsReceiptForWrite
+from domain.entities import GoodsReceipt
 from domain.enums import DocumentType
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import GoodsReceiptModel
 
 
 class CancelGoodsReceiptCommandPayload(CamelModel):
@@ -42,15 +47,13 @@ class CancelGoodsReceiptHandler(
 ):
     def __init__(
         self,
-        receipts: GoodsReceiptRepository,
-        loader: DocumentLoader,
+        receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
         poster: LedgerPoster,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._receipts = receipts
-        self._loader = loader
         self._poster = poster
         self._clock = clock
         self._uow = uow
@@ -59,11 +62,16 @@ class CancelGoodsReceiptHandler(
     async def handle(
         self, request: CancelGoodsReceiptCommand
     ) -> ResultWithData[GoodsReceiptData]:
-        receipt = await self._loader.load_receipt(request.goods_receipt_id)
+        spec = GoodsReceiptForWrite(request.goods_receipt_id)
+        receipt = await self._receipts.find_one(spec)
+        if receipt is None:
+            raise NotFoundError(
+                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+            )
 
         receipt.cancel(self._clock.now(), self._current.user_id, request.reason)
         await self._poster.reverse(DocumentType.GOODS_RECEIPT, receipt.id)
-        await self._receipts.update(receipt)
+        await self._receipts.update(receipt, spec)
         await self._uow.commit()
 
         return ResultWithData[GoodsReceiptData].succeed_with_data(

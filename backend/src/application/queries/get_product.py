@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import ProductData
-from application.ports import ProductRepository
+from domain.entities import Product
+from infrastructure.persistence.tenant.models import ProductModel
 
 
 class GetProductQuery(Query[ResultWithData[ProductData]]):
@@ -13,7 +15,7 @@ class GetProductQuery(Query[ResultWithData[ProductData]]):
 
 
 class GetProductHandler(IRequestHandler[ResultWithData[ProductData], GetProductQuery]):
-    def __init__(self, products: ProductRepository) -> None:
+    def __init__(self, products: TenantDbRepository[Product, ProductModel]) -> None:
         self._products = products
 
     async def handle(self, request: GetProductQuery) -> ResultWithData[ProductData]:

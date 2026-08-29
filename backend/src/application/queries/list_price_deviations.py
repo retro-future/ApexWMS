@@ -15,7 +15,7 @@ from uuid import UUID
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import PriceDeviationData
-from application.ports import SalesReportRepository
+from application.ports import SalesInvoiceQueries
 from application.sorting import DeviationSort
 
 
@@ -30,7 +30,7 @@ class ListPriceDeviationsQuery(PagedQuery[PagedResult[PriceDeviationData]]):
 class ListPriceDeviationsHandler(
     IRequestHandler[PagedResult[PriceDeviationData], ListPriceDeviationsQuery]
 ):
-    def __init__(self, sales: SalesReportRepository) -> None:
+    def __init__(self, sales: SalesInvoiceQueries) -> None:
         self._sales = sales
 
     async def handle(

@@ -11,7 +11,7 @@ from uuid import UUID
 
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import NeedsPricingRowData
-from application.ports import Clock, DeviceUnitRepository
+from application.ports import Clock, DeviceUnitQueries
 
 
 class ListNeedsPricingQuery(PagedQuery[PagedResult[NeedsPricingRowData]]):
@@ -21,7 +21,7 @@ class ListNeedsPricingQuery(PagedQuery[PagedResult[NeedsPricingRowData]]):
 class ListNeedsPricingHandler(
     IRequestHandler[PagedResult[NeedsPricingRowData], ListNeedsPricingQuery]
 ):
-    def __init__(self, units: DeviceUnitRepository, clock: Clock) -> None:
+    def __init__(self, units: DeviceUnitQueries, clock: Clock) -> None:
         self._units = units
         self._clock = clock
 

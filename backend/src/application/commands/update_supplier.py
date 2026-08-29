@@ -6,11 +6,12 @@ from uuid import UUID
 from pydantic import EmailStr, Field
 
 from application.common.repository import TenantDbRepository
+from application.common.specification import Specification
 from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateNameError, NotFoundError
 from application.models import SupplierData
 from application.ports import TenantUnitOfWork
-from application.specs import SupplierForWrite, SupplierNameTakenByAnother
+from application.specs import SupplierForWrite
 from domain.entities import Supplier
 from infrastructure.persistence.tenant.models import SupplierModel
 
@@ -44,7 +45,9 @@ class UpdateSupplierHandler(
         sent = request.model_fields_set
         if request.name is not None:
             name = request.name.strip()
-            taken = SupplierNameTakenByAnother(name, supplier.id)
+            taken = Specification(SupplierModel).where(
+                SupplierModel.name == name, SupplierModel.id != supplier.id
+            )
             if await self._suppliers.exists(taken):
                 raise DuplicateNameError(f"a supplier called {name!r} already exists")
             supplier.name = name

@@ -16,13 +16,18 @@ exists to keep.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
+from application.errors import NotFoundError
 from application.models import StockCountData
-from application.ports import Clock, StockCountRepository, TenantUnitOfWork
-from application.services import DocumentLoader, LedgerPoster
+from application.ports import Clock, TenantUnitOfWork
+from application.services import LedgerPoster
+from application.specs import StockCountForWrite
+from domain.entities import StockCount
 from domain.enums import DocumentType
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import StockCountModel
 
 
 class CancelStockCountCommandPayload(CamelModel):
@@ -41,15 +46,13 @@ class CancelStockCountHandler(
 ):
     def __init__(
         self,
-        counts: StockCountRepository,
-        loader: DocumentLoader,
+        counts: TenantDbRepository[StockCount, StockCountModel],
         poster: LedgerPoster,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._counts = counts
-        self._loader = loader
         self._poster = poster
         self._clock = clock
         self._uow = uow
@@ -58,11 +61,16 @@ class CancelStockCountHandler(
     async def handle(
         self, request: CancelStockCountCommand
     ) -> ResultWithData[StockCountData]:
-        count = await self._loader.load_count(request.stock_count_id)
+        spec = StockCountForWrite(request.stock_count_id)
+        count = await self._counts.find_one(spec)
+        if count is None:
+            raise NotFoundError(
+                f"stock count {request.stock_count_id} does not exist in this store"
+            )
 
         count.cancel(self._clock.now(), self._current.user_id, request.reason)
         await self._poster.reverse(DocumentType.STOCK_COUNT, count.id)
-        await self._counts.update(count)
+        await self._counts.update(count, spec)
         await self._uow.commit()
 
         return ResultWithData[StockCountData].succeed_with_data(

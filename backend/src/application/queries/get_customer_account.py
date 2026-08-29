@@ -8,10 +8,13 @@ company correctly reads zero — the company already paid the store in full.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import CustomerAccountData
-from application.ports import Clock, CustomerRepository, SalesInvoiceRepository
+from application.ports import Clock, SalesInvoiceQueries
+from domain.entities import Customer
+from infrastructure.persistence.tenant.models import CustomerModel
 
 
 class GetCustomerAccountQuery(Query[ResultWithData[CustomerAccountData]]):
@@ -23,8 +26,8 @@ class GetCustomerAccountHandler(
 ):
     def __init__(
         self,
-        customers: CustomerRepository,
-        invoices: SalesInvoiceRepository,
+        customers: TenantDbRepository[Customer, CustomerModel],
+        invoices: SalesInvoiceQueries,
         clock: Clock,
     ) -> None:
         self._customers = customers

@@ -13,13 +13,16 @@ uncounted line to zero at close.
 
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.core import CamelModel, Command, IRequestHandler, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import StockCountData
-from application.ports import StockCountRepository, TenantUnitOfWork
-from application.services import DocumentLoader
+from application.ports import TenantUnitOfWork
+from application.specs import StockCountForWrite
+from domain.entities import StockCount
 from domain.permissions import Permission
+from infrastructure.persistence.tenant.models import StockCountModel
 
 
 class CountStockCountLineCommandPayload(CamelModel):
@@ -41,20 +44,23 @@ class CountStockCountLineHandler(
 ):
     def __init__(
         self,
-        counts: StockCountRepository,
-        loader: DocumentLoader,
+        counts: TenantDbRepository[StockCount, StockCountModel],
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._counts = counts
-        self._loader = loader
         self._uow = uow
         self._current = current
 
     async def handle(
         self, request: CountStockCountLineCommand
     ) -> ResultWithData[StockCountData]:
-        count = await self._loader.load_count(request.stock_count_id)
+        spec = StockCountForWrite(request.stock_count_id)
+        count = await self._counts.find_one(spec)
+        if count is None:
+            raise NotFoundError(
+                f"stock count {request.stock_count_id} does not exist in this store"
+            )
         count.assert_countable()
 
         line = next((ln for ln in count.lines if ln.id == request.line_id), None)
@@ -66,7 +72,7 @@ class CountStockCountLineHandler(
         # count must fail here rather than reach the row.
         line.__post_init__()
 
-        await self._counts.update_line(line)
+        await self._counts.update(count, spec)
         await self._uow.commit()
 
         return ResultWithData[StockCountData].succeed_with_data(
