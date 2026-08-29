@@ -119,7 +119,7 @@ class TestRevenueIsBookedOnceAtConfirm:
 
         await a_sale(world, on_credit=True)
 
-        totals = await world.transactions.totals_by_type()
+        totals = await world.transaction_queries.totals_by_type()
         assert totals[(TransactionType.SALE_REVENUE, Currency.USD)] == usd("600")
 
     async def test_four_instalments_write_four_payments_and_no_revenue(self):
@@ -159,8 +159,8 @@ class TestCreditAndCashEarnTheSame:
         await a_sale(cash, on_credit=False)
         await a_sale(credit, on_credit=True)
 
-        cash_totals = await cash.transactions.totals_by_type()
-        credit_totals = await credit.transactions.totals_by_type()
+        cash_totals = await cash.transaction_queries.totals_by_type()
+        credit_totals = await credit.transaction_queries.totals_by_type()
 
         earned = (TransactionType.SALE_REVENUE, Currency.USD)
         cost = (TransactionType.COGS, Currency.USD)
@@ -174,7 +174,7 @@ class TestCreditAndCashEarnTheSame:
 
         margins = []
         for world in (cash, credit):
-            totals = await world.transactions.totals_by_type()
+            totals = await world.transaction_queries.totals_by_type()
             margins.append(
                 totals[(TransactionType.SALE_REVENUE, Currency.USD)]
                 + totals[(TransactionType.COGS, Currency.USD)]
@@ -190,8 +190,8 @@ class TestCreditAndCashEarnTheSame:
         await a_sale(credit, on_credit=True)
 
         collected = (TransactionType.PAYMENT_RECEIVED, Currency.UZS)
-        assert collected not in await cash.transactions.totals_by_type()
-        assert (await credit.transactions.totals_by_type())[collected] == som(DEBT)
+        assert collected not in await cash.transaction_queries.totals_by_type()
+        assert (await credit.transaction_queries.totals_by_type())[collected] == som(DEBT)
 
     async def test_no_som_revenue_column_appears_for_a_dollar_phone(self):
         """The most visible symptom if a payment ever booked revenue: a
@@ -200,6 +200,6 @@ class TestCreditAndCashEarnTheSame:
 
         await a_sale(world, on_credit=True)
 
-        totals = await world.transactions.totals_by_type()
+        totals = await world.transaction_queries.totals_by_type()
         assert (TransactionType.SALE_REVENUE, Currency.UZS) not in totals
         assert (TransactionType.COGS, Currency.UZS) not in totals

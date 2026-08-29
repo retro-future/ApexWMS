@@ -26,6 +26,7 @@ from application.commands.scan_stock_count_unit import ScanStockCountUnitCommand
 from application.commands.unscan_stock_count_unit import UnscanStockCountUnitCommand
 from application.queries.list_stock_counts import ListStockCountsQuery
 from application.services import LedgerReconciler
+from application.specs import DeviceUnitByImei, StockLevelForPair
 from domain.enums import (
     CountOutcome,
     DeviceCondition,
@@ -278,7 +279,7 @@ class TestHideAPhoneAndRunACount:
         await close_and_confirm(world, count)
 
         reconciler = LedgerReconciler(
-            world.units, world.transactions, world.movements, world.cost_pools()
+            world.units, world.transaction_queries, world.movement_queries, world.cost_pools()
         )
 
         assert await reconciler.reconcile() == []
@@ -341,7 +342,7 @@ class TestASurpriseHandset:
 
         await close_and_confirm(world, count)
 
-        created = await world.units.get_by_imei(UNKNOWN_IMEI)
+        created = await world.units.find_one(DeviceUnitByImei(UNKNOWN_IMEI))
         assert created is not None
         assert created.status is DeviceStatus.IN_STOCK
         assert created.location_id == location.id
@@ -356,7 +357,7 @@ class TestASurpriseHandset:
 
         await close_and_confirm(world, count)
 
-        created = await world.units.get_by_imei(UNKNOWN_IMEI)
+        created = await world.units.find_one(DeviceUnitByImei(UNKNOWN_IMEI))
         assert created is not None
         assert created.asking_price is None
         assert created.condition is DeviceCondition.USED
@@ -371,7 +372,7 @@ class TestASurpriseHandset:
         await scan(world, count, UNKNOWN_IMEI, product_id=product.id, acquisition_cost="300")
         await close_and_confirm(world, count)
 
-        created = await world.units.get_by_imei(UNKNOWN_IMEI)
+        created = await world.units.find_one(DeviceUnitByImei(UNKNOWN_IMEI))
         assert created is not None
         with pytest.raises(PriceNotSetError):
             PriceResolver.resolve(created, product)
@@ -401,7 +402,7 @@ class TestASurpriseHandset:
 
         await close_and_confirm(world, count)
 
-        created = await world.units.get_by_imei(UNKNOWN_IMEI)
+        created = await world.units.find_one(DeviceUnitByImei(UNKNOWN_IMEI))
         assert created is not None
         assert created.source_document_type is DocumentType.STOCK_COUNT
         assert created.source_document_id == count.id
@@ -418,7 +419,7 @@ class TestASurpriseHandset:
         await scan(world, count, UNKNOWN_IMEI, product_id=product.id, acquisition_cost="300")
         await close_and_confirm(world, count)
 
-        created = await world.units.get_by_imei(UNKNOWN_IMEI)
+        created = await world.units.find_one(DeviceUnitByImei(UNKNOWN_IMEI))
         assert created is not None
         assert created.acquisition_cost == usd("300")
 
@@ -511,7 +512,7 @@ class TestAHandsetFoundWhereItWasNotExpected:
         await close_and_confirm(world, count)
 
         reconciler = LedgerReconciler(
-            world.units, world.transactions, world.movements, world.cost_pools()
+            world.units, world.transaction_queries, world.movement_queries, world.cost_pools()
         )
 
         assert await reconciler.reconcile() == []
@@ -535,7 +536,7 @@ class TestAHandsetFoundWhereItWasNotExpected:
 
         assert money(world, second)[0].amount == usd("380")
         reconciler = LedgerReconciler(
-            world.units, world.transactions, world.movements, world.cost_pools()
+            world.units, world.transaction_queries, world.movement_queries, world.cost_pools()
         )
         assert await reconciler.reconcile() == []
 
@@ -672,7 +673,7 @@ class TestCountingAccessories:
         )
         await close_and_confirm(world, count)
 
-        level = await world.levels.get_for(case.id, location.id)
+        level = await world.levels.find_one(StockLevelForPair(case.id, location.id))
         assert level is not None
         assert level.quantity == 7
         # The books were already right, so the count adjusts nothing.
@@ -851,7 +852,7 @@ class TestCancellingCompensates:
             CancelStockCountCommand(stock_count_id=count.id)
         )
 
-        created = await world.units.get_by_imei(UNKNOWN_IMEI)
+        created = await world.units.find_one(DeviceUnitByImei(UNKNOWN_IMEI))
         assert created is not None
         assert created.status is DeviceStatus.WRITTEN_OFF
 

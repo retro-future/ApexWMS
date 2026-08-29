@@ -320,6 +320,35 @@ class TestReferenceData:
 
         assert resp.status_code == 409
 
+    async def test_renaming_a_location_to_its_own_name_is_allowed(self, client, owner):
+        """The uniqueness probe excludes the location being renamed."""
+        created = await client.post(
+            "/api/v1/locations", headers=owner.auth, json={"name": "Warehouse"}
+        )
+
+        renamed = await client.patch(
+            f"/api/v1/locations/{created.json()['data']['id']}",
+            headers=owner.auth,
+            json={"name": "Warehouse", "isActive": True},
+        )
+
+        assert renamed.status_code == 200, renamed.text
+
+    async def test_the_location_list_pages_and_reports_the_unpaged_total(
+        self, client, owner
+    ):
+        for name in ("Depot A", "Depot B"):
+            await client.post("/api/v1/locations", headers=owner.auth, json={"name": name})
+
+        page = await client.get(
+            "/api/v1/locations",
+            headers=owner.auth,
+            params={"page": 1, "pageSize": 1, "search": "depot"},
+        )
+
+        assert len(page.json()["data"]) == 1
+        assert page.json()["totalItems"] == 2
+
     async def test_creating_and_reading_a_supplier(self, client, owner):
         created = await client.post(
             "/api/v1/suppliers",
@@ -493,3 +522,43 @@ class TestReferenceData:
         )
 
         assert [c["fullName"] for c in found.json()["data"]] == ["Nodira Yusupova"]
+
+    # Customers moved to the specification-based repository. The application
+    # suite proves the CRUD rules against fakes; the cases below run the
+    # write path and the paged read against the real database.
+
+    async def test_an_explicit_null_clears_a_customer_phone(self, client, owner):
+        created = await client.post(
+            "/api/v1/customers",
+            headers=owner.auth,
+            json={"fullName": "Aziz Karimov", "phone": "+998901111111"},
+        )
+        customer_id = created.json()["data"]["id"]
+
+        patched = await client.patch(
+            f"/api/v1/customers/{customer_id}", headers=owner.auth, json={"phone": None}
+        )
+
+        assert patched.json()["data"]["phone"] is None
+
+    async def test_reading_an_unknown_customer_is_a_404(self, client, owner):
+        resp = await client.get(f"/api/v1/customers/{uuid4()}", headers=owner.auth)
+
+        assert resp.status_code == 404
+
+    async def test_the_customer_list_pages_and_reports_the_unpaged_total(
+        self, client, owner
+    ):
+        for name in ("Anvar A", "Anvar B", "Anvar C"):
+            await client.post(
+                "/api/v1/customers", headers=owner.auth, json={"fullName": name}
+            )
+
+        page = await client.get(
+            "/api/v1/customers",
+            headers=owner.auth,
+            params={"page": 1, "pageSize": 2, "search": "anvar"},
+        )
+
+        assert len(page.json()["data"]) == 2
+        assert page.json()["totalItems"] == 3

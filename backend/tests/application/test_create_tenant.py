@@ -4,6 +4,7 @@ import pytest
 
 from application.commands.create_superadmin import CreateSuperAdminCommand
 from application.commands.create_tenant import CreateTenantCommand
+from application.common.specification import Specification
 from application.errors import (
     AlreadyMemberError,
     InvalidSlugError,
@@ -12,7 +13,17 @@ from application.errors import (
     SlugAlreadyTakenError,
 )
 from domain.enums import AppRole, TenantRole, TenantStatus
+from infrastructure.persistence.master.models import UserAppRoleModel, UserModel
 from tests.application.builders import make_world
+
+
+def _by_email(email: str) -> Specification[UserModel]:
+    return Specification(UserModel).where(UserModel.email == email)
+
+
+def _roles_of(user_id) -> Specification[UserAppRoleModel]:
+    return Specification(UserAppRoleModel).where(UserAppRoleModel.user_id == user_id)
+
 
 COMMAND = CreateTenantCommand(
     name="Beta Mobile",
@@ -42,7 +53,7 @@ async def test_the_owner_gets_a_master_identity_scoped_to_the_new_store():
     result = await world.create_tenant().handle(COMMAND)
 
     assert result.data is not None
-    owner = await world.users.get_by_email("owner@example.com")
+    owner = await world.users.find_one(_by_email("owner@example.com"))
     assert owner is not None
     assert owner.id == result.data.owner_user_id
     assert owner.tenant_id == result.data.tenant_id
@@ -77,7 +88,7 @@ async def test_a_platform_operator_has_no_home_store():
     assert user.tenant_id is None
     assert user.must_change_password
     assert result.data.temporary_password
-    roles = [a.role for a in await world.app_roles.list_for_user(user.id)]
+    roles = [a.role for a in await world.app_roles.find(_roles_of(user.id))]
     assert roles == [AppRole.SUPERADMIN]
 
 
@@ -86,8 +97,8 @@ async def test_the_owner_email_is_normalized():
 
     await world.create_tenant().handle(COMMAND)
 
-    assert await world.users.get_by_email("owner@example.com") is not None
-    assert await world.users.get_by_email("Owner@Example.com") is None
+    assert await world.users.find_one(_by_email("owner@example.com")) is not None
+    assert await world.users.find_one(_by_email("Owner@Example.com")) is None
 
 
 async def test_the_timezone_and_owner_reach_the_provisioner():
@@ -161,4 +172,4 @@ async def test_failed_provisioning_leaves_the_tenant_retryable():
     assert tenant.status is TenantStatus.FAILED
     # Committed before provisioning ran, which is what makes the retry work.
     assert world.uow.commits == 1
-    assert await world.users.get_by_email("owner@example.com") is not None
+    assert await world.users.find_one(_by_email("owner@example.com")) is not None

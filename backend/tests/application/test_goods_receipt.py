@@ -22,6 +22,7 @@ from application.commands.scan_receipt_unit import ScanReceiptUnitCommand
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitCommand
 from application.errors import DuplicateImeiError, NotFoundError
 from application.queries.get_goods_receipt import GetGoodsReceiptQuery
+from application.specs import DeviceUnitByImei, PriceChangesForUnit, StockLevelForPair
 from domain.entities import Location, Product, Supplier
 from domain.enums import (
     AcquisitionSource,
@@ -241,7 +242,7 @@ class TestPricingAtIntake:
         )
         await confirm(world, receipt)
 
-        unit = await world.units.get_by_imei(IMEIS[0])
+        unit = await world.units.find_one(DeviceUnitByImei(IMEIS[0]))
         assert unit is not None
         assert unit.acquisition_cost == usd("410")
         assert unit.asking_price == usd("520")
@@ -268,7 +269,7 @@ class TestConfirming:
 
         await confirm(world, receipt)
 
-        unit = await world.units.get_by_imei(IMEIS[0])
+        unit = await world.units.find_one(DeviceUnitByImei(IMEIS[0]))
         assert unit is not None
         assert unit.status is DeviceStatus.IN_STOCK
         assert unit.location_id == location.id
@@ -295,7 +296,7 @@ class TestConfirming:
 
         await confirm(world, receipt)
 
-        level = await world.levels.get_for(product.id, location.id)
+        level = await world.levels.find_one(StockLevelForPair(product.id, location.id))
         assert level is not None and level.quantity == 5
         assert world.transactions.rows[0].amount == -uzs("50000")
 
@@ -314,9 +315,9 @@ class TestConfirming:
 
         await confirm(world, receipt)
 
-        unit = await world.units.get_by_imei(IMEIS[0])
+        unit = await world.units.find_one(DeviceUnitByImei(IMEIS[0]))
         assert unit is not None
-        changes = await world.unit_price_changes.list_for_unit(unit.id)
+        changes = await world.unit_price_changes.find(PriceChangesForUnit(unit.id))
         assert len(changes) == 1
         assert changes[0].old_price is None
         assert changes[0].new_price == usd("520")
@@ -351,7 +352,7 @@ class TestTheSomPaidTradeIn:
         await confirm(world, receipt)
 
         assert [t.amount for t in world.transactions.rows] == [-usd("330")]
-        unit = await world.units.get_by_imei(IMEIS[0])
+        unit = await world.units.find_one(DeviceUnitByImei(IMEIS[0]))
         assert unit is not None
         assert unit.acquisition_cost == usd("330")
         assert unit.cash_paid_minor == 4_200_000
@@ -388,7 +389,7 @@ class TestCancelling:
             CancelGoodsReceiptCommand(goods_receipt_id=receipt.id)
         )
 
-        unit = await world.units.get_by_imei(IMEIS[0])
+        unit = await world.units.find_one(DeviceUnitByImei(IMEIS[0]))
         assert unit is not None
         assert unit.status is DeviceStatus.RECEIPT_CANCELLED
         assert unit.location_id is None

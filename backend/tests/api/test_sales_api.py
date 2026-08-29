@@ -14,12 +14,13 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from application.specs import MovementsForUnit
 from domain.enums import DeviceStatus, TransactionType
 from domain.value_objects import Currency
-from infrastructure.persistence.tenant.repositories import (
-    SqlFinancialTransactionRepository,
-    SqlStockMovementRepository,
-)
+from infrastructure.persistence.mappers import StockMovementMapper
+from infrastructure.persistence.repositories import TenantSqlAppendOnlyRepository
+from infrastructure.persistence.tenant.models import StockMovementModel
+from infrastructure.persistence.tenant.queries import SqlFinancialTransactionQueries
 from infrastructure.types import TenantSession
 from tests.api.ledger_helpers import PHONE_IMEI, receive_phone, tenant_url, usd
 from tests.api.pdf_helpers import pdf_text
@@ -32,9 +33,12 @@ async def ledger_rows(settings, owner, unit_id):
     try:
         async with async_sessionmaker(engine)() as raw:
             session = TenantSession(raw)
+            repo = TenantSqlAppendOnlyRepository(
+                session, StockMovementModel, StockMovementMapper()
+            )
             return (
-                await SqlStockMovementRepository(session).list_for_unit(unit_id),
-                await SqlFinancialTransactionRepository(session).totals_by_type(),
+                await repo.find(MovementsForUnit(unit_id)),
+                await SqlFinancialTransactionQueries(session).totals_by_type(),
             )
     finally:
         await engine.dispose()

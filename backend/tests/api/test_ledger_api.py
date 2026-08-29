@@ -16,12 +16,13 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from application.specs import MovementsForUnit
 from domain.enums import TransactionType
 from domain.value_objects import Currency
-from infrastructure.persistence.tenant.repositories import (
-    SqlFinancialTransactionRepository,
-    SqlStockMovementRepository,
-)
+from infrastructure.persistence.mappers import StockMovementMapper
+from infrastructure.persistence.repositories import TenantSqlAppendOnlyRepository
+from infrastructure.persistence.tenant.models import StockMovementModel
+from infrastructure.persistence.tenant.queries import SqlFinancialTransactionQueries
 from infrastructure.types import TenantSession
 from tests.api.ledger_helpers import PHONE_IMEI, receive_phone, tenant_url, usd
 
@@ -36,8 +37,11 @@ class TestTheLedgersReconcile:
         try:
             async with async_sessionmaker(engine)() as raw:
                 session = TenantSession(raw)
-                movements = await SqlStockMovementRepository(session).list_for_unit(unit_id)
-                totals = await SqlFinancialTransactionRepository(session).totals_by_type()
+                repo = TenantSqlAppendOnlyRepository(
+                    session, StockMovementModel, StockMovementMapper()
+                )
+                movements = await repo.find(MovementsForUnit(unit_id))
+                totals = await SqlFinancialTransactionQueries(session).totals_by_type()
         finally:
             await engine.dispose()
 
@@ -97,7 +101,7 @@ class TestTheLedgersReconcile:
         engine = create_async_engine(await tenant_url(settings, owner.tenant_id))
         try:
             async with async_sessionmaker(engine)() as raw:
-                totals = await SqlFinancialTransactionRepository(
+                totals = await SqlFinancialTransactionQueries(
                     TenantSession(raw)
                 ).totals_by_type()
         finally:

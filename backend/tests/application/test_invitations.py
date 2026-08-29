@@ -11,10 +11,31 @@ import pytest
 
 from application.commands.accept_invite import AcceptInviteCommand
 from application.commands.invite_user import InviteEmployeeCommand
+from application.common.specification import Specification
 from application.errors import AlreadyMemberError, InvitationError
 from domain.entities import Invitation, InvitationKind
 from domain.enums import AppRole, TenantRole
+from infrastructure.persistence.master.models import (
+    UserAppRoleModel,
+    UserModel,
+    UserTenantAccessModel,
+)
 from tests.application.builders import INVITE_TTL, make_world
+
+
+def _by_email(email: str) -> Specification[UserModel]:
+    return Specification(UserModel).where(UserModel.email == email)
+
+
+def _roles_of(user_id) -> Specification[UserAppRoleModel]:
+    return Specification(UserAppRoleModel).where(UserAppRoleModel.user_id == user_id)
+
+
+def _access(user_id, tenant_id) -> Specification[UserTenantAccessModel]:
+    return Specification(UserTenantAccessModel).where(
+        UserTenantAccessModel.user_id == user_id,
+        UserTenantAccessModel.tenant_id == tenant_id,
+    )
 
 INVITEE = "seller@example.com"
 PASSWORD = "hunter2000"
@@ -51,7 +72,7 @@ async def test_accepting_creates_the_identity_and_the_presence():
     )
 
     assert result.data is not None
-    user = await world.users.get_by_email(INVITEE)
+    user = await world.users.find_one(_by_email(INVITEE))
     assert user is not None and user.id == result.data.user_id
     assert user.tenant_id == world.tenant.id
     employee = world.employees.by_id[user.id]
@@ -82,7 +103,7 @@ async def test_an_existing_user_joining_a_second_store_gains_access():
     assert result.data.user_id == existing.id
     # Home store unchanged; access to the second granted.
     assert existing.tenant_id == world.tenant.id
-    assert await world.access.exists(existing.id, other.id)
+    assert await world.access.exists(_access(existing.id, other.id))
     assert world.scope.employees_at(other.id).by_id[existing.id].role is TenantRole.MANAGER
 
 
@@ -105,9 +126,9 @@ async def test_a_platform_invitation_touches_no_tenant_database():
 
     assert result.data is not None
     assert result.data.tenant_id is None
-    user = await world.users.get_by_email("admin@example.com")
+    user = await world.users.find_one(_by_email("admin@example.com"))
     assert user.tenant_id is None
-    roles = [a.role for a in await world.app_roles.list_for_user(user.id)]
+    roles = [a.role for a in await world.app_roles.find(_roles_of(user.id))]
     assert roles == [AppRole.ADMIN]
     # No presence at any store — a platform role touches no tenant database.
     assert all(user.id not in store.by_id for store in world.scope.stores.values())

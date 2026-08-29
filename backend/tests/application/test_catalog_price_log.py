@@ -16,6 +16,7 @@ from application.commands.create_product import CreateProductCommand
 from application.commands.update_product import UpdateProductCommand
 from application.errors import NotFoundError
 from application.queries.get_product_price_history import GetProductPriceHistoryQuery
+from application.specs import LatestPriceChangeForProduct
 from domain.enums import TrackingType
 from domain.errors import CurrencyMismatchError, InvalidMoneyError, PriceCannotBeUnsetError
 from domain.value_objects import Currency, Money
@@ -101,7 +102,7 @@ class TestRepricing:
 
         result = await reprice(world, product.id, "780")
 
-        latest = await world.price_changes.latest_for_product(product.id)
+        latest = await world.price_changes.find_one(LatestPriceChangeForProduct(product.id))
         assert latest is not None
         assert latest.new_price.amount_minor == result.data.default_sale_price_minor
 

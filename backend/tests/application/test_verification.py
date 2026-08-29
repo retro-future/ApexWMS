@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.services import LedgerReconciler, ProjectionVerifier
+from application.specs import StockLevelForPair
 from domain.entities import DeviceUnit, DeviceUnitPriceChange, Product, StockLevel
 from domain.enums import (
     DeviceCondition,
@@ -42,6 +43,7 @@ def som(major: str) -> Money:
 def verifier(world) -> ProjectionVerifier:
     return ProjectionVerifier(
         world.movements,
+        world.movement_queries,
         world.levels,
         world.units,
         world.unit_price_changes,
@@ -53,7 +55,7 @@ def verifier(world) -> ProjectionVerifier:
 
 def reconciler(world) -> LedgerReconciler:
     return LedgerReconciler(
-        world.units, world.transactions, world.movements, world.cost_pools()
+        world.units, world.transaction_queries, world.movement_queries, world.cost_pools()
     )
 
 
@@ -159,7 +161,7 @@ class TestStockLevelDrift:
         await receive_accessories(world, product, location, quantity=10)
 
         # Exactly what §4.3 rule 1 forbids: setting a level directly.
-        level = await world.levels.get_for(product, location)
+        level = await world.levels.find_one(StockLevelForPair(product, location))
         await world.levels.update(
             StockLevel(
                 id=level.id, product_id=product, location_id=location, quantity=5

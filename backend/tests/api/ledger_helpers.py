@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from application.dtos import CurrentUser, MoneyEffect, Posting, PostingEntry
 from application.services import LedgerPoster
-from domain.entities import DeviceUnit
+from domain.entities import DeviceUnit, StockLevel
 from domain.enums import (
     DeviceCondition,
     DeviceStatus,
@@ -35,13 +35,23 @@ from domain.enums import (
 from domain.services import UnitProjector
 from domain.value_objects import IMEI, Currency, Money
 from infrastructure.clock import SystemClock
+from infrastructure.persistence.mappers import (
+    AutoMapper,
+    DeviceUnitMapper,
+    FinancialTransactionMapper,
+    StockMovementMapper,
+)
 from infrastructure.persistence.master.models import TenantDatabaseModel
-from infrastructure.persistence.tenant.models import LocationModel
-from infrastructure.persistence.tenant.repositories import (
-    SqlDeviceUnitRepository,
-    SqlFinancialTransactionRepository,
-    SqlStockLevelRepository,
-    SqlStockMovementRepository,
+from infrastructure.persistence.repositories import (
+    TenantSqlAppendOnlyRepository,
+    TenantSqlRepository,
+)
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    FinancialTransactionModel,
+    LocationModel,
+    StockLevelModel,
+    StockMovementModel,
 )
 from infrastructure.persistence.tenant.uow import SqlTenantUnitOfWork
 from infrastructure.tenancy import tenant_db_url
@@ -92,7 +102,7 @@ async def receive_phone(client, settings, owner, *, cost="380", condition="used"
             session = TenantSession(raw)
             location_id = (await raw.scalars(select(LocationModel.id))).first()
 
-            units = SqlDeviceUnitRepository(session)
+            units = TenantSqlRepository(session, DeviceUnitModel, DeviceUnitMapper())
             unit_id = uuid4()
             await units.add(
                 DeviceUnit(
@@ -109,9 +119,15 @@ async def receive_phone(client, settings, owner, *, cost="380", condition="used"
             )
 
             poster = LedgerPoster(
-                SqlStockMovementRepository(session),
-                SqlFinancialTransactionRepository(session),
-                SqlStockLevelRepository(session),
+                TenantSqlAppendOnlyRepository(
+                    session, StockMovementModel, StockMovementMapper()
+                ),
+                TenantSqlAppendOnlyRepository(
+                    session, FinancialTransactionModel, FinancialTransactionMapper()
+                ),
+                TenantSqlRepository(
+                    session, StockLevelModel, AutoMapper(StockLevel, StockLevelModel)
+                ),
                 units,
                 SystemClock(),
                 CurrentUser(user_id=UUID(owner.user_id), permissions=frozenset()),

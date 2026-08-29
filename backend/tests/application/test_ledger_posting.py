@@ -14,7 +14,9 @@ from uuid import uuid4
 
 import pytest
 
+from application.common.specification import Specification
 from application.dtos import MoneyEffect, Posting, PostingEntry
+from application.specs import StockLevelForPair
 from domain.entities import DeviceUnit
 from domain.enums import (
     DeviceCondition,
@@ -26,6 +28,7 @@ from domain.enums import (
 from domain.errors import InvalidMovementError
 from domain.services import UnitProjector
 from domain.value_objects import IMEI, Currency, Money
+from infrastructure.persistence.tenant.models import StockLevelModel
 from tests.application.builders import make_world
 
 NOW = datetime(2026, 3, 1, tzinfo=UTC)
@@ -191,7 +194,7 @@ class TestProjectionsFollowTheLedger:
             )
         )
 
-        level = await world.levels.get_for(product, location)
+        level = await world.levels.find_one(StockLevelForPair(product, location))
         assert level.quantity == 10
 
     async def test_a_second_movement_moves_the_existing_level(self):
@@ -215,9 +218,9 @@ class TestProjectionsFollowTheLedger:
                 )
             )
 
-        level = await world.levels.get_for(product, location)
+        level = await world.levels.find_one(StockLevelForPair(product, location))
         assert level.quantity == 7
-        assert len(await world.levels.list_all()) == 1
+        assert len(await world.levels.find(Specification(StockLevelModel))) == 1
 
     async def test_the_level_always_equals_what_the_ledger_says(self):
         """The invariant ``verify-projections`` exists to police."""
@@ -241,7 +244,7 @@ class TestProjectionsFollowTheLedger:
                 )
             )
 
-        level = await world.levels.get_for(product, location)
+        level = await world.levels.find_one(StockLevelForPair(product, location))
         assert level.quantity == UnitProjector.net_quantity(world.movements.rows)
 
     async def test_issuing_more_than_is_held_is_refused(self):
@@ -364,7 +367,7 @@ class TestCancellationCompensates:
 
         await poster.reverse(DocumentType.GOODS_RECEIPT, document)
 
-        level = await world.levels.get_for(product, location)
+        level = await world.levels.find_one(StockLevelForPair(product, location))
         assert level.quantity == 0
 
     async def test_reversing_one_document_leaves_another_alone(self):
@@ -390,7 +393,7 @@ class TestCancellationCompensates:
 
         await poster.reverse(DocumentType.GOODS_RECEIPT, first)
 
-        level = await world.levels.get_for(product, location)
+        level = await world.levels.find_one(StockLevelForPair(product, location))
         assert level.quantity == 10
 
 
@@ -446,7 +449,7 @@ class TestMixedCurrenciesStaySeparate:
             )
         )
 
-        totals = await world.transactions.totals_by_type()
+        totals = await world.transaction_queries.totals_by_type()
         assert totals[(TransactionType.SALE_REVENUE, Currency.USD)] == usd("600")
         assert totals[(TransactionType.SALE_REVENUE, Currency.UZS)] == som("50000")
 
@@ -482,6 +485,6 @@ class TestMixedCurrenciesStaySeparate:
             )
         )
 
-        totals = await world.transactions.totals_by_type()
+        totals = await world.transaction_queries.totals_by_type()
         assert {currency for _, currency in totals} == {Currency.USD, Currency.UZS}
         assert len(totals) == 2

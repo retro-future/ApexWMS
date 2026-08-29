@@ -7,30 +7,66 @@ for MasterDB, ``FakeEmployeeRepository`` for one store's database, and
 """
 
 import hashlib
+import operator
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+from sqlalchemy.sql.operators import in_op
+
 from application.dtos import (
     CreditInvoiceDebt,
     DebtorSummary,
     Letterhead,
     OwnerSeed,
+    PriceDeviation,
     RefreshTokenParts,
     TenantLogo,
+    UnitOrigin,
+    UnitSale,
 )
 from application.errors import ProvisioningFailedError, TenantNotActiveError
+from application.sorting import DeviationSort
 from application.specs import (
+    ActiveOwners,
+    CreditCompanyBrowse,
+    CustomerBrowse,
+    CustomerForWrite,
+    DeviceUnitById,
+    DeviceUnitByImei,
+    DeviceUnitForWrite,
+    DeviceUnitsByIds,
+    GoodsReceiptBrowse,
+    GoodsReceiptById,
+    GoodsReceiptForWrite,
+    InvitationForWrite,
+    LiveTokensForUser,
+    LocationBrowse,
+    OnHandDeviceUnits,
+    ProductBarcodeTakenByAnother,
+    ProductBrowse,
+    ProductByBarcode,
+    ProductBySku,
+    ProductForWrite,
     PurchaseOrderBrowse,
     PurchaseOrderById,
     PurchaseOrderForWrite,
-    SupplierById,
+    RefreshTokenForWrite,
+    SalesInvoiceBrowse,
+    SalesInvoiceById,
+    SalesInvoiceForWrite,
+    StockCountBrowse,
+    StockCountById,
+    StockCountForWrite,
     SupplierForWrite,
     SupplierReturnBrowse,
     SupplierReturnById,
     SupplierReturnForWrite,
+    WriteOffBrowse,
+    WriteOffById,
+    WriteOffForWrite,
 )
 from domain.core import Entity
 from domain.entities import (
@@ -47,13 +83,9 @@ from domain.entities import (
     Product,
     ProductPriceChange,
     PurchaseOrder,
-    ReceivedUnit,
     RefreshTokenRecord,
     SalesInvoice,
-    SalesInvoiceLine,
     StockCount,
-    StockCountLine,
-    StockCountUnit,
     StockLevel,
     StockMovement,
     Supplier,
@@ -63,21 +95,39 @@ from domain.entities import (
     UserAppRole,
     UserTenantAccess,
     WriteOff,
-    WriteOffLine,
 )
 from domain.enums import (
-    AcquisitionSource,
     AppRole,
     DocumentStatus,
     DocumentType,
+    MovementType,
     PaymentType,
     TenantRole,
     TenantStatus,
-    TrackingType,
     TransactionType,
-    WriteOffReason,
 )
 from domain.value_objects import Currency, Money
+
+
+def _spec_matches(entity: object, spec: object) -> bool:
+    """Evaluate an inline ``Specification``'s equality criteria against an
+    entity the way SQL would against a row.
+
+    Only ``==`` / ``!=`` / ``IN`` over a plain column are handled — the
+    probe specs that stay classes are the ones whose value is an enum or a
+    value object, and the fakes for those read the class attributes instead.
+    """
+    for crit in spec.criteria:  # type: ignore[attr-defined]
+        actual = getattr(entity, crit.left.key)
+        want = crit.right.value
+        op = crit.operator
+        if op is operator.eq and actual != want:
+            return False
+        if op is operator.ne and actual == want:
+            return False
+        if op is in_op and actual not in want:
+            return False
+    return True
 
 
 class FakeClock:
@@ -153,61 +203,69 @@ class FakeRepository[EntityT: Entity[UUID]]:
     async def update(self, entity: EntityT, spec: object | None = None) -> None:
         self.by_id[entity.id] = entity
 
+    async def find_one(self, spec: object) -> EntityT | None:
+        return next((e for e in self.by_id.values() if _spec_matches(e, spec)), None)
+
+    async def exists(self, spec: object) -> bool:
+        return any(_spec_matches(e, spec) for e in self.by_id.values())
+
 
 # --- MasterDB -------------------------------------------------------------
 
 
 class FakeUserRepository(FakeRepository[User]):
-    async def get_by_email(self, email: str) -> User | None:
-        return next((u for u in self.by_id.values() if u.email == email), None)
+    """Spec-based, like the SQL repository. ``find_one``/``exists`` come from
+    the base: ``UserForWrite`` and an inline ``email ==`` probe are both
+    plain equality criteria."""
 
 
 class FakeUserAppRoleRepository(FakeRepository[UserAppRole]):
-    async def list_for_user(self, user_id: UUID) -> list[UserAppRole]:
-        return [a for a in self.by_id.values() if a.user_id == user_id]
+    async def find(self, spec: object) -> list[UserAppRole]:
+        return [a for a in self.by_id.values() if _spec_matches(a, spec)]
 
 
 class FakeUserTenantAccessRepository(FakeRepository[UserTenantAccess]):
-    async def list_for_user(self, user_id: UUID) -> list[UserTenantAccess]:
-        return [g for g in self.by_id.values() if g.user_id == user_id]
-
-    async def exists(self, user_id: UUID, tenant_id: UUID) -> bool:
-        return any(
-            g.user_id == user_id and g.tenant_id == tenant_id
-            for g in self.by_id.values()
-        )
+    async def find(self, spec: object) -> list[UserTenantAccess]:
+        return [g for g in self.by_id.values() if _spec_matches(g, spec)]
 
 
 class FakeTenantRepository(FakeRepository[Tenant]):
-    async def get_by_slug(self, slug: str) -> Tenant | None:
-        return next((t for t in self.by_id.values() if t.slug == slug), None)
-
-    async def list_all(self) -> list[Tenant]:
-        return sorted(self.by_id.values(), key=lambda t: t.created_at)
+    """``find_one``/``exists`` from the base: ``TenantForWrite`` and an
+    inline ``slug ==`` probe are plain equality criteria."""
 
 
 class FakeRefreshTokenRepository(FakeRepository[RefreshTokenRecord]):
-    async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> None:
-        for record in self.by_id.values():
-            if record.user_id == user_id and record.revoked_at is None:
-                record.revoked_at = now
+    async def find_one(
+        self, spec: RefreshTokenForWrite
+    ) -> RefreshTokenRecord | None:
+        return self.by_id.get(spec.token_id)
+
+    async def find(self, spec: LiveTokensForUser) -> list[RefreshTokenRecord]:
+        return [
+            r
+            for r in self.by_id.values()
+            if r.user_id == spec.user_id and r.revoked_at is None
+        ]
 
 
 class FakeInvitationRepository(FakeRepository[Invitation]):
-    """Plain CRUD, like the port it stands in for."""
+    async def find_one(
+        self, spec: InvitationForWrite
+    ) -> Invitation | None:
+        return self.by_id.get(spec.invitation_id)
 
 
 # --- one tenant's database ------------------------------------------------
 
 
 class FakeEmployeeRepository(FakeRepository[Employee]):
-    async def get_by_email(self, email: str) -> Employee | None:
-        return next((e for e in self.by_id.values() if e.email == email), None)
+    """Spec-based, like the SQL repository. ``find_one``/``exists`` come from
+    the base (``EmployeeForWrite``, inline ``email ==`` probe)."""
 
-    async def list_all(self) -> list[Employee]:
+    async def find(self, spec: object) -> list[Employee]:
         return sorted(self.by_id.values(), key=lambda e: e.created_at)
 
-    async def count_owners(self) -> int:
+    async def count(self, spec: ActiveOwners) -> int:
         return sum(
             1 for e in self.by_id.values() if e.role is TenantRole.OWNER and e.is_active
         )
@@ -239,110 +297,164 @@ class FakeAppendOnlyRepository[EntityT: Entity[UUID]]:
 
 
 class FakeProductPriceChangeRepository(FakeAppendOnlyRepository[ProductPriceChange]):
-    async def list_for_product(self, product_id: UUID) -> list[ProductPriceChange]:
-        return [c for c in self.rows if c.product_id == product_id]
+    """Spec-based. Rows are held in arrival order, which is time order, so
+    ``find_one`` (``LatestPriceChangeForProduct``) is the last match."""
 
-    async def latest_for_product(self, product_id: UUID) -> ProductPriceChange | None:
-        found = await self.list_for_product(product_id)
+    async def find(self, spec: object) -> list[ProductPriceChange]:
+        return [c for c in self.rows if _spec_matches(c, spec)]
+
+    async def find_one(self, spec: object) -> ProductPriceChange | None:
+        found = [c for c in self.rows if _spec_matches(c, spec)]
         return found[-1] if found else None
 
 
 class FakeDeviceUnitPriceChangeRepository(FakeAppendOnlyRepository[DeviceUnitPriceChange]):
-    async def list_for_unit(self, device_unit_id: UUID) -> list[DeviceUnitPriceChange]:
-        return [c for c in self.rows if c.device_unit_id == device_unit_id]
+    """Spec-based. Arrival order is time order, so ``find_one``
+    (``LatestPriceChangeForUnit``) is the last match."""
 
-    async def latest_for_unit(self, device_unit_id: UUID) -> DeviceUnitPriceChange | None:
-        found = await self.list_for_unit(device_unit_id)
+    async def find(self, spec: object) -> list[DeviceUnitPriceChange]:
+        return [c for c in self.rows if _spec_matches(c, spec)]
+
+    async def find_one(self, spec: object) -> DeviceUnitPriceChange | None:
+        found = [c for c in self.rows if _spec_matches(c, spec)]
         return found[-1] if found else None
-
-    async def count_for_unit(self, device_unit_id: UUID) -> int:
-        return len(await self.list_for_unit(device_unit_id))
 
 
 class FakeDeviceUnitRepository(FakeRepository[DeviceUnit]):
-    async def get_by_imei(self, imei: str) -> DeviceUnit | None:
-        return next((u for u in self.by_id.values() if str(u.imei) == imei), None)
+    """Spec-based, like the SQL repository."""
 
-    async def list_by_ids(self, ids: Sequence[UUID]) -> list[DeviceUnit]:
-        return [self.by_id[i] for i in ids if i in self.by_id]
+    async def find_one(
+        self, spec: DeviceUnitById | DeviceUnitForWrite | DeviceUnitByImei
+    ) -> DeviceUnit | None:
+        if isinstance(spec, DeviceUnitByImei):
+            return next(
+                (u for u in self.by_id.values() if str(u.imei) == spec.imei), None
+            )
+        return self.by_id.get(spec.device_unit_id)
 
-    async def list_on_hand(self, location_id: UUID | None = None) -> list[DeviceUnit]:
+    async def exists(self, spec: DeviceUnitById) -> bool:
+        return spec.device_unit_id in self.by_id
+
+    async def find(
+        self, spec: DeviceUnitsByIds | OnHandDeviceUnits
+    ) -> list[DeviceUnit]:
+        if isinstance(spec, DeviceUnitsByIds):
+            return [self.by_id[i] for i in spec.ids if i in self.by_id]
         return [
             u
             for u in sorted(self.by_id.values(), key=lambda u: u.created_at)
             if u.status.is_on_hand
-            and (location_id is None or u.location_id == location_id)
+            and (spec.location_id is None or u.location_id == spec.location_id)
         ]
 
 
 class FakeStockMovementRepository(FakeAppendOnlyRepository[StockMovement]):
-    async def list_for_document(
-        self, document_type: DocumentType, document_id: UUID
-    ) -> list[StockMovement]:
-        return [
-            m
-            for m in self.rows
-            if m.document_type is document_type and m.document_id == document_id
-        ]
+    """Spec-based. The movement specs carry their filters as plain
+    attributes; no SQLAlchemy criteria are read."""
 
-    async def list_for_unit(self, device_unit_id: UUID) -> list[StockMovement]:
-        return [m for m in self.rows if m.device_unit_id == device_unit_id]
+    async def find(self, spec: object) -> list[StockMovement]:
+        return sorted(
+            (m for m in self.rows if _movement_matches(m, spec)),
+            key=lambda m: m.occurred_at,
+        )
+
+
+def _movement_matches(movement: StockMovement, spec: object) -> bool:
+    doc_type = getattr(spec, "document_type", None)
+    if doc_type is not None and movement.document_type is not doc_type:
+        return False
+    if hasattr(spec, "document_id") and movement.document_id != spec.document_id:  # type: ignore[attr-defined]
+        return False
+    if hasattr(spec, "device_unit_id") and movement.device_unit_id != spec.device_unit_id:  # type: ignore[attr-defined]
+        return False
+    if hasattr(spec, "product_id"):
+        if movement.product_id != spec.product_id or movement.location_id != spec.location_id:  # type: ignore[attr-defined]
+            return False
+        if movement.device_unit_id is not None:  # MovementsForPair is quantity-only
+            return False
+    return True
+
+
+class FakeStockMovementQueries:
+    """Reads the movements the fake repository holds, folded the way
+    ``SqlStockMovementQueries`` folds its rows."""
+
+    def __init__(self, movements: FakeStockMovementRepository) -> None:
+        self._rows = movements.rows
 
     async def net_quantity(self, product_id: UUID, location_id: UUID) -> int:
         return sum(
             m.quantity_delta
-            for m in self.rows
+            for m in self._rows
             if m.product_id == product_id and m.location_id == location_id
         )
 
-    async def list_for_pair(
-        self, product_id: UUID, location_id: UUID
-    ) -> list[StockMovement]:
-        return [
-            m
-            for m in self.rows
-            if m.product_id == product_id
-            and m.location_id == location_id
-            and m.device_unit_id is None
-        ]
-
-    async def list_units_on_hand(self) -> list[UUID]:
+    async def units_on_hand(self) -> list[UUID]:
         net: dict[UUID, int] = {}
-        for m in self.rows:
+        for m in self._rows:
             if m.device_unit_id is not None:
                 net[m.device_unit_id] = net.get(m.device_unit_id, 0) + m.quantity_delta
         return [unit_id for unit_id, total in net.items() if total > 0]
 
-    async def list_moved_pairs(self) -> list[tuple[UUID, UUID]]:
+    async def moved_pairs(self) -> list[tuple[UUID, UUID]]:
         return list(
             dict.fromkeys(
                 (m.product_id, m.location_id)
-                for m in self.rows
+                for m in self._rows
                 if m.device_unit_id is None
             )
         )
 
+    async def units_sold(
+        self,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> dict[UUID, int]:
+        sold: dict[UUID, int] = {}
+        for m in self._rows:
+            if m.movement_type is not MovementType.SALE:
+                continue
+            if from_date is not None and m.occurred_at < from_date:
+                continue
+            if to_date is not None and m.occurred_at > to_date:
+                continue
+            if location_id is not None and m.location_id != location_id:
+                continue
+            sold[m.location_id] = sold.get(m.location_id, 0) - m.quantity_delta
+        return sold
+
 
 class FakeFinancialTransactionRepository(FakeAppendOnlyRepository[FinancialTransaction]):
-    async def list_for_document(
-        self, document_type: DocumentType, document_id: UUID
-    ) -> list[FinancialTransaction]:
-        return [
-            t
-            for t in self.rows
-            if t.document_type is document_type and t.document_id == document_id
-        ]
+    """Spec-based. The transaction specs carry their filters as plain
+    attributes; no SQLAlchemy criteria are read."""
 
-    async def list_for_pair(
-        self, product_id: UUID, location_id: UUID
-    ) -> list[FinancialTransaction]:
-        return [
-            t
-            for t in self.rows
-            if t.product_id == product_id
-            and t.location_id == location_id
-            and t.device_unit_id is None
-        ]
+    async def find(self, spec: object) -> list[FinancialTransaction]:
+        return sorted(
+            (t for t in self.rows if _txn_matches(t, spec)),
+            key=lambda t: t.occurred_at,
+        )
+
+
+def _txn_matches(txn: FinancialTransaction, spec: object) -> bool:
+    doc_type = getattr(spec, "document_type", None)
+    if doc_type is not None and txn.document_type is not doc_type:
+        return False
+    if hasattr(spec, "document_id") and txn.document_id != spec.document_id:  # type: ignore[attr-defined]
+        return False
+    if hasattr(spec, "product_id"):
+        if txn.product_id != spec.product_id or txn.location_id != spec.location_id:  # type: ignore[attr-defined]
+            return False
+        if txn.device_unit_id is not None:  # TransactionsForPair is quantity-only
+            return False
+    return True
+
+
+class FakeFinancialTransactionQueries:
+    """The money-ledger aggregates the fake repository holds."""
+
+    def __init__(self, transactions: FakeFinancialTransactionRepository) -> None:
+        self._rows = transactions.rows
 
     async def totals_by_type(
         self,
@@ -352,7 +464,7 @@ class FakeFinancialTransactionRepository(FakeAppendOnlyRepository[FinancialTrans
         location_id: UUID | None = None,
     ) -> dict[tuple[TransactionType, Currency], Money]:
         totals: dict[tuple[TransactionType, Currency], Money] = {}
-        for txn in self.rows:
+        for txn in self._rows:
             if since is not None and txn.occurred_at < since:
                 continue
             if until is not None and txn.occurred_at >= until:
@@ -366,71 +478,102 @@ class FakeFinancialTransactionRepository(FakeAppendOnlyRepository[FinancialTrans
 
 
 class FakeStockLevelRepository(FakeRepository[StockLevel]):
-    async def get_for(self, product_id: UUID, location_id: UUID) -> StockLevel | None:
-        return next(
-            (
-                level
-                for level in self.by_id.values()
-                if level.product_id == product_id and level.location_id == location_id
-            ),
-            None,
-        )
+    """Spec-based, like the SQL repository. ``find_one`` (the pair probe)
+    comes from the base; ``find`` sorts by product for the count snapshot."""
 
-    async def list_all(self) -> list[StockLevel]:
-        return list(self.by_id.values())
-
-    async def list_for_location(self, location_id: UUID) -> list[StockLevel]:
+    async def find(self, spec: object) -> list[StockLevel]:
         return sorted(
-            (lv for lv in self.by_id.values() if lv.location_id == location_id),
+            (lv for lv in self.by_id.values() if _spec_matches(lv, spec)),
             key=lambda lv: str(lv.product_id),
         )
 
 
 class FakeProductRepository(FakeRepository[Product]):
-    async def get_by_sku(self, sku: str) -> Product | None:
-        return next((p for p in self.by_id.values() if str(p.sku) == sku), None)
+    """Spec-based, like the SQL repository. ``ProductBySku``/``ProductByBarcode``
+    are read back through ``find_one`` and used as probes through ``exists``;
+    ``ProductBrowse`` carries its filters as plain attributes."""
 
-    async def get_by_barcode(self, barcode: str) -> Product | None:
-        return next(
-            (p for p in self.by_id.values() if p.barcode and str(p.barcode) == barcode), None
+    async def find_one(
+        self, spec: ProductForWrite | ProductBySku | ProductByBarcode
+    ) -> Product | None:
+        if isinstance(spec, ProductBySku):
+            return next(
+                (p for p in self.by_id.values() if str(p.sku) == spec.sku), None
+            )
+        if isinstance(spec, ProductByBarcode):
+            return next(
+                (
+                    p
+                    for p in self.by_id.values()
+                    if p.barcode and str(p.barcode) == spec.barcode
+                ),
+                None,
+            )
+        return self.by_id.get(spec.product_id)
+
+    async def exists(
+        self,
+        spec: ProductBySku | ProductByBarcode | ProductBarcodeTakenByAnother,
+    ) -> bool:
+        if isinstance(spec, ProductBySku):
+            return any(str(p.sku) == spec.sku for p in self.by_id.values())
+        return any(
+            p.barcode
+            and str(p.barcode) == spec.barcode
+            and p.id != getattr(spec, "exclude_id", None)
+            for p in self.by_id.values()
         )
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        is_active: bool | None = None,
-        tracking_type: TrackingType | None = None,
-    ) -> tuple[list[Product], int]:
-        found = [
+    async def find(self, spec: ProductBrowse) -> list[Product]:
+        found = self._filter(spec)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: ProductBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: ProductBrowse) -> list[Product]:
+        return [
             p
             for p in sorted(self.by_id.values(), key=lambda p: p.created_at)
-            if _matches(search, str(p.sku), p.name, p.brand, str(p.barcode) if p.barcode else None)
-            and (is_active is None or p.is_active is is_active)
-            and (tracking_type is None or p.tracking_type is tracking_type)
+            if _matches(
+                spec.search,
+                str(p.sku),
+                p.name,
+                p.brand,
+                str(p.barcode) if p.barcode else None,
+            )
+            and (spec.is_active is None or p.is_active is spec.is_active)
+            and (spec.tracking_type is None or p.tracking_type is spec.tracking_type)
         ]
-        return _page(found, page, page_size)
 
 
 class FakeLocationRepository(FakeRepository[Location]):
-    async def get_by_name(self, name: str) -> Location | None:
-        return next((loc for loc in self.by_id.values() if loc.name == name), None)
+    """Spec-based, like the SQL repository. ``find_one``/``exists`` come from
+    the base (``LocationForWrite``, inline ``name ==`` probes);
+    ``LocationBrowse`` carries its filters as plain attributes."""
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        is_active: bool | None = None,
-    ) -> tuple[list[Location], int]:
-        found = [
+    async def find(self, spec: LocationBrowse) -> list[Location]:
+        found = self._filter(spec)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: LocationBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: LocationBrowse) -> list[Location]:
+        return [
             loc
             for loc in sorted(self.by_id.values(), key=lambda loc: loc.created_at)
-            if _matches(search, loc.name)
-            and (is_active is None or loc.is_active is is_active)
+            if _matches(spec.search, loc.name)
+            and (spec.is_active is None or loc.is_active is spec.is_active)
         ]
-        return _page(found, page, page_size)
 
 
 class FakeSupplierRepository(FakeRepository[Supplier]):
@@ -439,82 +582,97 @@ class FakeSupplierRepository(FakeRepository[Supplier]):
     Suppliers moved to the specification-based repository, and the handler
     tests that actually exercise their reads moved to Postgres with them
     (``tests/api/test_catalog_api.py``). What is left here is the one thing
-    a purchase order, a goods receipt or a return asks of a supplier: is
-    this id one of ours, and what is its name for the PDF. Both answer from
-    ``SupplierById``'s own ``supplier_id`` attribute — no SQLAlchemy
-    criteria are read, and nothing else is supported on purpose.
+    a purchase order, a goods receipt or a return asks of a supplier: load
+    it by id (``repo.get``) for the name on the PDF, or to check the id is
+    one of ours. Nothing else is supported on purpose.
     """
 
-    async def find_one(self, spec: SupplierById | SupplierForWrite) -> Supplier | None:
+    async def find_one(self, spec: SupplierForWrite) -> Supplier | None:
         return self.by_id.get(spec.supplier_id)
-
-    async def exists(self, spec: SupplierById) -> bool:
-        return spec.supplier_id in self.by_id
 
 
 class FakeCustomerRepository(FakeRepository[Customer]):
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        is_active: bool | None = None,
-    ) -> tuple[list[Customer], int]:
-        found = [
+    """Spec-based, like the SQL repository. ``CustomerBrowse`` carries its
+    filters as plain attributes; no SQLAlchemy criteria are read."""
+
+    async def find_one(self, spec: CustomerForWrite) -> Customer | None:
+        return self.by_id.get(spec.customer_id)
+
+    async def find(self, spec: CustomerBrowse) -> list[Customer]:
+        found = self._filter(spec)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: CustomerBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: CustomerBrowse) -> list[Customer]:
+        return [
             c
             for c in sorted(self.by_id.values(), key=lambda c: c.created_at)
-            if _matches(search, c.full_name, c.phone)
-            and (is_active is None or c.is_active is is_active)
+            if _matches(spec.search, c.full_name, c.phone)
+            and (spec.is_active is None or c.is_active is spec.is_active)
         ]
-        return _page(found, page, page_size)
 
 
 class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
-    """The line methods write through the aggregate the handler already
-    holds, exactly as the SQL repository writes one row rather than
-    rewriting the whole invoice per beep.
+    """Spec-based. Scanning and unscanning mutate ``invoice.lines`` on the
+    aggregate the handler holds, and ``update`` re-stores that same object,
+    so no per-line method is needed."""
 
-    One fake stands in for two ports. SQL splits the reports off into
-    ``SqlSalesReportRepository`` because the file was too big to hold both;
-    in memory there is one dict of invoices to answer from, and the ports
-    are structural, so this satisfies ``SalesReportRepository`` too."""
+    async def find_one(
+        self, spec: SalesInvoiceById | SalesInvoiceForWrite
+    ) -> SalesInvoice | None:
+        return self.by_id.get(spec.sales_invoice_id)
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.payments: FakePaymentRepository | None = None
+    async def find(self, spec: SalesInvoiceBrowse) -> list[SalesInvoice]:
+        found = self._filter(spec)
+        found.sort(key=lambda i: i.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        customer_id: UUID | None = None,
-        location_id: UUID | None = None,
-    ) -> tuple[list[SalesInvoice], int]:
-        found = [
+    async def count(self, spec: SalesInvoiceBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: SalesInvoiceBrowse) -> list[SalesInvoice]:
+        return [
             invoice
             for invoice in self.by_id.values()
-            if _matches(search, invoice.number)
-            and (status is None or invoice.status is status)
-            and (customer_id is None or invoice.customer_id == customer_id)
-            and (location_id is None or invoice.location_id == location_id)
+            if _matches(spec.search, invoice.number)
+            and (spec.status is None or invoice.status is spec.status)
+            and (spec.customer_id is None or invoice.customer_id == spec.customer_id)
+            and (spec.location_id is None or invoice.location_id == spec.location_id)
         ]
-        return _page(sorted(found, key=lambda i: i.created_at, reverse=True), page, page_size)
 
-    async def add_line(self, line: SalesInvoiceLine) -> None:
-        return None
 
-    async def update_line(self, line: SalesInvoiceLine) -> None:
-        return None
+class FakeSalesInvoiceQueries:
+    """Reads the invoice aggregates the fake repository holds, folded the
+    way ``SqlSalesInvoiceQueries`` folds its joined rows. Needs the payment
+    fake too, since the debt reads join both tables; ``World`` wires it
+    after both are built."""
 
-    async def remove_line(self, line_id: UUID) -> None:
-        return None
+    def __init__(
+        self,
+        invoices: FakeSalesInvoiceRepository,
+        payments: FakePaymentRepository,
+    ) -> None:
+        self._invoices = invoices
+        self._payments = payments
+
+    @property
+    def _by_id(self) -> dict[UUID, SalesInvoice]:
+        return self._invoices.by_id
 
     async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
         found = [
             self._to_debt(invoice)
-            for invoice in self.by_id.values()
+            for invoice in self._by_id.values()
             if invoice.customer_id == customer_id
             and invoice.payment_type is not PaymentType.PAID_IN_FULL
             and invoice.status is not DocumentStatus.DRAFT
@@ -523,11 +681,77 @@ class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
             found, key=lambda d: d.confirmed_at or datetime.min.replace(tzinfo=UTC), reverse=True
         )
 
+    async def sales_of_unit(self, device_unit_id: UUID) -> dict[UUID, UnitSale]:
+        sold: dict[UUID, UnitSale] = {}
+        for invoice in self._by_id.values():
+            if invoice.status is DocumentStatus.DRAFT:
+                continue
+            for line in invoice.lines:
+                if line.device_unit_id != device_unit_id:
+                    continue
+                sold[invoice.id] = UnitSale(
+                    invoice_id=invoice.id,
+                    invoice_number=invoice.number,
+                    customer_id=invoice.customer_id,
+                    customer_name=None,
+                    resolved_price=line.resolved_price,
+                    charged_price=line.charged_price,
+                    price_approved_by=line.price_approved_by,
+                    price_approved_by_name=None,
+                    price_note=line.price_note,
+                )
+        return sold
+
+    async def list_deviations(
+        self,
+        page: int,
+        page_size: int,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        approved_by: UUID | None = None,
+        customer_id: UUID | None = None,
+        sort: DeviationSort = DeviationSort.CONFIRMED_AT,
+    ) -> tuple[list[PriceDeviation], int]:
+        found: list[PriceDeviation] = []
+        for invoice in self._by_id.values():
+            if invoice.status is not DocumentStatus.CONFIRMED:
+                continue
+            if customer_id is not None and invoice.customer_id != customer_id:
+                continue
+            for line in invoice.deviations():
+                if approved_by is not None and line.price_approved_by != approved_by:
+                    continue
+                assert line.resolved_price is not None
+                assert line.charged_price is not None
+                assert invoice.confirmed_at is not None
+                found.append(
+                    PriceDeviation(
+                        invoice_id=invoice.id,
+                        invoice_number=invoice.number,
+                        confirmed_at=invoice.confirmed_at,
+                        customer_id=invoice.customer_id,
+                        customer_name=None,
+                        product_id=line.product_id,
+                        product_name=str(line.product_id),
+                        imei=None,
+                        resolved_price=line.resolved_price,
+                        charged_price=line.charged_price,
+                        price_approved_by=line.price_approved_by,
+                        price_approved_by_name=None,
+                        price_note=line.price_note,
+                    )
+                )
+        found.sort(
+            key=lambda d: d.confirmed_at or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
+        return _page(found, page, page_size)
+
     async def list_debtors(
         self, page: int, page_size: int
     ) -> tuple[list[DebtorSummary], int]:
         by_customer: dict[UUID, list[CreditInvoiceDebt]] = {}
-        for invoice in self.by_id.values():
+        for invoice in self._by_id.values():
             if invoice.customer_id is None or not invoice.payment_type.opens_debt:
                 continue
             if invoice.status is not DocumentStatus.CONFIRMED:
@@ -560,7 +784,7 @@ class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
 
     async def total_debt(self) -> Money:
         total = Money.zero(Currency.UZS)
-        for invoice in self.by_id.values():
+        for invoice in self._by_id.values():
             if invoice.status is not DocumentStatus.CONFIRMED:
                 continue
             if not invoice.payment_type.opens_debt or invoice.debt is None:
@@ -582,67 +806,54 @@ class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
         )
 
     def _paid(self, invoice_id: UUID) -> Money:
-        """The debt reads join two tables, so this fake needs the other one.
-
-        ``World`` sets ``payments`` after building both, since neither can
-        be constructed holding the other.
-        """
+        """The debt reads join ``sales_invoices`` and ``payments``, so this
+        fake reads the payment fake alongside its own invoices."""
         total = Money.zero(Currency.UZS)
-        rows = [] if self.payments is None else self.payments.rows
-        for payment in rows:
+        for payment in self._payments.rows:
             if payment.sales_invoice_id == invoice_id:
                 total = total + payment.amount
         return total
 
 
 class FakeCreditCompanyRepository(FakeRepository[CreditCompany]):
-    async def get_by_name(self, name: str) -> CreditCompany | None:
-        return next((c for c in self.by_id.values() if c.name == name), None)
+    """Spec-based, like the SQL repository. ``find_one``/``exists`` come from
+    the base (``CreditCompanyForWrite``, inline ``name ==`` probes);
+    ``CreditCompanyBrowse`` carries its filters as plain attributes."""
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        is_active: bool | None = None,
-    ) -> tuple[list[CreditCompany], int]:
-        found = [
+    async def find(self, spec: CreditCompanyBrowse) -> list[CreditCompany]:
+        found = self._filter(spec)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: CreditCompanyBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: CreditCompanyBrowse) -> list[CreditCompany]:
+        return [
             company
-            for company in self.by_id.values()
-            if _matches(search, company.name, company.contact_name, company.phone)
-            and (is_active is None or company.is_active == is_active)
+            for company in sorted(self.by_id.values(), key=lambda c: c.created_at)
+            if _matches(spec.search, company.name, company.contact_name, company.phone)
+            and (spec.is_active is None or company.is_active == spec.is_active)
         ]
-        return _page(sorted(found, key=lambda c: c.created_at), page, page_size)
 
 
 class FakePaymentRepository(FakeAppendOnlyRepository[Payment]):
+    """Spec-based, plus ``get`` by id (the append-only port carries it)."""
+
     async def get(self, payment_id: UUID) -> Payment | None:
         return next((p for p in self.rows if p.id == payment_id), None)
 
-    async def list_for_invoice(self, sales_invoice_id: UUID) -> list[Payment]:
-        return [p for p in self.rows if p.sales_invoice_id == sales_invoice_id]
+    async def find(self, spec: object) -> list[Payment]:
+        return sorted(
+            (p for p in self.rows if _spec_matches(p, spec)),
+            key=lambda p: p.occurred_at,
+        )
 
-    async def list_for_invoices(
-        self, sales_invoice_ids: Sequence[UUID]
-    ) -> dict[UUID, list[Payment]]:
-        wanted = set(sales_invoice_ids)
-        found: dict[UUID, list[Payment]] = {}
-        for payment in self.rows:
-            if payment.sales_invoice_id in wanted:
-                found.setdefault(payment.sales_invoice_id, []).append(payment)
-        return found
-
-    async def paid_for(self, sales_invoice_id: UUID) -> Money:
-        total = Money.zero(Currency.UZS)
-        for payment in await self.list_for_invoice(sales_invoice_id):
-            total = total + payment.amount
-        return total
-
-    async def reversal_of(self, payment_id: UUID) -> Payment | None:
-        return next((p for p in self.rows if p.reverses_payment_id == payment_id), None)
-
-    async def list_all(self) -> list[Payment]:
-        return list(self.rows)
+    async def find_one(self, spec: object) -> Payment | None:
+        return next((p for p in self.rows if _spec_matches(p, spec)), None)
 
 
 class FakeTenantSettingsRepository:
@@ -757,7 +968,7 @@ class FakeProvisioner:
 # --- M4 inbound documents (PRD §4.4, §5.3) -------------------------------
 
 
-class FakeDocumentNumberRepository:
+class FakeDocumentNumberAllocator:
     """One counter per (document type, year), as the locked row is."""
 
     def __init__(self) -> None:
@@ -802,43 +1013,51 @@ class FakePurchaseOrderRepository(FakeRepository[PurchaseOrder]):
 
 
 class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
-    """The scan methods write through the aggregate the handler already
-    holds, exactly as the SQL repository writes one row rather than
-    rewriting a fifty-line receipt per beep."""
+    """Spec-based. Scanning, pricing and unscanning mutate ``receipt.lines``
+    on the aggregate the handler holds, and ``update`` re-stores that same
+    object, so no per-unit method is needed."""
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        acquisition_source: AcquisitionSource | None = None,
-    ) -> tuple[list[GoodsReceipt], int]:
-        found = [
+    async def find_one(
+        self, spec: GoodsReceiptById | GoodsReceiptForWrite
+    ) -> GoodsReceipt | None:
+        return self.by_id.get(spec.goods_receipt_id)
+
+    async def find(self, spec: GoodsReceiptBrowse) -> list[GoodsReceipt]:
+        found = self._filter(spec)
+        found.sort(key=lambda r: r.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: GoodsReceiptBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: GoodsReceiptBrowse) -> list[GoodsReceipt]:
+        return [
             receipt
             for receipt in self.by_id.values()
-            if _matches(search, receipt.number)
-            and (status is None or receipt.status is status)
+            if _matches(spec.search, receipt.number)
+            and (spec.status is None or receipt.status is spec.status)
             and (
-                acquisition_source is None
-                or receipt.acquisition_source is acquisition_source
+                spec.acquisition_source is None
+                or receipt.acquisition_source is spec.acquisition_source
             )
         ]
-        return _page(sorted(found, key=lambda r: r.created_at, reverse=True), page, page_size)
 
-    async def add_unit(self, unit: ReceivedUnit) -> None:
-        return None
 
-    async def update_unit(self, unit: ReceivedUnit) -> None:
-        return None
+class FakeGoodsReceiptQueries:
+    """Reads the receipt aggregates the fake repository holds, folded the way
+    ``SqlGoodsReceiptQueries`` folds its joined rows."""
 
-    async def remove_unit(self, unit_id: UUID) -> None:
-        return None
+    def __init__(self, receipts: FakeGoodsReceiptRepository) -> None:
+        self._receipts = receipts
 
     async def received_quantities(self, purchase_order_id: UUID) -> dict[UUID, int]:
         """Confirmed receipts only — a draft has received nothing (FR-3.9)."""
         received: dict[UUID, int] = {}
-        for receipt in self.by_id.values():
+        for receipt in self._receipts.by_id.values():
             if (
                 receipt.purchase_order_id != purchase_order_id
                 or receipt.status is not DocumentStatus.CONFIRMED
@@ -849,8 +1068,20 @@ class FakeGoodsReceiptRepository(FakeRepository[GoodsReceipt]):
         return received
 
     async def supplier_of(self, receipt_id: UUID) -> UUID | None:
-        receipt = self.by_id.get(receipt_id)
+        receipt = self._receipts.by_id.get(receipt_id)
         return None if receipt is None else receipt.supplier_id
+
+    async def origin_of(self, receipt_id: UUID) -> UnitOrigin | None:
+        receipt = self._receipts.by_id.get(receipt_id)
+        if receipt is None:
+            return None
+        return UnitOrigin(
+            acquisition_source=receipt.acquisition_source,
+            supplier_id=receipt.supplier_id,
+            supplier_name=None,
+            customer_id=receipt.customer_id,
+            customer_name=None,
+        )
 
 
 class FakeSupplierReturnRepository(FakeRepository[SupplierReturn]):
@@ -887,67 +1118,63 @@ class FakeSupplierReturnRepository(FakeRepository[SupplierReturn]):
 
 
 class FakeWriteOffRepository(FakeRepository[WriteOff]):
-    async def add_line(self, line: WriteOffLine) -> None:
-        return None
+    """Spec-based. Scanning mutates ``document.lines`` on the aggregate the
+    handler holds, and ``update`` re-stores that same object."""
 
-    async def update_line(self, line: WriteOffLine) -> None:
-        return None
+    async def find_one(
+        self, spec: WriteOffById | WriteOffForWrite
+    ) -> WriteOff | None:
+        return self.by_id.get(spec.write_off_id)
 
-    async def remove_line(self, line_id: UUID) -> None:
-        return None
+    async def find(self, spec: WriteOffBrowse) -> list[WriteOff]:
+        found = self._filter(spec)
+        found.sort(key=lambda d: d.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
 
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        location_id: UUID | None = None,
-        reason: WriteOffReason | None = None,
-    ) -> tuple[list[WriteOff], int]:
-        found = [
+    async def count(self, spec: WriteOffBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: WriteOffBrowse) -> list[WriteOff]:
+        return [
             document
             for document in self.by_id.values()
-            if _matches(search, document.number)
-            and (status is None or document.status is status)
-            and (location_id is None or document.location_id == location_id)
-            and (reason is None or document.reason is reason)
+            if _matches(spec.search, document.number)
+            and (spec.status is None or document.status is spec.status)
+            and (spec.location_id is None or document.location_id == spec.location_id)
+            and (spec.reason is None or document.reason is spec.reason)
         ]
-        return _page(sorted(found, key=lambda d: d.created_at, reverse=True), page, page_size)
 
 
 class FakeStockCountRepository(FakeRepository[StockCount]):
-    async def add_unit(self, unit: StockCountUnit) -> None:
-        return None
+    """Spec-based. Scanning and counting mutate the aggregate the handler
+    holds, and ``update`` re-stores that same object."""
 
-    async def add_units(self, units: Sequence[StockCountUnit]) -> None:
-        return None
+    async def find_one(
+        self, spec: StockCountById | StockCountForWrite
+    ) -> StockCount | None:
+        return self.by_id.get(spec.stock_count_id)
 
-    async def update_unit(self, unit: StockCountUnit) -> None:
-        return None
+    async def find(self, spec: StockCountBrowse) -> list[StockCount]:
+        found = self._filter(spec)
+        found.sort(key=lambda c: c.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
 
-    async def remove_unit(self, unit_id: UUID) -> None:
-        return None
+    async def count(self, spec: StockCountBrowse) -> int:
+        return len(self._filter(spec))
 
-    async def add_lines(self, lines: Sequence[StockCountLine]) -> None:
-        return None
-
-    async def update_line(self, line: StockCountLine) -> None:
-        return None
-
-    async def list_page(
-        self,
-        page: int,
-        page_size: int,
-        search: str | None = None,
-        status: DocumentStatus | None = None,
-        location_id: UUID | None = None,
-    ) -> tuple[list[StockCount], int]:
-        found = [
+    def _filter(self, spec: StockCountBrowse) -> list[StockCount]:
+        return [
             count
             for count in self.by_id.values()
-            if _matches(search, count.number)
-            and (status is None or count.status is status)
-            and (location_id is None or count.location_id == location_id)
+            if _matches(spec.search, count.number)
+            and (spec.status is None or count.status is spec.status)
+            and (spec.location_id is None or count.location_id == spec.location_id)
         ]
-        return _page(sorted(found, key=lambda c: c.created_at, reverse=True), page, page_size)

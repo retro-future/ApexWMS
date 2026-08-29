@@ -155,11 +155,11 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
     There is no sign-up endpoint (PRD §3.4), so this drives the same
     ``CreateTenant`` use case the ``apexwms create-tenant`` CLI does.
     """
-    from infrastructure.persistence.master.repositories import (
-        SqlTenantRepository,
-        SqlUserRepository,
-    )
+    from domain.entities import User
+    from infrastructure.persistence.mappers import AutoMapper, TenantMapper
+    from infrastructure.persistence.master.models import TenantModel, UserModel
     from infrastructure.persistence.master.uow import SqlMasterUnitOfWork
+    from infrastructure.persistence.repositories import MasterSqlRepository
     from infrastructure.provisioning import DefaultTenantProvisioner
     from infrastructure.security.password import Argon2PasswordHasher
 
@@ -176,8 +176,8 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
             async with sessions() as session:
                 clock = SystemClock()
                 handler = CreateTenantHandler(
-                    tenants=SqlTenantRepository(session),
-                    users=SqlUserRepository(session),
+                    tenants=MasterSqlRepository(session, TenantModel, TenantMapper()),
+                    users=MasterSqlRepository(session, UserModel, AutoMapper(User, UserModel)),
                     hasher=Argon2PasswordHasher(),
                     tokens=_token_service(settings, clock),
                     provisioner=DefaultTenantProvisioner(engine, settings),
@@ -244,11 +244,11 @@ def create_tenant(client: httpx.AsyncClient, settings: Settings):
 @pytest.fixture
 def create_superadmin(settings: Settings):
     """A platform operator: no home store, so their token carries no tenant."""
-    from infrastructure.persistence.master.repositories import (
-        SqlUserAppRoleRepository,
-        SqlUserRepository,
-    )
+    from domain.entities import User
+    from infrastructure.persistence.mappers import AutoMapper, UserAppRoleMapper
+    from infrastructure.persistence.master.models import UserAppRoleModel, UserModel
     from infrastructure.persistence.master.uow import SqlMasterUnitOfWork
+    from infrastructure.persistence.repositories import MasterSqlRepository
     from infrastructure.security.password import Argon2PasswordHasher
 
     async def _create(email: str = "ops@example.com", name: str = "Ops") -> tuple[str, str]:
@@ -257,8 +257,8 @@ def create_superadmin(settings: Settings):
             async with sessions() as session:
                 clock = SystemClock()
                 handler = CreateSuperAdminHandler(
-                    users=SqlUserRepository(session),
-                    app_roles=SqlUserAppRoleRepository(session),
+                    users=MasterSqlRepository(session, UserModel, AutoMapper(User, UserModel)),
+                    app_roles=MasterSqlRepository(session, UserAppRoleModel, UserAppRoleMapper()),
                     hasher=Argon2PasswordHasher(),
                     tokens=_token_service(settings, clock),
                     clock=clock,
@@ -280,10 +280,10 @@ def grant_access(settings: Settings):
     from uuid import UUID
 
     from domain.entities import UserTenantAccess
-    from infrastructure.persistence.master.repositories import (
-        SqlUserTenantAccessRepository,
-    )
+    from infrastructure.persistence.mappers import AutoMapper
+    from infrastructure.persistence.master.models import UserTenantAccessModel
     from infrastructure.persistence.master.uow import SqlMasterUnitOfWork
+    from infrastructure.persistence.repositories import MasterSqlRepository
 
     async def _grant(user_id: str, tenant_id: str) -> None:
         from uuid import uuid4
@@ -291,7 +291,10 @@ def grant_access(settings: Settings):
         engine, sessions = _master_session(settings)
         try:
             async with sessions() as session:
-                await SqlUserTenantAccessRepository(session).add(
+                mapper = AutoMapper(UserTenantAccess, UserTenantAccessModel)
+                await MasterSqlRepository(
+                    session, UserTenantAccessModel, mapper
+                ).add(
                     UserTenantAccess(
                         id=uuid4(), user_id=UUID(user_id), tenant_id=UUID(tenant_id)
                     )

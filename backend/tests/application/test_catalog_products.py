@@ -10,6 +10,7 @@ from application.commands.update_product import UpdateProductCommand
 from application.errors import DuplicateBarcodeError, DuplicateSkuError, NotFoundError
 from application.queries.get_product import GetProductQuery
 from application.queries.list_products import ListProductsQuery
+from application.specs import ProductBySku
 from domain.enums import TrackingType
 from domain.errors import BarcodeNotAllowedError, InvalidBarcodeError, InvalidMoneyError
 from domain.value_objects import Currency
@@ -56,7 +57,7 @@ class TestCreate:
         result = await create(world, sku="  ip15p-256 ")
 
         assert result.data.sku == "IP15P-256"
-        assert await world.products.get_by_sku("IP15P-256") is not None
+        assert await world.products.exists(ProductBySku("IP15P-256"))
 
     async def test_a_price_is_stored_in_minor_units_of_the_products_currency(self):
         """A som price and a dollar price of the same magnitude are not the

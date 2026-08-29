@@ -98,7 +98,7 @@ async def trade_in_store(*, record_cash: bool):
 
 def reconciler(world) -> LedgerReconciler:
     return LedgerReconciler(
-        world.units, world.transactions, world.movements, world.cost_pools()
+        world.units, world.transaction_queries, world.movement_queries, world.cost_pools()
     )
 
 
@@ -108,7 +108,7 @@ class TestTheBookedFigureIsWhatCounts:
         — not a converted figure, and not the som one."""
         world, _ = await trade_in_store(record_cash=True)
 
-        totals = await world.transactions.totals_by_type()
+        totals = await world.transaction_queries.totals_by_type()
 
         assert totals == {(TransactionType.PURCHASE, Currency.USD): usd("-330")}
 
@@ -147,8 +147,8 @@ class TestClearingItChangesNothing:
         cleared, _ = await trade_in_store(record_cash=False)
 
         assert (
-            await recorded.transactions.totals_by_type()
-            == await cleared.transactions.totals_by_type()
+            await recorded.transaction_queries.totals_by_type()
+            == await cleared.transaction_queries.totals_by_type()
         )
 
     async def test_inventory_value_is_identical(self):
@@ -195,7 +195,7 @@ class TestClearingItChangesNothing:
                     ],
                 )
             )
-            totals = await world.transactions.totals_by_type()
+            totals = await world.transaction_queries.totals_by_type()
             margins.append(
                 totals[(TransactionType.SALE_REVENUE, Currency.USD)]
                 + totals[(TransactionType.COGS, Currency.USD)]

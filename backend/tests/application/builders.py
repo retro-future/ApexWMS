@@ -115,7 +115,6 @@ from application.services import (
     DeviceUnitLoader,
     DeviceUnitRepricer,
     DocumentLineBuilder,
-    DocumentLoader,
     DocumentNumberer,
     InvoicePoster,
     LedgerPoster,
@@ -140,9 +139,11 @@ from tests.application.fakes import (
     FakeCustomerRepository,
     FakeDeviceUnitPriceChangeRepository,
     FakeDeviceUnitRepository,
-    FakeDocumentNumberRepository,
+    FakeDocumentNumberAllocator,
     FakeEmployeeRepository,
+    FakeFinancialTransactionQueries,
     FakeFinancialTransactionRepository,
+    FakeGoodsReceiptQueries,
     FakeGoodsReceiptRepository,
     FakeHasher,
     FakeInvitationRepository,
@@ -153,9 +154,11 @@ from tests.application.fakes import (
     FakeProvisioner,
     FakePurchaseOrderRepository,
     FakeRefreshTokenRepository,
+    FakeSalesInvoiceQueries,
     FakeSalesInvoiceRepository,
     FakeStockCountRepository,
     FakeStockLevelRepository,
+    FakeStockMovementQueries,
     FakeStockMovementRepository,
     FakeSupplierRepository,
     FakeSupplierReturnRepository,
@@ -206,7 +209,7 @@ class World:
     returns: FakeSupplierReturnRepository
     write_offs: FakeWriteOffRepository
     counts: FakeStockCountRepository
-    document_numbers: FakeDocumentNumberRepository
+    document_numbers: FakeDocumentNumberAllocator
     scope: FakeTenantScope
     uow: FakeUnitOfWork
     provisioner: FakeProvisioner
@@ -217,6 +220,18 @@ class World:
     def employees(self) -> FakeEmployeeRepository:
         """Staff at the default store."""
         return self.scope.employees_at(self.tenant.id)
+
+    @property
+    def receipt_queries(self) -> FakeGoodsReceiptQueries:
+        return FakeGoodsReceiptQueries(self.receipts)
+
+    @property
+    def movement_queries(self) -> FakeStockMovementQueries:
+        return FakeStockMovementQueries(self.movements)
+
+    @property
+    def transaction_queries(self) -> FakeFinancialTransactionQueries:
+        return FakeFinancialTransactionQueries(self.transactions)
 
     @property
     def claims(self) -> ClaimsFactory:
@@ -269,7 +284,7 @@ class World:
     def change_password(self, user_id: UUID) -> ChangePasswordHandler:
         return ChangePasswordHandler(
             self.users,
-            self.refresh_tokens,
+            self.issuer,
             self.hasher,
             self.clock,
             self.uow,
@@ -426,13 +441,9 @@ class World:
     def line_builder(self) -> DocumentLineBuilder:
         return DocumentLineBuilder(self.products)
 
-    def document_loader(self) -> DocumentLoader:
-        return DocumentLoader(
-            self.receipts,
-            self.invoices,
-            self.write_offs,
-            self.counts,
-        )
+    @property
+    def invoice_queries(self) -> FakeSalesInvoiceQueries:
+        return FakeSalesInvoiceQueries(self.invoices, self.payments)
 
     def receipt_poster(self, actor: UUID | None = None) -> ReceiptPoster:
         return ReceiptPoster(
@@ -464,7 +475,7 @@ class World:
     ) -> ConfirmPurchaseOrderHandler:
         return ConfirmPurchaseOrderHandler(
             self.orders,
-            self.receipts,
+            self.receipt_queries,
             self.clock,
             self.uow,
             self._as(actor),
@@ -473,21 +484,22 @@ class World:
     def cancel_purchase_order(self, actor: UUID | None = None) -> CancelPurchaseOrderHandler:
         return CancelPurchaseOrderHandler(
             self.orders,
-            self.receipts,
+            self.receipt_queries,
             self.clock,
             self.uow,
             self._as(actor),
         )
 
     def get_purchase_order(self) -> GetPurchaseOrderHandler:
-        return GetPurchaseOrderHandler(self.orders, self.receipts)
+        return GetPurchaseOrderHandler(self.orders, self.receipt_queries)
 
     def list_purchase_orders(self) -> ListPurchaseOrdersHandler:
-        return ListPurchaseOrdersHandler(self.orders, self.receipts)
+        return ListPurchaseOrdersHandler(self.orders, self.receipt_queries)
 
     def create_goods_receipt(self, actor: UUID | None = None) -> CreateGoodsReceiptHandler:
         return CreateGoodsReceiptHandler(
             self.receipts,
+            self.receipt_queries,
             self.orders,
             self.suppliers,
             self.customers,
@@ -503,7 +515,7 @@ class World:
         self, actor: UUID | None = None, *permissions: Permission
     ) -> ScanReceiptUnitHandler:
         return ScanReceiptUnitHandler(
-            self.receipts, self.units, self.document_loader(), self.uow,
+            self.receipts, self.units, self.uow,
             self._as(actor, *permissions),
         )
 
@@ -511,18 +523,17 @@ class World:
         self, actor: UUID | None = None, *permissions: Permission
     ) -> PriceReceiptUnitHandler:
         return PriceReceiptUnitHandler(
-            self.receipts, self.document_loader(), self.uow, self._as(actor, *permissions)
+            self.receipts, self.uow, self._as(actor, *permissions)
         )
 
     def unscan_receipt_unit(self) -> UnscanReceiptUnitHandler:
-        return UnscanReceiptUnitHandler(self.receipts, self.document_loader(), self.uow)
+        return UnscanReceiptUnitHandler(self.receipts, self.uow)
 
     def confirm_goods_receipt(
         self, actor: UUID | None = None, *permissions: Permission
     ) -> ConfirmGoodsReceiptHandler:
         return ConfirmGoodsReceiptHandler(
             self.receipts,
-            self.document_loader(),
             self.receipt_poster(actor),
             self.clock,
             self.uow,
@@ -534,7 +545,6 @@ class World:
     ) -> CancelGoodsReceiptHandler:
         return CancelGoodsReceiptHandler(
             self.receipts,
-            self.document_loader(),
             self.poster(actor),
             self.clock,
             self.uow,
@@ -544,7 +554,7 @@ class World:
     def get_goods_receipt(
         self, actor: UUID | None = None, *permissions: Permission
     ) -> GetGoodsReceiptHandler:
-        return GetGoodsReceiptHandler(self.document_loader(), self._as(actor, *permissions))
+        return GetGoodsReceiptHandler(self.receipts, self._as(actor, *permissions))
 
     def list_goods_receipts(
         self, actor: UUID | None = None, *permissions: Permission
@@ -683,7 +693,6 @@ class World:
             self.invoices,
             self.device_unit_loader(),
             self.products,
-            self.document_loader(),
             self.uow,
         )
 
@@ -691,18 +700,17 @@ class World:
         self, actor: UUID | None = None
     ) -> OverrideInvoiceLinePriceHandler:
         return OverrideInvoiceLinePriceHandler(
-            self.invoices, self.document_loader(), self.uow, self._as(actor)
+            self.invoices, self.uow, self._as(actor)
         )
 
     def unscan_invoice_line(self) -> UnscanInvoiceLineHandler:
-        return UnscanInvoiceLineHandler(self.invoices, self.document_loader(), self.uow)
+        return UnscanInvoiceLineHandler(self.invoices, self.uow)
 
     def confirm_sales_invoice(self, actor: UUID | None = None) -> ConfirmSalesInvoiceHandler:
         return ConfirmSalesInvoiceHandler(
             self.invoices,
             self.credit_companies,
             self.payments,
-            self.document_loader(),
             self.invoice_poster(actor),
             self.payment_poster(actor),
             SalePriceParser(),
@@ -715,7 +723,6 @@ class World:
         return CancelSalesInvoiceHandler(
             self.invoices,
             self.payments,
-            self.document_loader(),
             self.poster(actor),
             self.clock,
             self.uow,
@@ -723,7 +730,7 @@ class World:
         )
 
     def get_sales_invoice(self) -> GetSalesInvoiceHandler:
-        return GetSalesInvoiceHandler(self.document_loader(), self.payments)
+        return GetSalesInvoiceHandler(self.invoices, self.payments)
 
     def list_sales_invoices(self) -> ListSalesInvoicesHandler:
         return ListSalesInvoicesHandler(self.invoices, self.payments)
@@ -744,7 +751,7 @@ class World:
 
     def record_payment(self, actor: UUID | None = None) -> RecordPaymentHandler:
         return RecordPaymentHandler(
-            self.document_loader(),
+            self.invoices,
             self.payment_poster(actor),
             self.payments,
             SalePriceParser(),
@@ -753,19 +760,19 @@ class World:
 
     def reverse_payment(self, actor: UUID | None = None) -> ReversePaymentHandler:
         return ReversePaymentHandler(
-            self.payments, self.document_loader(), self.payment_poster(actor), self.uow
+            self.payments, self.invoices, self.payment_poster(actor), self.uow
         )
 
     def get_customer_account(self) -> GetCustomerAccountHandler:
-        return GetCustomerAccountHandler(self.customers, self.invoices, self.clock)
+        return GetCustomerAccountHandler(self.customers, self.invoice_queries, self.clock)
 
     def list_debtors(self) -> ListDebtorsHandler:
-        return ListDebtorsHandler(self.invoices, self.clock)
+        return ListDebtorsHandler(self.invoice_queries, self.clock)
 
     # --- M6 returns, counts & write-offs ---
 
     def unit_origin_guard(self) -> UnitOriginGuard:
-        return UnitOriginGuard(self.receipts)
+        return UnitOriginGuard(self.receipt_queries)
 
     def removal_poster(self, actor: UUID | None = None) -> RemovalPoster:
         return RemovalPoster(
@@ -852,18 +859,15 @@ class World:
 
     def scan_write_off_line(self) -> ScanWriteOffLineHandler:
         return ScanWriteOffLineHandler(
-            self.write_offs, self.removal_scanner(), self.document_loader(), self.uow
+            self.write_offs, self.removal_scanner(), self.uow
         )
 
     def unscan_write_off_line(self) -> UnscanWriteOffLineHandler:
-        return UnscanWriteOffLineHandler(
-            self.write_offs, self.units, self.document_loader(), self.uow
-        )
+        return UnscanWriteOffLineHandler(self.write_offs, self.units, self.uow)
 
     def confirm_write_off(self, actor: UUID | None = None) -> ConfirmWriteOffHandler:
         return ConfirmWriteOffHandler(
             self.write_offs,
-            self.document_loader(),
             self.removal_poster(actor),
             self.clock,
             self.uow,
@@ -873,7 +877,6 @@ class World:
     def cancel_write_off(self, actor: UUID | None = None) -> CancelWriteOffHandler:
         return CancelWriteOffHandler(
             self.write_offs,
-            self.document_loader(),
             self.poster(actor),
             self.clock,
             self.uow,
@@ -902,30 +905,26 @@ class World:
             self.counts,
             self.units,
             self.products,
-            self.document_loader(),
             self.uow,
             self._as(actor, *permissions),
         )
 
     def unscan_stock_count_unit(self) -> UnscanStockCountUnitHandler:
-        return UnscanStockCountUnitHandler(self.counts, self.document_loader(), self.uow)
+        return UnscanStockCountUnitHandler(self.counts, self.uow)
 
     def count_stock_count_line(
         self, actor: UUID | None = None
     ) -> CountStockCountLineHandler:
-        return CountStockCountLineHandler(
-            self.counts, self.document_loader(), self.uow, self._as(actor)
-        )
+        return CountStockCountLineHandler(self.counts, self.uow, self._as(actor))
 
     def close_stock_count(self, actor: UUID | None = None) -> CloseStockCountHandler:
         return CloseStockCountHandler(
-            self.counts, self.document_loader(), self.clock, self.uow, self._as(actor)
+            self.counts, self.clock, self.uow, self._as(actor)
         )
 
     def confirm_stock_count(self, actor: UUID | None = None) -> ConfirmStockCountHandler:
         return ConfirmStockCountHandler(
             self.counts,
-            self.document_loader(),
             self.count_poster(actor),
             self.clock,
             self.uow,
@@ -935,7 +934,6 @@ class World:
     def cancel_stock_count(self, actor: UUID | None = None) -> CancelStockCountHandler:
         return CancelStockCountHandler(
             self.counts,
-            self.document_loader(),
             self.poster(actor),
             self.clock,
             self.uow,
@@ -948,7 +946,7 @@ class World:
         return ListStockCountsHandler(self.counts, self._as(actor, *permissions))
 
     def balance_verifier(self) -> BalanceVerifier:
-        return BalanceVerifier(self.invoices, self.payments, self.transactions)
+        return BalanceVerifier(self.invoices, self.payments, self.transaction_queries)
 
 
 def make_world(provisioner_fails: bool = False) -> World:
@@ -965,9 +963,6 @@ def make_world(provisioner_fails: bool = False) -> World:
     tenants.by_id[tenant.id] = tenant
     invoices = FakeSalesInvoiceRepository()
     payments = FakePaymentRepository()
-    # The debt reads join both tables; neither fake can be built holding
-    # the other, so the join is wired up once the pair exists.
-    invoices.payments = payments
     return World(
         clock=clock,
         hasher=FakeHasher(),
@@ -991,7 +986,7 @@ def make_world(provisioner_fails: bool = False) -> World:
         returns=FakeSupplierReturnRepository(),
         write_offs=FakeWriteOffRepository(),
         counts=FakeStockCountRepository(),
-        document_numbers=FakeDocumentNumberRepository(),
+        document_numbers=FakeDocumentNumberAllocator(),
         movements=FakeStockMovementRepository(),
         transactions=FakeFinancialTransactionRepository(),
         levels=FakeStockLevelRepository(),

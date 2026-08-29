@@ -78,6 +78,60 @@ async def a_seller(client, owner, email="seller@example.com"):
     return {"Authorization": f"Bearer {login.json()['data']['accessToken']}"}
 
 
+class TestTheCreditCompanyRepository:
+    """Credit companies moved to the specification-based repository. The
+    application suite still proves the CRUD rules against fakes; this proves
+    the specs carry real SQL predicates and the mapper round-trips."""
+
+    async def test_creating_and_reading_one(self, client, owner):
+        created = await client.post(
+            "/api/v1/credit-companies",
+            headers=owner.auth,
+            json={"name": "Uzum Nasiya", "contactName": "Dilnoza"},
+        )
+        company_id = created.json()["data"]["id"]
+
+        fetched = await client.get(
+            f"/api/v1/credit-companies/{company_id}", headers=owner.auth
+        )
+
+        assert created.status_code == 201, created.text
+        assert fetched.json()["data"]["contactName"] == "Dilnoza"
+
+    async def test_a_duplicate_name_is_a_conflict(self, client, owner):
+        await a_company(client, owner, name="Uzum")
+
+        again = await client.post(
+            "/api/v1/credit-companies", headers=owner.auth, json={"name": "Uzum"}
+        )
+
+        assert again.status_code == 409
+
+    async def test_renaming_to_its_own_name_is_allowed(self, client, owner):
+        company_id = await a_company(client, owner, name="Uzum")
+
+        renamed = await client.patch(
+            f"/api/v1/credit-companies/{company_id}",
+            headers=owner.auth,
+            json={"name": "Uzum", "contactName": "Dilnoza"},
+        )
+
+        assert renamed.status_code == 200, renamed.text
+
+    async def test_the_list_searches_and_pages(self, client, owner):
+        for name in ("Alfa Credit", "Beta Credit", "Gamma Loans"):
+            await a_company(client, owner, name=name)
+
+        page = await client.get(
+            "/api/v1/credit-companies",
+            headers=owner.auth,
+            params={"page": 1, "pageSize": 2, "search": "credit"},
+        )
+
+        assert len(page.json()["data"]) == 2
+        assert page.json()["totalItems"] == 2
+
+
 class TestTheStoreCreditDemo:
     """The M5b milestone demo, figure for figure."""
 
