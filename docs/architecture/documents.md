@@ -121,9 +121,9 @@ every balance read counts confirmed invoices only, while the payments are
 booked under their own document identity and survive
 `LedgerPoster.reverse` untouched (see [ledgers.md](ledgers.md)).
 
-`CreditCompany` is a `TenantCrudRepository` aggregate, a field-for-field
-twin of `Supplier`. It carries no money columns and will not grow any: the
-company pays the store in full at sale time (PRD §4.7).
+`CreditCompany` is a flat `AutoMapper` aggregate, a field-for-field twin of
+`Supplier`. It carries no money columns and will not grow any: the company
+pays the store in full at sale time (PRD §4.7).
 
 ## The two documents that only take goods away
 

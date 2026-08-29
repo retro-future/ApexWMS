@@ -6,7 +6,7 @@ paths:
 # Per-aggregate mappers for the one generic repository
 
 The application has one repository implementation, `SqlAlchemyRepository`
-(`infrastructure/persistence/repository.py`), reached through one generic DI
+(`infrastructure/persistence/repositories/`), reached through one generic DI
 factory per database. What varies per aggregate is a **mapper** (entity ↔ ORM
 row) and a **specification** (the query), never a new repository class. This
 is the target state from ADR 0007. `Supplier` is the reference conversion:
@@ -20,6 +20,15 @@ One class per aggregate root in
 `infrastructure/persistence/mappers/<aggregate>.py`, registered as an
 instance in that package's `__init__.py` `COMMON_MAPPERS` list. Adding the
 instance to `COMMON_MAPPERS` is the whole wiring step.
+
+**A flat aggregate whose entity fields and ORM columns share names and need
+no conversion gets no file of its own.** It is registered directly in
+`COMMON_MAPPERS` as `AutoMapper(CreditCompany, CreditCompanyModel)` —
+`AutoMapper` (`mappers/auto.py`) copies field-for-field by name off the
+entity's `dataclasses.fields()`. `CreditCompany` and `Customer` are the
+references. Write a hand mapper the moment the aggregate has a value object
+(`Money`, `IMEI`), an enum stored under a different representation, a
+column with no matching field, or a child collection.
 
 ## Rules
 
@@ -160,10 +169,29 @@ def _sync_lines(self, entity: SupplierReturn, model: SupplierReturnModel) -> Non
 
 The scan/unscan handlers then hold no `add_line`/`remove_line` port method:
 they mutate `document.lines` on the aggregate and call
-`returns.update(document, spec)`. `SupplierReturn` is the reference. Cost:
-one `find_one` plus one spec re-load per beep (§6's 200ms still holds on a
-local database); do not reach for a repository method per child row to
-avoid it.
+`returns.update(document, spec)`. `SupplierReturn` and `WriteOff` are the
+reference. Cost: one `find_one` plus one spec re-load per beep (§6's 200ms
+still holds on a local database); do not reach for a repository method per
+child row to avoid it.
+
+`StockCount` has **two** child collections (`units` and `lines`), each with
+its own `_sync_*` method called from `to_model`. The unit sync copies four
+mutable scalars onto a matched row (a scan sets `scanned`, and later
+`product_id`/`acquisition_cost_minor` for a surprise); the line sync copies
+only `counted_quantity`. A surprise unit's `product` relationship is
+nullable, so `_unit_to_entity` reads the currency only
+`if model.product is not None`.
+
+`GoodsReceipt` is **three** levels (receipt to lines to scanned units) and
+they change at different times: the lines are fixed when the receipt opens,
+each line's `units` are scanned, priced and unscanned while it is a draft.
+So `to_model`'s update path has one `_sync_units` that matches `model.lines`
+to `entity.lines` by id and never inserts or deletes a line, then for each
+matched line runs the id-keyed unit diff (remove missing, copy `condition` /
+`acquisition_cost_minor` / `asking_price_minor` / `cash_paid_minor` /
+`cash_paid_currency` onto a match, append new). The IMEI is not copied onto a
+matched unit: a mis-scan is removed and scanned again. The fresh path builds
+`model.lines` with their `units` in one assignment and skips the sync.
 
 ## A child that carries fields from another table
 
@@ -205,7 +233,7 @@ line, or to add and remove lines), the handler must call
 through. The bare `update(entity)` re-fetches with `session.get()`, which
 does not eager-load, and the just-loaded model is usually already gone from
 the session's weak identity map by then, so the collection would come back
-unloaded and `lazy="raise"` would fire. See `repositories.md` rule 6.
+unloaded and `lazy="raise"` would fire. See `repositories.md` rule 7.
 
 ## Relationships on tenant models
 

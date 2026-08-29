@@ -52,45 +52,30 @@ twice.
 
 ## Repository bases
 
-**A repository base is a convenience for the majority, not a
-classification of tables.** There are exactly two under
-`infrastructure/persistence/tenant/repositories/base.py`, and adding a
-third is the mistake this rule exists to prevent:
+Since ADR 0007 there is **one** repository implementation, reached with a
+`Specification` and a per-aggregate mapper. Two roots in
+`infrastructure/persistence/repositories/base.py`:
 
-- `TenantCrudRepository` — an aggregate whose whole persisted state is one
-  `TenantActivatableRow`: the identity records and the M2 catalog. It
-  supplies `get`/`add`/`update` through the `_to_entity`/`_to_model`/`_apply`
-  hooks, plus `_browse_page`, the paging shape every catalog list endpoint
-  shares.
-- `TenantRepository` — **everything else**, and it is deliberately an open
-  bucket with no hooks and no `get`/`add`/`update`: the two ledgers, the
-  two price logs, `device_units` (whose amounts are denominated by the
-  *product*, so every read joins and the entity is rebuilt from a `Row`),
-  the settings row, and the documents M4 brings.
+- `SqlAppendOnlyRepository` — `add` + `get` + the spec reads, and **no**
+  `update`/`delete`. The two ledgers and the two price logs use this
+  (through `TenantSqlAppendOnlyRepository`, which only narrows the session
+  to `TenantSession`).
+- `SqlAlchemyRepository` extends it with `exists`/`update`/`delete` for
+  every other aggregate.
 
-An aggregate that does not fit `TenantCrudRepository` inherits
-`TenantRepository` and writes the two or three methods its port declares.
-**It does not get a base of its own.** Four bases grew here once, because
-each misfit was answered with a new sibling — `TenantJoinedRepository` even
-carried a docstring denying the `is-a` its own declaration asserted — and a
-hierarchy that must have a box for every table grows with every table.
-`tests/architecture/test_repository_bases.py` is that rule as a test. When
-something is genuinely missing, widen `SqlRepository`'s mechanics
-(`persistence/repository.py` — one session, `_insert`, and reads that are
-generic *per method*, which is what lets a joined read need no separate
-class) or write the method locally.
+The append-only guarantee is **structural**: the methods are absent from
+the type, so a handler that tries to edit a ledger row fails `ty check`.
+`tests/architecture/test_repository_bases.py` asserts that absence.
 
-The append-only rule lives in **one** place: `AppendOnlyRepository` in
-`application/ports/repository.py`, which is what handlers depend on and
-therefore what actually prevents editing history. A ledger's SQL class has
-no `update` simply because nobody wrote one — not because a base class
-withheld it.
+A read that returns a projection rather than a whole entity (a total, a
+bucket, a row DTO) is a query service, not a repository method — see
+[query-services.md](../../.claude/rules/backend/query-services.md).
 
-Row ↔ entity mapping stays **methods on the repository** (PRD §7.3): no
-module-level mapping functions, and no auto-mapper. `Money` needs a
-currency that lives on a neighbouring table, `IMEI` must pass Luhn, and
-`DeviceUnit.__post_init__` checks fields against each other — none of which
-field-name matching can express.
+Row ↔ entity mapping is a per-aggregate mapper class in
+`infrastructure/persistence/mappers/`. A flat aggregate whose fields match
+its columns gets `AutoMapper`; a ledger row whose `Money` is denominated by
+a neighbouring table (the price logs read `model.product.currency`) needs a
+hand-written one.
 
 ## Domain services and value objects behind the ledgers
 
@@ -150,8 +135,8 @@ cancelled document to zero without a category to filter out. This is the
 payoff of having no `REVERSAL` type.
 
 **A `(document_type, document_id)` pair resolves to a number in one place.**
-`persistence/tenant/repositories/document_ref.py` is a `CASE` over the six
-tables that have one, shared by both logs. `DocumentType.PAYMENT` is absent
+`persistence/tenant/queries/document_ref.py` is a `CASE` over the six
+tables that have one, shared by both ledger query services. `DocumentType.PAYMENT` is absent
 from it: a payment has no number to show.
 
 Two reads do not come from the ledgers. FR-9.4's ageing and FR-9.6's

@@ -3,6 +3,8 @@ paths:
   - "backend/src/di/providers/mappers.py"
   - "backend/src/di/providers/tenant_repository.py"
   - "backend/src/di/providers/master_repository.py"
+  - "backend/src/di/providers/tenant_repositories.py"
+  - "backend/src/di/providers/master_repositories.py"
 ---
 
 # The mapper and repository providers are already generic

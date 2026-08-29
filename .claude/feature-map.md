@@ -107,6 +107,10 @@ to `SALE_REVENUE` + `COGS`, cancel to compensate, print. Deep dive:
 - Services: `services/invoice_posting.py` (`InvoicePoster` — where the
   price is resolved the second time), `services/cost_pools.py`
   (`CostPoolReader`, shared with `LedgerReconciler`)
+- Persistence: `mappers/sales_invoice.py` (root + line sync),
+  `specs/sales_invoice.py` (`SalesInvoiceById` / `ForWrite` / `Browse`),
+  `persistence/tenant/queries/sales_invoice.py` (`SqlSalesInvoiceQueries` —
+  every projection read)
 - Domain: `domain/entities/sales_invoice.py`,
   `domain/services/pricing.py` (`PriceResolver`, FR-2.14)
 - Rendering: port `application/ports/documents.py`, implementation
@@ -129,7 +133,7 @@ postings and `DocumentType.PAYMENT`.
 - Models: `models/credit_company.py`, `payment.py`, `customer_account.py`,
   `debtor.py`
 - Carriers: `dtos/customer_debt.py` (`CreditInvoiceDebt`, `DebtorSummary` —
-  the joined read rows `SalesInvoiceRepository.credit_history_for` and
+  the joined read rows `SqlSalesInvoiceQueries.credit_history_for` and
   `list_debtors` build)
 - Services: `services/payment_posting.py` (`PaymentPoster` — the only
   writer of a payment, and the reason FR-11.7 is structural),
@@ -232,16 +236,16 @@ questions. Deep dive: [ledgers.md](../docs/architecture/ledgers.md)'s
   sources into one timeline)
 - Sorting: `application/sorting.py` — each report's own fixed enum.
   `PagedQuery` deliberately has no generic `order_by`
-- Reporting reads: two of them are ports of their own, because neither
-  belongs to an aggregate — `SalesReportRepository`
-  (`persistence/tenant/repositories/sales_report.py`: deviations, debtors,
-  `sales_of_unit`) and `StockOnHandRepository` (`stock_on_hand.py`, which
-  spans `device_units` and `stock_levels`). The rest sit on the aggregate
-  whose table they read: `StockMovementRepository.list_page` /
-  `trace_for_unit` / `units_sold`,
-  `FinancialTransactionRepository.list_page` / `sales_totals`,
-  `DeviceUnitRepository.list_ageing` / `list_needs_pricing`,
-  `GoodsReceiptRepository.origin_of`. `document_ref.py` turns a
+- Reporting reads: query services per aggregate table, behind Protocol
+  ports in `application/ports/tenant/queries.py` —
+  `SqlSalesInvoiceQueries` (deviations, debtors, `sales_of_unit`,
+  `credit_history_for`, `total_debt`), `SqlStockMovementQueries`
+  (`list_page` / `trace_for_unit` / `units_sold` / `net_quantity`),
+  `SqlFinancialTransactionQueries` (`totals_by_type` / `sales_totals` /
+  `list_page`), `SqlGoodsReceiptQueries` (`origin_of`, `supplier_of`,
+  `received_quantities`), `SqlStockOnHandQueries` (`serialized_totals` /
+  `accessories_on_hand`), `SqlDeviceUnitQueries` (`list_ageing` /
+  `list_needs_pricing`). `queries/document_ref.py` turns a
   `(document_type, document_id)` pair into its number for both logs
 - Routers: `presentation/routers/reports.py` (`/reports`), plus
   `GET /device-units/{id}/trace` on `device_units.py`
