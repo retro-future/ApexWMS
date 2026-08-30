@@ -209,6 +209,8 @@ they carry. Deep dive:
 
 ## Reporting (M5, M5b, M8)
 
+> The month-end close (M9) has its own section below.
+
 Reads over what the documents already wrote, all read-only. Most sit
 behind `Permission.Reporting.View`; the financial ledger takes
 `Permission.FinancialLedger.View` and the debtor list
@@ -255,6 +257,51 @@ questions. Deep dive: [ledgers.md](../docs/architecture/ledgers.md)'s
   plus `components/DeviceTraceTimeline.tsx` (the FR-9.2 timeline, also shown
   on the unit page) and `reports/BulkRepriceModal.tsx` (FR-2.21, the write
   the ageing and needs-pricing worklists exist to feed)
+
+## Month-End Report (M9)
+
+The period close (FR-10.4 to FR-10.10), behind
+`Permission.FinancialLedger.View` — it is money end to end, so nothing in
+it is trimmed by `Cost.View` the way the other reports are. Deep dive:
+[ledgers.md](../docs/architecture/ledgers.md)'s "Valuing the ledgers at a
+past instant" and "The month-end close".
+
+- Queries: `queries/get_month_end_report.py` (FR-10.4),
+  `get_month_end_report_pdf.py` (FR-10.9)
+- Models: `models/month_end.py` — the whole payload, one nested
+  `CamelModel` per block
+- Carriers: `dtos/month_end.py` (`MonthEndReport`, `AccrualFigures`,
+  `DebtMovement`), `dtos/period.py`, `dtos/inventory_value.py`,
+  `dtos/financing_split.py`
+- Services: `services/month_end.py` (`MonthEndReporter` — the whole
+  report), `services/period.py` (`PeriodResolver` — FR-10.8's month in the
+  tenant's timezone), `services/inventory_value.py` (`InventoryValuer` —
+  on-hand value at an instant, by location), and `inventory_effect` in
+  `services/cost_pools.py`, shared with `verify-financials`
+- Reporting reads: `SqlMonthEndQueries`
+  (`infrastructure/persistence/tenant/queries/month_end.py`) — `debt_at`,
+  `debt_booked_between`, `debt_voided_between`, `sales_by_financing`; plus
+  `SqlStockMovementQueries.serialized_value_at` and the `as_of` cutoff on
+  `MovementsForPair` / `TransactionsForPair`
+- Renderer: `infrastructure/documents/month_end_pdf.py`, on
+  `DocumentPage.start_at` / `title` — the one printed page that is not a
+  `Document`
+- Routers: `GET /reports/month-end` and `/reports/month-end/pdf` on
+  `presentation/routers/reports.py`
+- Tests: `tests/application/test_month_end.py` (timezone boundaries and the
+  debt-movement identity), `tests/api/test_month_end_api.py` (the §10 demo
+  and the two reconciliations against a real database)
+- Screens: `frontend/src/app/(app)/reports/month-end/` — `MonthEndReport.tsx`
+  (the month picker and the reconciliation banner), `MonthEndStockAndSales.tsx`
+  (the stock-value bridge and the sales/margin table — each a grid of figures
+  against the currencies the period touched, the bridge re-signed for the
+  shelf) plus `MonthEndDebtAndFinancing.tsx` (the som debt movement and the
+  financing split). `frontend/src/lib/month-end.ts` holds what is not JSX —
+  the default month, the `YYYY-MM` round trip, the currency columns,
+  `INVENTORY_SIGN` / `stockMoveMinor` (the frontend twin of the backend's
+  sign map), and `formatPeriod`, which renders the window in the **store's**
+  timezone rather than the
+  browser's (FR-10.8). The PDF reuses `components/OpenPdfButton.tsx`
 
 ## Scanning & lookup
 

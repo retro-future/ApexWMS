@@ -283,3 +283,18 @@ is what lets `OpenPdfButton` be a plain anchor rather than a fetch — the
 proxy is same-origin and the session is an httpOnly cookie, so a top-level
 navigation carries it and the browser renders the PDF itself.
 `proxy.test.ts` holds both halves.
+
+## The one printed page that is not a document
+
+The month-end report prints (FR-10.9) and is not a `Document`: it has no
+number, no status and no confirm timestamp. `DocumentPage` grew
+`start_at(created_at)` for it — `start(document)` now delegates there with
+the confirm timestamp — plus a `title()` heading for a page with no
+document number to put beside one. `PdfMonthEndReportRenderer` pins the
+creation date to the **period's end**, for the same reason the three
+document renderers pin theirs to `confirmed_at`: re-running a past month
+has to produce the same bytes (FR-10.10), and fpdf2 would otherwise stamp
+the wall clock into `/CreationDate`.
+
+Its port takes no `descriptions` map, unlike the other three. A report has
+no lines somebody named.

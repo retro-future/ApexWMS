@@ -147,6 +147,79 @@ FR-2.14 is stated a second time, in SQL, and
 `tests/api/test_stock_reports_api.py` asserts it against `PriceResolver`
 for the same units so the two cannot drift.
 
+## Valuing the ledgers at a past instant
+
+Every read above answers a question about *now*. The month-end close asks
+about a moment that has passed, and a projection cannot answer that: a unit
+row says where a handset is today, not whether the store still held it on
+31 January. So the close reads the ledgers themselves at a cutoff.
+
+Three pieces carry the cutoff. `MovementsForPair` and `TransactionsForPair`
+take an optional `as_of` (exclusive), `CostPoolReader.pool_for` passes it
+to both so quantities and costs are replayed to the same instant, and
+`SqlStockMovementQueries.serialized_value_at` finds the handsets whose
+movements still net above zero at the cutoff and values each at its own
+`acquisition_cost`. `InventoryValuer`
+(`application/services/inventory_value.py`) folds the two halves into a
+per-location, per-currency figure — FR-10.6's breakdown, and the goods side
+of FR-10.7's check.
+
+`LedgerReconciler` deliberately keeps its own path over the projections
+(`OnHandDeviceUnits`, `moved_pairs` with no cutoff). It is asking a
+different question: whether the projections have drifted from the ledger.
+The month-end close is asking what the ledger said at a date. Both fold
+through the same `CostPoolReader` and the same `inventory_effect`, which is
+what keeps them from disagreeing about the arithmetic while disagreeing
+about the instant.
+
+`inventory_effect` lives beside `INVENTORY_SIGN` in `cost_pools.py` rather
+than in either caller, so the FR-10.5 rollforward and the FR-10.7 audit
+cannot fold the same categories two different ways.
+
+## The month-end close (PRD §5.10 — M9)
+
+`MonthEndReporter` (`application/services/month_end.py`) is the whole
+report, and every figure in it is a fold over what is already written.
+
+**Opening and closing inventory are both rolled forward from the money
+ledger since inception** (`totals_by_type(until=...)` through
+`inventory_effect`), which makes "opening = previous closing" exact rather
+than approximately true. §5.10 says no stored snapshot is needed for
+correctness, and this is why. `InventoryValuer` then computes the goods
+side independently, and the difference — per currency, never summed — is a
+`Discrepancy` on the report rather than an adjustment to it.
+
+**The wire payload keeps §4.6's cash signs; the screen and PDF re-sign for
+presentation.** `MonthEndReportData` carries `purchases` negative and
+`supplier_return_credits` positive, unchanged. But the report reads as two
+questions, and each is rendered as its own table: a **stock-value bridge**
+(`MonthEndStockAndSales.tsx`, `month_end_pdf.py`'s `_stock_rows`) that runs
+each move through `INVENTORY_SIGN` so a purchase reads as goods coming in
+and a supplier return as goods leaving, ending on the closing figure; and a
+**sales** table that keeps the cash signs because revenue-in / cost-out is
+the point there. The supplier-return credit gets a one-line note between
+the two, so the money that came back is visible without being confused for
+the goods that left. `frontend/src/lib/month-end.ts`'s `INVENTORY_SIGN` is
+the twin of the backend's and has to agree with it.
+
+**Period boundaries come from `PeriodResolver`**
+(`application/services/period.py`), which builds the month in
+`ZoneInfo(await settings.get_timezone())` and converts to UTC. The end is
+exclusive, matching `totals_by_type`'s `until`.
+
+**The debt block is store-wide even when the report is scoped to one
+location.** Debt belongs to a customer and a payment records no location,
+so narrowing it would invent a figure. Its four movement lines
+(`SqlMonthEndQueries`) include one FR-10.5 does not name: debt *voided* by
+a cancellation. Without it `opening + booked - collected` does not reach
+`closing` in any month where a credit sale was cancelled, and
+`tests/application/test_month_end.py` asserts the identity month by month.
+
+`SqlMonthEndQueries` is separate from `SqlSalesInvoiceQueries` because
+every read in it is a period question — what was owed at an instant, what
+moved in a window — while the sales queries answer "now" questions about
+one customer or one invoice.
+
 ## Verification
 
 `apexwms verify-projections`, `verify-financials` and `verify-balances`
