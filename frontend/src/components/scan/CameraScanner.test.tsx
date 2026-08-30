@@ -109,4 +109,21 @@ describe("CameraScanner", () => {
 
     expect(stop).toHaveBeenCalled();
   });
+
+  it("swallows a rejecting stop() from the torch teardown", async () => {
+    resolveWithControls();
+    // zxing's torch-capable stop() rejects on Android when turning the flash
+    // off on an already-stopped track; it must not bubble out as a crash.
+    stop.mockRejectedValue(new Error("setPhotoOptions failed"));
+
+    const { rerender } = renderWithProviders(
+      <CameraScanner opened onClose={vi.fn()} onDecode={vi.fn()} />,
+    );
+    await act(async () => {});
+
+    rerender(<CameraScanner opened={false} onClose={vi.fn()} onDecode={vi.fn()} />);
+    await act(async () => {});
+
+    expect(stop).toHaveBeenCalled();
+  });
 });

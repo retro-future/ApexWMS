@@ -53,6 +53,19 @@ class ScanEnvironmentError extends Error {
 }
 
 /**
+ * zxing's torch-capable `stop()` returns a promise that rejects when it turns
+ * the flash off on an already-stopped track (Android Chrome: "setPhotoOptions
+ * failed"). We are tearing the camera down anyway, so swallow it.
+ */
+function stopControls(controls: IScannerControls | null) {
+  try {
+    void Promise.resolve(controls?.stop() as unknown).catch(() => {});
+  } catch {
+    /* sync throw from stop() — ignore */
+  }
+}
+
+/**
  * Camera-based alternative to the keyboard-wedge scan inputs, for a phone
  * with no hardware scanner attached. Owns only the camera lifecycle and
  * decode loop — the caller decides what a decoded code means and whether to
@@ -70,7 +83,11 @@ export function CameraScanner({
   title?: string;
 }) {
   const t = useTranslations("camera");
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // A state-backed ref, not useRef: the <video> lives in the modal's portal
+  // and mounts a tick after `opened` flips, so the start effect has to wait
+  // for it. Handing zxing `null` makes it decode into a throwaway element and
+  // the visible <video> stays black.
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const lastDecodeRef = useRef<{ code: string; at: number } | null>(null);
   // Read inside the decode callback without retriggering the effect below
@@ -83,7 +100,7 @@ export function CameraScanner({
   const [state, setState] = useState<ScannerState>("starting");
 
   useEffect(() => {
-    if (!opened) return;
+    if (!opened || !videoEl) return;
 
     let cancelled = false;
 
@@ -97,7 +114,7 @@ export function CameraScanner({
         const reader = new BrowserMultiFormatReader(HINTS);
         return reader.decodeFromConstraints(
           { video: { facingMode: "environment" } },
-          videoRef.current ?? undefined,
+          videoEl,
           (result) => {
             if (!result) return;
             const code = result.getText();
@@ -111,7 +128,7 @@ export function CameraScanner({
       })
       .then((controls) => {
         if (cancelled) {
-          controls.stop();
+          stopControls(controls);
           return;
         }
         controlsRef.current = controls;
@@ -123,11 +140,11 @@ export function CameraScanner({
 
     return () => {
       cancelled = true;
-      controlsRef.current?.stop();
+      stopControls(controlsRef.current);
       controlsRef.current = null;
       lastDecodeRef.current = null;
     };
-  }, [opened]);
+  }, [opened, videoEl]);
 
   const isVideoState = state === "starting" || state === "scanning";
 
@@ -135,7 +152,7 @@ export function CameraScanner({
     <Modal opened={opened} onClose={onClose} title={title ?? t("title")} centered>
       <Stack gap="md">
         <div style={{ display: isVideoState ? "block" : "none" }}>
-          <video ref={videoRef} muted playsInline className={classes.video} />
+          <video ref={setVideoEl} muted playsInline className={classes.video} />
           {state === "starting" && (
             <Stack align="center" gap="xs" mt="sm">
               <Loader size="sm" />
