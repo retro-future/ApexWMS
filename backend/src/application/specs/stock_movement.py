@@ -8,6 +8,7 @@ Each spec here stores its filters as plain attributes for the in-memory
 fake.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from application.common.specification import Specification
@@ -41,12 +42,21 @@ class MovementsForUnit(Specification[StockMovementModel]):
 
 class MovementsForPair(Specification[StockMovementModel]):
     """One quantity product's movements at one location, in order — the
-    sequence a cost pool is replayed from (§4.6)."""
+    sequence a cost pool is replayed from (§4.6).
 
-    def __init__(self, product_id: UUID, location_id: UUID) -> None:
+    *as_of* stops the replay at an instant, exclusive, so the month-end
+    report can ask what a pool was worth at a period boundary (FR-10.5).
+    """
+
+    def __init__(
+        self, product_id: UUID, location_id: UUID, as_of: datetime | None = None
+    ) -> None:
         super().__init__(StockMovementModel)
         self.product_id = product_id
         self.location_id = location_id
+        self.as_of = as_of
+        if as_of is not None:
+            self.where(StockMovementModel.occurred_at < as_of)
         self.where(
             StockMovementModel.product_id == product_id,
             StockMovementModel.location_id == location_id,

@@ -11,6 +11,7 @@ on"), even though both resolve at the same scope today.
 from dishka import Provider, Scope, provide_all
 
 from application.services import (
+    BalanceVerifier,
     ClaimsFactory,
     CostPoolReader,
     CountPoster,
@@ -18,9 +19,12 @@ from application.services import (
     DeviceUnitRepricer,
     DocumentLineBuilder,
     DocumentNumberer,
+    InventoryValuer,
     InvoicePoster,
     LedgerPoster,
+    MonthEndReporter,
     PaymentPoster,
+    PeriodResolver,
     ProductRepricer,
     ReceiptPoster,
     RemovalPoster,
@@ -64,4 +68,9 @@ class ApplicationServicesProvider(Provider):
         CountPoster,
         SlugNormalizer,
         TimezoneValidator,
+        # --- M9 month-end close ---
+        PeriodResolver,
+        InventoryValuer,
+        BalanceVerifier,
+        MonthEndReporter,
     )

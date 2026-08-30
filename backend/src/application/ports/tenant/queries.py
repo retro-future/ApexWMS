@@ -16,6 +16,8 @@ from application.dtos import (
     CreditInvoiceDebt,
     DebtorSummary,
     FinancialLedgerRow,
+    FinancingSplitRow,
+    InventoryValueRow,
     MovementLogRow,
     NeedsPricingRow,
     OnHandBucket,
@@ -93,9 +95,20 @@ class StockMovementQueries(Protocol):
         counterpart to the ``OnHandDeviceUnits`` spec."""
         ...
 
-    async def moved_pairs(self) -> list[tuple[UUID, UUID]]:
+    async def moved_pairs(self, as_of: datetime | None = None) -> list[tuple[UUID, UUID]]:
         """Every (product, location) the ledger has touched, so the sweep is
-        driven off the ledger and catches a level never written at all."""
+        driven off the ledger and catches a level never written at all.
+        *as_of* is exclusive, for the month-end close (FR-10.5)."""
+        ...
+
+    async def serialized_value_at(
+        self, as_of: datetime, location_id: UUID | None = None
+    ) -> list[InventoryValueRow]:
+        """What the handsets on hand at *as_of* were worth, by location and
+        currency — specific identification (§4.6), read from the ledger
+        rather than from ``device_units.status`` so a past month can be
+        valued at all. A unit is where its last movement before the cutoff
+        put it."""
         ...
 
 
@@ -233,4 +246,38 @@ class FinancialTransactionQueries(Protocol):
         document_type: DocumentType | None = None,
     ) -> tuple[list[FinancialLedgerRow], int]:
         """FR-10.3: the raw money ledger, newest first, no total."""
+        ...
+
+
+class MonthEndQueries(Protocol):
+    """The period reads behind the month-end close (§5.10).
+
+    Separate from ``SalesInvoiceQueries`` because every method here asks
+    about a moment or a window, not about one customer or one invoice.
+    """
+
+    async def debt_at(self, as_of: datetime) -> Money:
+        """``total_debt`` at an instant (FR-10.7b): store-credit sales
+        confirmed before *as_of* and not cancelled by it, less what had been
+        collected. The cancellation clause is what makes a past month
+        right — a sale cancelled in March was still debt in January."""
+        ...
+
+    async def debt_booked_between(self, since: datetime, until: datetime) -> Money:
+        """Store-credit debt opened in the window; *until* exclusive."""
+        ...
+
+    async def debt_voided_between(self, since: datetime, until: datetime) -> Money:
+        """Remaining debt on store-credit sales cancelled in the window
+        (FR-11.11) — the fourth line the debt movement needs to add up."""
+        ...
+
+    async def sales_by_financing(
+        self,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[FinancingSplitRow]:
+        """FR-10.5's last line: invoice counts and revenue per payment type,
+        credit companies named, per currency."""
         ...

@@ -10,8 +10,9 @@ from uuid import UUID
 
 from sqlalchemy import Row, Select, func, select
 
-from application.dtos import LedgerActor, MovementLogRow
+from application.dtos import InventoryValueRow, LedgerActor, MovementLogRow
 from domain.enums import DocumentType, MovementType
+from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import (
     DeviceUnitModel,
     EmployeeModel,
@@ -126,11 +127,64 @@ class SqlStockMovementQueries:
         )
         return [unit_id for unit_id in rows if unit_id is not None]
 
-    async def moved_pairs(self) -> list[tuple[UUID, UUID]]:
-        rows = await self._session.execute(
-            select(_M.product_id, _M.location_id).where(_M.device_unit_id.is_(None)).distinct()
-        )
+    async def moved_pairs(self, as_of: datetime | None = None) -> list[tuple[UUID, UUID]]:
+        stmt = select(_M.product_id, _M.location_id).where(_M.device_unit_id.is_(None))
+        if as_of is not None:
+            stmt = stmt.where(_M.occurred_at < as_of)
+        rows = await self._session.execute(stmt.distinct())
         return [(product_id, location_id) for product_id, location_id in rows]
+
+    async def serialized_value_at(
+        self, as_of: datetime, location_id: UUID | None = None
+    ) -> list[InventoryValueRow]:
+        """Two passes over the same cutoff: which handsets the ledger still
+        holds, and where each one's last movement left it. Transfers are a
+        v2 feature, so today the second pass almost always agrees with the
+        unit's own ``location_id`` — it is written off the ledger anyway,
+        because that column is a projection and this figure is an audit."""
+        on_hand = (
+            select(_M.device_unit_id.label("unit_id"))
+            .where(_M.device_unit_id.is_not(None), _M.occurred_at < as_of)
+            .group_by(_M.device_unit_id)
+            .having(func.sum(_M.quantity_delta) > 0)
+            .subquery()
+        )
+        placed = (
+            select(_M.device_unit_id.label("unit_id"), _M.location_id.label("location_id"))
+            .where(_M.device_unit_id.is_not(None), _M.occurred_at < as_of)
+            .distinct(_M.device_unit_id)
+            .order_by(_M.device_unit_id, _M.occurred_at.desc(), _M.id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                placed.c.location_id,
+                LocationModel.name,
+                ProductModel.currency,
+                func.count(),
+                func.sum(DeviceUnitModel.acquisition_cost_minor),
+            )
+            .select_from(on_hand)
+            .join(placed, placed.c.unit_id == on_hand.c.unit_id)
+            .join(DeviceUnitModel, DeviceUnitModel.id == on_hand.c.unit_id)
+            .join(ProductModel, ProductModel.id == DeviceUnitModel.product_id)
+            .outerjoin(LocationModel, LocationModel.id == placed.c.location_id)
+            .group_by(placed.c.location_id, LocationModel.name, ProductModel.currency)
+            .order_by(LocationModel.name)
+        )
+        if location_id is not None:
+            stmt = stmt.where(placed.c.location_id == location_id)
+        rows = await self._session.execute(stmt)
+        return [
+            InventoryValueRow(
+                location_id=place,
+                location_name=name,
+                quantity=int(quantity or 0),
+                # Postgres widens SUM(BIGINT) to NUMERIC; Money refuses non-int.
+                amount=Money(int(total or 0), Currency(currency)),
+            )
+            for place, name, currency, quantity, total in rows
+        ]
 
     async def _count(self, stmt: Select[Any]) -> int:
         total = await self._session.scalar(

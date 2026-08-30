@@ -11,7 +11,7 @@ from application.ports import (
     FinancialTransactionQueries,
     StockMovementQueries,
 )
-from application.services.cost_pools import INVENTORY_SIGN, CostPoolReader
+from application.services.cost_pools import CostPoolReader, inventory_effect
 from application.specs import OnHandDeviceUnits
 from domain.entities import DeviceUnit
 from domain.value_objects import Currency, CurrencyTotals, Money
@@ -67,12 +67,7 @@ class LedgerReconciler:
         not what they *cost*, and adding it here would compare a selling
         price against an inventory value.
         """
-        totals = CurrencyTotals.empty()
-        for (txn_type, _), amount in (await self._transactions.totals_by_type()).items():
-            sign = INVENTORY_SIGN.get(txn_type)
-            if sign is not None:
-                totals = totals.add(amount * sign)
-        return totals.as_dict()
+        return inventory_effect(await self._transactions.totals_by_type()).as_dict()
 
     async def reconcile(self) -> list[Discrepancy]:
         """A mismatch is surfaced, never silently corrected (FR-10.7)."""

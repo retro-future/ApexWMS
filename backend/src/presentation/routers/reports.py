@@ -13,13 +13,16 @@ on Manager and Owner today; the catalog keeps them apart so a future
 custom role can hold one without the others.
 
 Cost figures inside a report are narrower still: FR-1.7 omits them from the
-payload without ``Cost.View`` rather than leaving a screen to hide them.
+payload without ``Cost.View`` rather than leaving a screen to hide them. The
+month-end close is the exception that needs no such trimming: it is money
+end to end, so it takes ``FinancialLedger.View`` and nothing in it is
+optional.
 """
 
 from typing import Annotated
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
@@ -27,11 +30,20 @@ from application.models import (
     AgeingRowData,
     DebtorData,
     FinancialLedgerRowData,
+    MonthEndReportData,
     MovementRowData,
     NeedsPricingRowData,
     PriceDeviationData,
     SalesSummaryData,
     StockOnHandData,
+)
+from application.queries.get_month_end_report import (
+    GetMonthEndReportHandler,
+    GetMonthEndReportQuery,
+)
+from application.queries.get_month_end_report_pdf import (
+    GetMonthEndReportPdfHandler,
+    GetMonthEndReportPdfQuery,
 )
 from application.queries.get_sales_summary import (
     GetSalesSummaryHandler,
@@ -171,3 +183,38 @@ async def get_sales_summary(
     believed."""
     require(current, Permission.REPORTING_VIEW)
     return await handler.handle(query)
+
+
+@router.get("/month-end")
+async def get_month_end_report(
+    query: Annotated[GetMonthEndReportQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetMonthEndReportHandler],
+) -> ResultWithData[MonthEndReportData]:
+    """FR-10.4: one month, one location or all of them, every figure per
+    currency.
+
+    A failed reconciliation (FR-10.7, FR-10.7b) comes back in the payload
+    beside the numbers rather than as an error: the mismatch is surfaced,
+    and the owner still gets the month.
+    """
+    require(current, Permission.FINANCIAL_LEDGER_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/month-end/pdf", response_class=Response)
+async def get_month_end_report_pdf(
+    query: Annotated[GetMonthEndReportPdfQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetMonthEndReportPdfHandler],
+) -> Response:
+    """FR-10.9: the same close, on the store's letterhead."""
+    require(current, Permission.FINANCIAL_LEDGER_VIEW)
+    result = await handler.handle(query)
+    assert result.data is not None
+    rendered = result.data
+    return Response(
+        content=rendered.content,
+        media_type=rendered.content_type,
+        headers={"Content-Disposition": f'inline; filename="{rendered.filename}"'},
+    )

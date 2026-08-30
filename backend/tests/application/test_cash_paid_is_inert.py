@@ -281,3 +281,30 @@ class TestM8sReportsDoNotSumIt:
             row.asking_price_minor,
             row.implied_margin_minor,
         )
+
+
+class TestTheMonthEndReportCannotSeeIt:
+    """FR-3.4d's own test, stated in the requirement: run the close over a
+    period holding a som-paid trade-in, and every figure matches the same
+    close with ``cash_paid`` cleared."""
+
+    async def test_every_figure_is_identical_with_and_without_the_som_record(self):
+        recorded, _ = await trade_in_store(record_cash=True)
+        cleared, _ = await trade_in_store(record_cash=False)
+
+        with_som = await recorded.month_end_reporter().report(2026, 7)
+        without = await cleared.month_end_reporter().report(2026, 7)
+
+        assert with_som.figures == without.figures
+        assert with_som.debt == without.debt
+
+    async def test_the_close_grows_no_som_column(self):
+        """The most visible symptom of the leak: a UZS inventory figure in
+        a store that has only ever dealt in dollars."""
+        world, _ = await trade_in_store(record_cash=True)
+
+        july = await world.month_end_reporter().report(2026, 7)
+
+        assert july.figures.closing_inventory.of(Currency.USD) == usd("330")
+        assert Currency.UZS not in july.figures.closing_inventory.currencies
+        assert Currency.UZS not in july.figures.purchases.currencies

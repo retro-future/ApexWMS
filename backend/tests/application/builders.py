@@ -88,6 +88,7 @@ from application.queries.get_device_unit_price_history import (
 from application.queries.get_goods_receipt import GetGoodsReceiptHandler
 from application.queries.get_location import GetLocationHandler
 from application.queries.get_me import GetMeHandler
+from application.queries.get_month_end_report import GetMonthEndReportHandler
 from application.queries.get_product import GetProductHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_purchase_order import GetPurchaseOrderHandler
@@ -116,9 +117,12 @@ from application.services import (
     DeviceUnitRepricer,
     DocumentLineBuilder,
     DocumentNumberer,
+    InventoryValuer,
     InvoicePoster,
     LedgerPoster,
+    MonthEndReporter,
     PaymentPoster,
+    PeriodResolver,
     ProductRepricer,
     ReceiptPoster,
     RemovalPoster,
@@ -148,6 +152,7 @@ from tests.application.fakes import (
     FakeHasher,
     FakeInvitationRepository,
     FakeLocationRepository,
+    FakeMonthEndQueries,
     FakePaymentRepository,
     FakeProductPriceChangeRepository,
     FakeProductRepository,
@@ -227,7 +232,7 @@ class World:
 
     @property
     def movement_queries(self) -> FakeStockMovementQueries:
-        return FakeStockMovementQueries(self.movements)
+        return FakeStockMovementQueries(self.movements, self.units)
 
     @property
     def transaction_queries(self) -> FakeFinancialTransactionQueries:
@@ -947,6 +952,32 @@ class World:
 
     def balance_verifier(self) -> BalanceVerifier:
         return BalanceVerifier(self.invoices, self.payments, self.transaction_queries)
+
+    # --- M9 month-end close ---
+
+    @property
+    def month_end_queries(self) -> FakeMonthEndQueries:
+        return FakeMonthEndQueries(
+            self.invoices, self.payments, self.credit_companies, self.transactions
+        )
+
+    def period_resolver(self) -> PeriodResolver:
+        return PeriodResolver(self.tenant_settings)
+
+    def inventory_valuer(self) -> InventoryValuer:
+        return InventoryValuer(self.movement_queries, self.cost_pools())
+
+    def month_end_reporter(self) -> MonthEndReporter:
+        return MonthEndReporter(
+            self.period_resolver(),
+            self.transaction_queries,
+            self.month_end_queries,
+            self.inventory_valuer(),
+            self.balance_verifier(),
+        )
+
+    def month_end_report(self) -> GetMonthEndReportHandler:
+        return GetMonthEndReportHandler(self.month_end_reporter())
 
 
 def make_world(provisioner_fails: bool = False) -> World:

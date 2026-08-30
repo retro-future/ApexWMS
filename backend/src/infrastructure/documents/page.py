@@ -48,7 +48,12 @@ class DocumentPage:
 
     def start(self, document: Document) -> None:
         """One page per render — a ``DocumentPage`` is not reused."""
-        self._pdf.set_creation_date(document.confirmed_at or _EPOCH)
+        self.start_at(document.confirmed_at or _EPOCH)
+
+    def start_at(self, created_at: datetime) -> None:
+        """For a page whose subject is not a ``Document`` — the month-end
+        report, which is pinned to its period's end (FR-10.10)."""
+        self._pdf.set_creation_date(created_at)
         self._pdf.set_auto_page_break(auto=True, margin=_MARGIN)
         self._pdf.set_margins(_MARGIN, _MARGIN, _MARGIN)
         self._pdf.add_page()
@@ -64,6 +69,15 @@ class DocumentPage:
         if letterhead.address:
             self._pdf.set_font(self._family, size=9)
             self._pdf.multi_cell(0, _LINE * 0.8, self._text(letterhead.address))
+        self._pdf.ln(_LINE * 0.5)
+
+    def title(self, text: str, subtitle: str = "") -> None:
+        """``heading`` for a page with no document number to print."""
+        self._pdf.set_font(self._family, size=13)
+        self._cell(0, _LINE * 1.4, text, wrap=True)
+        if subtitle:
+            self._pdf.set_font(self._family, size=9)
+            self._cell(0, _LINE, subtitle, wrap=True)
         self._pdf.ln(_LINE * 0.5)
 
     def heading(self, document: Document, title: str) -> None:

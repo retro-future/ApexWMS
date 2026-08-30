@@ -12,6 +12,7 @@ from infrastructure.persistence.tenant.queries.financial_transaction import (
 from infrastructure.persistence.tenant.queries.goods_receipt import (
     SqlGoodsReceiptQueries,
 )
+from infrastructure.persistence.tenant.queries.month_end import SqlMonthEndQueries
 from infrastructure.persistence.tenant.queries.sales_invoice import (
     SqlSalesInvoiceQueries,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "SqlDeviceUnitQueries",
     "SqlFinancialTransactionQueries",
     "SqlGoodsReceiptQueries",
+    "SqlMonthEndQueries",
     "SqlSalesInvoiceQueries",
     "SqlStockMovementQueries",
     "SqlStockOnHandQueries",

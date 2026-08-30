@@ -19,6 +19,7 @@ from application.ports import (
     DocumentNumberAllocator,
     FinancialTransactionQueries,
     GoodsReceiptQueries,
+    MonthEndQueries,
     SalesInvoiceQueries,
     StockMovementQueries,
     StockOnHandQueries,
@@ -32,6 +33,7 @@ from infrastructure.persistence.tenant.queries import (
     SqlDeviceUnitQueries,
     SqlFinancialTransactionQueries,
     SqlGoodsReceiptQueries,
+    SqlMonthEndQueries,
     SqlSalesInvoiceQueries,
     SqlStockMovementQueries,
     SqlStockOnHandQueries,
@@ -85,6 +87,12 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def sales_invoice_queries(self, session: TenantSession) -> SalesInvoiceQueries:
         return SqlSalesInvoiceQueries(session)
+
+    # --- M9 month-end close (PRD §5.10) --------------------------------
+
+    @provide
+    def month_end_queries(self, session: TenantSession) -> MonthEndQueries:
+        return SqlMonthEndQueries(session)
 
     @provide
     def tenant_uow(self, session: TenantSession) -> TenantUnitOfWork:

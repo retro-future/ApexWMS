@@ -26,9 +26,12 @@ from application.services.device_unit_loader import DeviceUnitLoader
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.document_lines import DocumentLineBuilder
 from application.services.document_numbering import DocumentNumberer
+from application.services.inventory_value import InventoryValuer
 from application.services.invoice_posting import InvoicePoster
 from application.services.ledger import LedgerPoster
+from application.services.month_end import MonthEndReporter
 from application.services.payment_posting import PaymentPoster
+from application.services.period import PeriodResolver
 from application.services.product_repricer import ProductRepricer
 from application.services.receipt_posting import ReceiptPoster
 from application.services.removal_posting import RemovalPoster
@@ -55,10 +58,13 @@ __all__ = [
     "DeviceUnitRepricer",
     "DocumentLineBuilder",
     "DocumentNumberer",
+    "InventoryValuer",
     "InvoicePoster",
     "LedgerPoster",
     "LedgerReconciler",
+    "MonthEndReporter",
     "PaymentPoster",
+    "PeriodResolver",
     "ProductRepricer",
     "ProjectionVerifier",
     "ReceiptPoster",

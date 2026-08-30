@@ -10,6 +10,7 @@ from dishka import Provider, Scope, provide
 
 from application.ports import (
     InvoiceRenderer,
+    MonthEndReportRenderer,
     PurchaseOrderRenderer,
     SupplierReturnRenderer,
 )
@@ -17,6 +18,7 @@ from infrastructure.config import Settings
 from infrastructure.documents import (
     DocumentPageFactory,
     PdfInvoiceRenderer,
+    PdfMonthEndReportRenderer,
     PdfPurchaseOrderRenderer,
     PdfSupplierReturnRenderer,
 )
@@ -44,3 +46,7 @@ class DocumentsProvider(Provider):
         self, pages: DocumentPageFactory
     ) -> SupplierReturnRenderer:
         return PdfSupplierReturnRenderer(pages)
+
+    @provide
+    def month_end_renderer(self, pages: DocumentPageFactory) -> MonthEndReportRenderer:
+        return PdfMonthEndReportRenderer(pages)

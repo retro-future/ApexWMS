@@ -18,7 +18,7 @@ model name, an IMEI beneath it) is a choice the caller has already made.
 from typing import Protocol
 from uuid import UUID
 
-from application.dtos import Letterhead
+from application.dtos import Letterhead, MonthEndReport
 from domain.entities import PurchaseOrder, SalesInvoice, SupplierReturn
 
 
@@ -53,3 +53,11 @@ class SupplierReturnRenderer(Protocol):
         location: str | None,
         descriptions: dict[UUID, str],
     ) -> bytes: ...
+
+
+class MonthEndReportRenderer(Protocol):
+    """FR-10.9: the period close on paper. The only renderer here whose
+    subject is not a ``Document``, and so the only one that takes no
+    *descriptions* — a report has no lines somebody named."""
+
+    def render(self, report: MonthEndReport, letterhead: Letterhead) -> bytes: ...

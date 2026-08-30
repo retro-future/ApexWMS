@@ -13,6 +13,7 @@ the settings row and the document-number counter.
 from application.ports.clock import Clock
 from application.ports.documents import (
     InvoiceRenderer,
+    MonthEndReportRenderer,
     PurchaseOrderRenderer,
     SupplierReturnRenderer,
 )
@@ -27,6 +28,7 @@ from application.ports.tenant import (
     DocumentNumberAllocator,
     FinancialTransactionQueries,
     GoodsReceiptQueries,
+    MonthEndQueries,
     SalesInvoiceQueries,
     StockMovementQueries,
     StockOnHandQueries,
@@ -41,6 +43,8 @@ __all__ = [
     "DocumentNumberAllocator",
     "FinancialTransactionQueries",
     "GoodsReceiptQueries",
+    "MonthEndQueries",
+    "MonthEndReportRenderer",
     "StockMovementQueries",
     "InvoiceRenderer",
     "MasterUnitOfWork",

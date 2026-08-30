@@ -14,6 +14,8 @@ at one average and reconciled against another would show up as a
 discrepancy in the check that exists to catch real ones.
 """
 
+from collections.abc import Mapping
+from datetime import datetime
 from uuid import UUID
 
 from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
@@ -21,7 +23,7 @@ from application.errors import NotFoundError
 from application.specs import MovementsForPair, TransactionsForPair
 from domain.entities import FinancialTransaction, Product, StockMovement
 from domain.enums import TransactionType
-from domain.value_objects import CostPool, Money
+from domain.value_objects import CostPool, Currency, CurrencyTotals, Money
 from infrastructure.persistence.tenant.models import (
     FinancialTransactionModel,
     ProductModel,
@@ -46,6 +48,24 @@ INVENTORY_SIGN: dict[TransactionType, int] = {
 }
 # SALE_REVENUE and PAYMENT_RECEIVED are absent, not zero: they are figures
 # about the customer, and no sign would make them belong here.
+
+
+def inventory_effect(
+    totals: Mapping[tuple[TransactionType, Currency], Money],
+) -> CurrencyTotals:
+    """How a set of ledger category totals moved inventory value, per currency.
+
+    Lives beside ``INVENTORY_SIGN`` and not in either caller, because the
+    month-end rollforward (FR-10.5) and ``verify-financials`` (FR-10.7) have
+    to fold the same categories the same way or the audit would be checking
+    the report against a different arithmetic.
+    """
+    running = CurrencyTotals.empty()
+    for (txn_type, _), amount in totals.items():
+        sign = INVENTORY_SIGN.get(txn_type)
+        if sign is not None:
+            running = running.add(amount * sign)
+    return running
 
 
 class CostPoolReader:
@@ -81,8 +101,14 @@ class CostPoolReader:
         _, value = pool.issue(quantity)
         return value
 
-    async def pool_for(self, product_id: UUID, location_id: UUID) -> CostPool | None:
+    async def pool_for(
+        self, product_id: UUID, location_id: UUID, as_of: datetime | None = None
+    ) -> CostPool | None:
         """Replay the pool from the two ledgers, or None if the product is gone.
+
+        *as_of* replays only what had happened by that instant, which is
+        what makes a past month's closing value reproducible (FR-10.10).
+        A posting never passes one: it is always happening now.
 
         Receipts take their value from the ``PURCHASE`` (or surplus
         ``COUNT_ADJUSTMENT``) entry the same document wrote, in **total**
@@ -95,10 +121,10 @@ class CostPoolReader:
         if product is None:
             return None
 
-        value_in = await self._value_added_per_document(product_id, location_id)
+        value_in = await self._value_added_per_document(product_id, location_id, as_of)
         pool = CostPool.empty(product.currency)
         for movement in await self._movements.find(
-            MovementsForPair(product_id, location_id)
+            MovementsForPair(product_id, location_id, as_of)
         ):
             if movement.quantity_delta > 0:
                 pool = pool.receive_total(
@@ -110,7 +136,7 @@ class CostPoolReader:
         return pool
 
     async def _value_added_per_document(
-        self, product_id: UUID, location_id: UUID
+        self, product_id: UUID, location_id: UUID, as_of: datetime | None
     ) -> dict[UUID, Money]:
         """How much each document added to this pool's value.
 
@@ -120,7 +146,7 @@ class CostPoolReader:
         """
         added: dict[UUID, Money] = {}
         for txn in await self._transactions.find(
-            TransactionsForPair(product_id, location_id)
+            TransactionsForPair(product_id, location_id, as_of)
         ):
             sign = INVENTORY_SIGN.get(txn.txn_type)
             if sign is None:

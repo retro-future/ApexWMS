@@ -91,6 +91,8 @@ from application.queries.get_device_unit_price_history import (
 from application.queries.get_goods_receipt import GetGoodsReceiptHandler
 from application.queries.get_location import GetLocationHandler
 from application.queries.get_me import GetMeHandler
+from application.queries.get_month_end_report import GetMonthEndReportHandler
+from application.queries.get_month_end_report_pdf import GetMonthEndReportPdfHandler
 from application.queries.get_product import GetProductHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_purchase_order import GetPurchaseOrderHandler
@@ -240,5 +242,7 @@ class HandlersProvider(Provider):
         ListMovementsHandler,
         ListFinancialLedgerHandler,
         GetSalesSummaryHandler,
+        GetMonthEndReportHandler,
+        GetMonthEndReportPdfHandler,
         GetDeviceTraceHandler,
     )

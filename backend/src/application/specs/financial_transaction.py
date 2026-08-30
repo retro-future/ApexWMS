@@ -7,6 +7,7 @@ group by currency and return read-model rows or a dict, so they live in
 filters as plain attributes for the in-memory fake.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from application.common.specification import Specification
@@ -30,12 +31,22 @@ class TransactionsForDocument(Specification[FinancialTransactionModel]):
 
 class TransactionsForPair(Specification[FinancialTransactionModel]):
     """What one product cost at one location, in order — replayed alongside
-    the stock movements to check a COGS booked at the wrong average (§4.6)."""
+    the stock movements to check a COGS booked at the wrong average (§4.6).
 
-    def __init__(self, product_id: UUID, location_id: UUID) -> None:
+    *as_of* bounds the replay the same way ``MovementsForPair`` does; the
+    two cutoffs have to match or the pool is valued at quantities and costs
+    from different instants.
+    """
+
+    def __init__(
+        self, product_id: UUID, location_id: UUID, as_of: datetime | None = None
+    ) -> None:
         super().__init__(FinancialTransactionModel)
         self.product_id = product_id
         self.location_id = location_id
+        self.as_of = as_of
+        if as_of is not None:
+            self.where(FinancialTransactionModel.occurred_at < as_of)
         self.where(
             FinancialTransactionModel.product_id == product_id,
             FinancialTransactionModel.location_id == location_id,

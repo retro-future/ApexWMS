@@ -19,6 +19,8 @@ from sqlalchemy.sql.operators import in_op
 from application.dtos import (
     CreditInvoiceDebt,
     DebtorSummary,
+    FinancingSplitRow,
+    InventoryValueRow,
     Letterhead,
     OwnerSeed,
     PriceDeviation,
@@ -372,15 +374,30 @@ def _movement_matches(movement: StockMovement, spec: object) -> bool:
             return False
         if movement.device_unit_id is not None:  # MovementsForPair is quantity-only
             return False
+        if not _before(movement.occurred_at, spec):
+            return False
     return True
+
+
+def _before(occurred_at: datetime, spec: object) -> bool:
+    """``MovementsForPair``/``TransactionsForPair``'s optional cutoff, exclusive."""
+    as_of = getattr(spec, "as_of", None)
+    return as_of is None or occurred_at < as_of
 
 
 class FakeStockMovementQueries:
     """Reads the movements the fake repository holds, folded the way
     ``SqlStockMovementQueries`` folds its rows."""
 
-    def __init__(self, movements: FakeStockMovementRepository) -> None:
+    def __init__(
+        self,
+        movements: FakeStockMovementRepository,
+        units: FakeDeviceUnitRepository | None = None,
+    ) -> None:
         self._rows = movements.rows
+        # Only the as-of valuation needs the units; the older reads do not,
+        # and the World builds this fake for both.
+        self._units = units
 
     async def net_quantity(self, product_id: UUID, location_id: UUID) -> int:
         return sum(
@@ -396,14 +413,55 @@ class FakeStockMovementQueries:
                 net[m.device_unit_id] = net.get(m.device_unit_id, 0) + m.quantity_delta
         return [unit_id for unit_id, total in net.items() if total > 0]
 
-    async def moved_pairs(self) -> list[tuple[UUID, UUID]]:
+    async def moved_pairs(self, as_of: datetime | None = None) -> list[tuple[UUID, UUID]]:
         return list(
             dict.fromkeys(
                 (m.product_id, m.location_id)
                 for m in self._rows
                 if m.device_unit_id is None
+                and (as_of is None or m.occurred_at < as_of)
             )
         )
+
+    async def serialized_value_at(
+        self, as_of: datetime, location_id: UUID | None = None
+    ) -> list[InventoryValueRow]:
+        """Two passes over the cutoff, like the SQL: what is still held, and
+        where each unit's last movement left it."""
+        assert self._units is not None
+        net: dict[UUID, int] = {}
+        placed: dict[UUID, UUID] = {}
+        for m in sorted(self._rows, key=lambda one: (one.occurred_at, one.id)):
+            if m.device_unit_id is None or m.occurred_at >= as_of:
+                continue
+            net[m.device_unit_id] = net.get(m.device_unit_id, 0) + m.quantity_delta
+            placed[m.device_unit_id] = m.location_id
+
+        held: dict[tuple[UUID, Currency], tuple[int, Money]] = {}
+        for unit_id, total in net.items():
+            unit = self._units.by_id.get(unit_id)
+            if total <= 0 or unit is None:
+                continue
+            place = placed[unit_id]
+            if location_id is not None and place != location_id:
+                continue
+            key = (place, unit.acquisition_cost.currency)
+            quantity, value = held.get(
+                key, (0, Money.zero(unit.acquisition_cost.currency))
+            )
+            held[key] = (quantity + 1, value + unit.acquisition_cost)
+
+        return [
+            InventoryValueRow(
+                location_id=place,
+                location_name=None,
+                quantity=quantity,
+                amount=value,
+            )
+            for (place, _), (quantity, value) in sorted(
+                held.items(), key=lambda pair: (str(pair[0][0]), pair[0][1].value)
+            )
+        ]
 
     async def units_sold(
         self,
@@ -446,6 +504,8 @@ def _txn_matches(txn: FinancialTransaction, spec: object) -> bool:
         if txn.product_id != spec.product_id or txn.location_id != spec.location_id:  # type: ignore[attr-defined]
             return False
         if txn.device_unit_id is not None:  # TransactionsForPair is quantity-only
+            return False
+        if not _before(txn.occurred_at, spec):
             return False
     return True
 
@@ -812,6 +872,113 @@ class FakeSalesInvoiceQueries:
         for payment in self._payments.rows:
             if payment.sales_invoice_id == invoice_id:
                 total = total + payment.amount
+        return total
+
+
+class FakeMonthEndQueries:
+    """The period reads behind the close, folded from the same aggregates
+    ``SqlMonthEndQueries`` reads out of three tables."""
+
+    def __init__(
+        self,
+        invoices: FakeSalesInvoiceRepository,
+        payments: FakePaymentRepository,
+        companies: FakeCreditCompanyRepository,
+        transactions: FakeFinancialTransactionRepository,
+    ) -> None:
+        self._invoices = invoices
+        self._payments = payments
+        self._companies = companies
+        self._transactions = transactions
+
+    async def debt_at(self, as_of: datetime) -> Money:
+        total = Money.zero(Currency.UZS)
+        for invoice in self._invoices.by_id.values():
+            if not self._open_debt_at(invoice, as_of) or invoice.debt is None:
+                continue
+            total = total + invoice.debt - self._paid(invoice.id, as_of)
+        return total
+
+    async def debt_booked_between(self, since: datetime, until: datetime) -> Money:
+        total = Money.zero(Currency.UZS)
+        for invoice in self._invoices.by_id.values():
+            if invoice.payment_type is not PaymentType.STORE_CREDIT:
+                continue
+            if invoice.confirmed_at is None or not since <= invoice.confirmed_at < until:
+                continue
+            total = total + (invoice.debt or Money.zero(Currency.UZS))
+        return total
+
+    async def debt_voided_between(self, since: datetime, until: datetime) -> Money:
+        total = Money.zero(Currency.UZS)
+        for invoice in self._invoices.by_id.values():
+            if invoice.payment_type is not PaymentType.STORE_CREDIT:
+                continue
+            if invoice.cancelled_at is None or not since <= invoice.cancelled_at < until:
+                continue
+            total = total + (invoice.debt or Money.zero(Currency.UZS)) - self._paid(invoice.id)
+        return total
+
+    async def sales_by_financing(
+        self,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[FinancingSplitRow]:
+        counted: dict[tuple[PaymentType, UUID | None, Currency], tuple[set[UUID], Money]] = {}
+        for txn in self._transactions.rows:
+            if txn.txn_type is not TransactionType.SALE_REVENUE:
+                continue
+            if txn.document_type is not DocumentType.SALES_INVOICE:
+                continue
+            if not since <= txn.occurred_at < until:
+                continue
+            if location_id is not None and txn.location_id != location_id:
+                continue
+            invoice = self._invoices.by_id.get(txn.document_id)
+            if invoice is None:
+                continue
+            key = (invoice.payment_type, invoice.credit_company_id, txn.currency)
+            seen, revenue = counted.get(key, (set(), Money.zero(txn.currency)))
+            seen.add(invoice.id)
+            counted[key] = (seen, revenue + txn.amount)
+
+        return [
+            FinancingSplitRow(
+                payment_type=payment_type,
+                credit_company_id=company_id,
+                credit_company_name=self._company_name(company_id),
+                invoice_count=len(seen),
+                revenue=revenue,
+            )
+            for (payment_type, company_id, _), (seen, revenue) in sorted(
+                counted.items(), key=lambda pair: (pair[0][0].value, str(pair[0][1]))
+            )
+        ]
+
+    @staticmethod
+    def _open_debt_at(invoice: SalesInvoice, as_of: datetime) -> bool:
+        return (
+            invoice.payment_type is PaymentType.STORE_CREDIT
+            and invoice.confirmed_at is not None
+            and invoice.confirmed_at < as_of
+            and (invoice.cancelled_at is None or invoice.cancelled_at >= as_of)
+        )
+
+    def _company_name(self, company_id: UUID | None) -> str | None:
+        if company_id is None:
+            return None
+        company = self._companies.by_id.get(company_id)
+        return None if company is None else company.name
+
+    def _paid(self, invoice_id: UUID, as_of: datetime | None = None) -> Money:
+        total = Money.zero(Currency.UZS)
+        for payment in self._payments.rows:
+            if payment.sales_invoice_id != invoice_id:
+                continue
+            if as_of is not None and payment.occurred_at >= as_of:
+                continue
+            total = total + payment.amount
         return total
 
 
