@@ -5,6 +5,7 @@ import {
   IconArrowBackUp,
   IconArrowsExchange,
   IconBuildingWarehouse,
+  IconCalendarStats,
   IconChartBar,
   IconChartLine,
   IconChecklist,
@@ -180,6 +181,12 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           href: "/reports/financial-ledger",
           label: t("financialLedger"),
           icon: IconCoins,
+          permission: Permission.FinancialLedger.View,
+        },
+        {
+          href: "/reports/month-end",
+          label: t("monthEnd"),
+          icon: IconCalendarStats,
           permission: Permission.FinancialLedger.View,
         },
         {

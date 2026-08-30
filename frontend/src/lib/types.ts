@@ -814,6 +814,96 @@ export type SalesSummary = {
   total: SalesFigures;
 };
 
+/** --- M9 month-end close (FR-10.4 to FR-10.10) --- */
+
+/** The reporting month, resolved to two instants in the tenant's timezone. */
+export type Period = {
+  year: number;
+  /** 1-12. */
+  month: number;
+  /** IANA name, e.g. "Asia/Tashkent". The window below only reads right in it. */
+  timezone: string;
+  start: string;
+  /** Exclusive: a month runs `[start, end)` (FR-10.8). */
+  end: string;
+};
+
+/** Null where the period sold nothing — 0.0 would read as breaking even. */
+export type MarginPercent = {
+  currency: Currency;
+  percent: string | null;
+};
+
+/**
+ * FR-10.5's accrual view. Every figure keeps 4.6's sign, which describes cash:
+ * `purchases`, `costOfGoods` and `writeOffs` are negative because money left,
+ * and `margin` is revenue plus cost with nothing flipped.
+ */
+export type AccrualFigures = {
+  openingInventory: CurrencySubtotal[];
+  purchases: CurrencySubtotal[];
+  costOfGoods: CurrencySubtotal[];
+  revenue: CurrencySubtotal[];
+  writeOffs: CurrencySubtotal[];
+  supplierReturnCredits: CurrencySubtotal[];
+  countAdjustments: CurrencySubtotal[];
+  closingInventory: CurrencySubtotal[];
+  margin: CurrencySubtotal[];
+  marginPercent: MarginPercent[];
+};
+
+/** FR-10.6: where the closing value physically sits. */
+export type LocationInventoryValue = {
+  locationId: string;
+  locationName: string | null;
+  quantity: number;
+  value: CurrencySubtotal[];
+};
+
+/**
+ * Always som and always store-wide, even when the report is scoped to one
+ * location: debt belongs to a customer, not a shelf (4.7). `voided` is what a
+ * cancellation took off the books (FR-11.11) — without it the other four lines
+ * do not add up.
+ */
+export type DebtMovement = {
+  openingMinor: number;
+  bookedMinor: number;
+  collectedMinor: number;
+  voidedMinor: number;
+  closingMinor: number;
+  currency: Currency;
+};
+
+/** FR-10.5's last line: how the store actually sells. */
+export type FinancingSplit = {
+  paymentType: PaymentType;
+  creditCompanyId: string | null;
+  creditCompanyName: string | null;
+  invoiceCount: number;
+  revenue: CurrencySubtotal[];
+};
+
+/** One thing that does not add up (FR-10.7, FR-10.7b). */
+export type Discrepancy = {
+  subject: string;
+  expected: string;
+  found: string;
+};
+
+export type MonthEndReport = {
+  period: Period;
+  locationId: string | null;
+  figures: AccrualFigures;
+  closingByLocation: LocationInventoryValue[];
+  debt: DebtMovement;
+  financing: FinancingSplit[];
+  /** False means the figures still render — the mismatch is surfaced beside
+      them, never folded into them. */
+  reconciles: boolean;
+  discrepancies: Discrepancy[];
+};
+
 export type TraceEventKind =
   | "received"
   | "priced"
