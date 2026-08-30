@@ -29,11 +29,18 @@ export function InvoicesList() {
   const customers = useCustomerLookup();
   const locations = useLocationLookup();
 
-  const initialStatus = useSearchParams().get("status");
+  const params = useSearchParams();
+  // The confirmed-date window only ever arrives from a month-end drill-down;
+  // there is no control for it, so it stays a plain read of the URL.
+  const confirmedFrom = params.get("confirmedFrom");
+  const confirmedTo = params.get("confirmedTo");
 
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebouncedValue(search, 300);
-  const [status, setStatus] = useState<string | null>(initialStatus);
+  const [status, setStatus] = useState<string | null>(params.get("status"));
+  const [paymentType, setPaymentType] = useState<string | null>(
+    params.get("paymentType"),
+  );
   const [page, setPage] = useState(1);
 
   const reset = makePageReset(setPage);
@@ -42,6 +49,14 @@ export function InvoicesList() {
     page,
     search: debouncedSearch || undefined,
     status: status ?? undefined,
+    paymentType: paymentType ?? undefined,
+    confirmedFrom: confirmedFrom
+      ? new Date(confirmedFrom).toISOString()
+      : undefined,
+    // Through the end of the chosen day, matching the financial ledger.
+    confirmedTo: confirmedTo
+      ? new Date(`${confirmedTo}T23:59:59.999Z`).toISOString()
+      : undefined,
   });
 
   const invoices = query.data?.items ?? [];
@@ -67,17 +82,31 @@ export function InvoicesList() {
         placeholder: t("searchPlaceholder"),
       }}
       filters={
-        <Select
-          value={status}
-          onChange={reset(setStatus)}
-          placeholder={t("filterStatus")}
-          clearable
-          w={{ base: "100%", sm: 180 }}
-          data={["draft", "confirmed", "cancelled"].map((value) => ({
-            value,
-            label: tDoc(`status.${value}`),
-          }))}
-        />
+        <>
+          <Select
+            value={status}
+            onChange={reset(setStatus)}
+            placeholder={t("filterStatus")}
+            clearable
+            w={{ base: "100%", sm: 180 }}
+            data={["draft", "confirmed", "cancelled"].map((value) => ({
+              value,
+              label: tDoc(`status.${value}`),
+            }))}
+          />
+          <Select
+            value={paymentType}
+            onChange={reset(setPaymentType)}
+            placeholder={t("filterPaymentType")}
+            clearable
+            w={{ base: "100%", sm: 180 }}
+            data={[
+              { value: "paid_in_full", label: tCredit("paidInFull") },
+              { value: "credit_company", label: tCredit("creditCompany") },
+              { value: "store_credit", label: tCredit("storeCredit") },
+            ]}
+          />
+        </>
       }
       head={
         <Table.Tr>

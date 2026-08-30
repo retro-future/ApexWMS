@@ -3,6 +3,7 @@
 import { Anchor, Select, Table, Text, TextInput } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { DocumentLink } from "@/app/(app)/reports/DocumentLink";
@@ -47,11 +48,18 @@ export function FinancialLedgerList() {
 
   const locations = useLocationLookup();
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [txnType, setTxnType] = useState<string | null>(null);
-  const [documentType, setDocumentType] = useState<string | null>(null);
-  const [locationId, setLocationId] = useState<string | null>(null);
+  // The month-end figures link here with the filter in the URL. Read it once,
+  // on mount — after that the selects own the state, same as every list page.
+  const params = useSearchParams();
+  const [from, setFrom] = useState(params.get("from") ?? "");
+  const [to, setTo] = useState(params.get("to") ?? "");
+  const [txnType, setTxnType] = useState<string | null>(params.get("txnType"));
+  const [documentType, setDocumentType] = useState<string | null>(
+    params.get("documentType"),
+  );
+  const [locationId, setLocationId] = useState<string | null>(
+    params.get("locationId"),
+  );
   const [page, setPage] = useState(1);
 
   const reset = makePageReset(setPage);
