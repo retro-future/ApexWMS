@@ -63,9 +63,10 @@ export function StockOnHandReport() {
             w={{ base: "100%", sm: 180 }}
           />
           <Select
+            label={t("filterLocation")}
             value={locationId}
             onChange={reset(setLocationId)}
-            placeholder={t("filterLocation")}
+            placeholder={tCommon("all")}
             clearable
             searchable
             w={{ base: "100%", sm: 200 }}
@@ -75,9 +76,10 @@ export function StockOnHandReport() {
             }))}
           />
           <ProductSelect
+            label={t("filterProduct")}
             value={productId}
             onChange={(product) => reset(setProductId)(product?.id ?? null)}
-            placeholder={t("filterProduct")}
+            placeholder={tCommon("all")}
           />
           <TextInput
             label={t("filterBrand")}
