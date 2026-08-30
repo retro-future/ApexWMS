@@ -10,6 +10,7 @@ it never looked would be worse than one that showed nothing at all.
 """
 
 from collections import defaultdict
+from datetime import datetime
 from uuid import UUID
 
 from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
@@ -18,7 +19,7 @@ from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import SalesInvoiceData
 from application.specs import SalesInvoiceBrowse
 from domain.entities import Payment, SalesInvoice
-from domain.enums import DocumentStatus
+from domain.enums import DocumentStatus, PaymentType
 from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
 
 
@@ -27,6 +28,10 @@ class ListSalesInvoicesQuery(PagedQuery[PagedResult[SalesInvoiceData]]):
     status: DocumentStatus | None = None
     customer_id: UUID | None = None
     location_id: UUID | None = None
+    payment_type: PaymentType | None = None
+    # The month-end drill-down scopes by when a sale was *confirmed*, not opened.
+    confirmed_from: datetime | None = None
+    confirmed_to: datetime | None = None
 
 
 class ListSalesInvoicesHandler(
@@ -48,6 +53,9 @@ class ListSalesInvoicesHandler(
             status=request.status,
             customer_id=request.customer_id,
             location_id=request.location_id,
+            payment_type=request.payment_type,
+            confirmed_from=request.confirmed_from,
+            confirmed_to=request.confirmed_to,
         )
         total = await self._invoices.count(spec)
         invoices = await self._invoices.find(

@@ -618,3 +618,43 @@ class TestWhoMaySellOnCredit:
 
         refused = await client.get("/api/v1/reports/debtors", headers=seller)
         assert refused.status_code == 403, refused.text
+
+
+class TestFilteringTheSalesList:
+    """The month-end drill-down: a store-credit figure links here, scoped to
+    the invoices confirmed in that month."""
+
+    async def test_the_list_narrows_to_store_credit_sales(
+        self, client, settings, owner
+    ):
+        customer_id = await a_customer(client, owner)
+        credit_id = await a_scanned_invoice(client, settings, owner, customer_id=customer_id)
+        await confirm(client, owner, credit_id, paymentType="store_credit", debt="7800000")
+
+        cash_id = await a_scanned_invoice(client, settings, owner, imei=SECOND_IMEI)
+        await confirm(client, owner, cash_id)
+
+        filtered = await client.get(
+            "/api/v1/invoices?paymentType=store_credit", headers=owner.auth
+        )
+
+        assert filtered.status_code == 200, filtered.text
+        assert [i["id"] for i in filtered.json()["data"]] == [credit_id]
+
+    async def test_the_list_narrows_to_a_confirmed_date_window(
+        self, client, settings, owner
+    ):
+        invoice_id = await a_scanned_invoice(client, settings, owner)
+        await confirm(client, owner, invoice_id)
+
+        excluded = await client.get(
+            "/api/v1/invoices?confirmedFrom=2099-01-01T00:00:00Z", headers=owner.auth
+        )
+        assert [i["id"] for i in excluded.json()["data"]] == []
+
+        included = await client.get(
+            "/api/v1/invoices"
+            "?confirmedFrom=2020-01-01T00:00:00Z&confirmedTo=2099-01-01T00:00:00Z",
+            headers=owner.auth,
+        )
+        assert invoice_id in [i["id"] for i in included.json()["data"]]

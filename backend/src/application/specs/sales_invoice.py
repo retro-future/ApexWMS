@@ -6,13 +6,14 @@ currency and tracking type (§4.5 rule 3), and both relationships are
 ``lazy="raise"``.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from application.common.specification import Specification
-from domain.enums import DocumentStatus
+from domain.enums import DocumentStatus, PaymentType
 from infrastructure.persistence.tenant.models import (
     CustomerModel,
     DeviceUnitModel,
@@ -63,12 +64,18 @@ class SalesInvoiceBrowse(Specification[SalesInvoiceModel]):
         status: DocumentStatus | None = None,
         customer_id: UUID | None = None,
         location_id: UUID | None = None,
+        payment_type: PaymentType | None = None,
+        confirmed_from: datetime | None = None,
+        confirmed_to: datetime | None = None,
     ) -> None:
         super().__init__(SalesInvoiceModel)
         self.search = search
         self.status = status
         self.customer_id = customer_id
         self.location_id = location_id
+        self.payment_type = payment_type
+        self.confirmed_from = confirmed_from
+        self.confirmed_to = confirmed_to
         if search:
             term = f"%{search.strip()}%"
             customer_match = (
@@ -105,5 +112,11 @@ class SalesInvoiceBrowse(Specification[SalesInvoiceModel]):
             self.where(SalesInvoiceModel.customer_id == customer_id)
         if location_id is not None:
             self.where(SalesInvoiceModel.location_id == location_id)
+        if payment_type is not None:
+            self.where(SalesInvoiceModel.payment_type == payment_type.value)
+        if confirmed_from is not None:
+            self.where(SalesInvoiceModel.confirmed_at >= confirmed_from)
+        if confirmed_to is not None:
+            self.where(SalesInvoiceModel.confirmed_at <= confirmed_to)
         self.include(_WITH_LINES)
         self.order(SalesInvoiceModel.created_at.desc(), SalesInvoiceModel.id)
