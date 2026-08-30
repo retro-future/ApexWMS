@@ -212,14 +212,18 @@ export function percentIn(
   );
 }
 
-/** e.g. "31 Dec 2025, 00:00 – 31 Jan 2026, 00:00 (Asia/Tashkent)". */
-export function formatPeriod(period: Period, locale: string): string {
-  const format = new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
+/** e.g. "2025-12-31 00:00 – 2026-01-31 00:00 (Asia/Tashkent)". */
+export function formatPeriod(period: Period): string {
+  const format = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
     timeZone: period.timezone,
   });
-  const start = format.format(new Date(period.start));
-  const end = format.format(new Date(period.end));
+  const start = format.format(new Date(period.start)).replace(",", "");
+  const end = format.format(new Date(period.end)).replace(",", "");
   return `${start} – ${end} (${period.timezone})`;
 }

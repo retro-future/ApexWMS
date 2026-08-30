@@ -1,20 +1,30 @@
 "use client";
 
-import { useFormatter } from "next-intl";
-
 /**
- * Locale-aware date formatting, backed by next-intl's `useFormatter` so a
- * timestamp renders in the operator's chosen locale (uz/ru/en) rather than
- * whatever locale the browser happens to be set to.
+ * Dates render in a fixed ISO-style format (2026-08-30), the same in every
+ * locale. next-intl's locale-aware `dateStyle` produced "2026 M08 30" under uz,
+ * which operators read as broken.
  */
-export function useDateFormat() {
-  const format = useFormatter();
+const dateFmt = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
+const timeFmt = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function useDateFormat() {
   return {
-    /** e.g. "Aug 22, 2026" */
-    formatDate: (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" }),
-    /** e.g. "Aug 22, 2026, 3:45 PM" */
-    formatDateTime: (iso: string) =>
-      format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" }),
+    /** e.g. "2026-08-30" */
+    formatDate: (iso: string) => dateFmt.format(new Date(iso)),
+    /** e.g. "2026-08-30 15:45" */
+    formatDateTime: (iso: string) => {
+      const d = new Date(iso);
+      return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
+    },
   };
 }

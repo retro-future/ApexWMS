@@ -155,15 +155,15 @@ describe("formatPeriod", () => {
   };
 
   it("renders the window in the store's timezone, not the browser's", () => {
-    const rendered = formatPeriod(january, "en-GB");
+    const rendered = formatPeriod(january);
 
-    expect(rendered).toContain("1 Jan 2026, 00:00");
-    expect(rendered).toContain("1 Feb 2026, 00:00");
+    expect(rendered).toContain("2026-01-01 00:00");
+    expect(rendered).toContain("2026-02-01 00:00");
     expect(rendered).toContain("Asia/Tashkent");
   });
 
   it("does not show a January period starting in December", () => {
-    expect(formatPeriod(january, "en-GB")).not.toContain("Dec");
+    expect(formatPeriod(january)).not.toContain("2025-12");
   });
 });
 

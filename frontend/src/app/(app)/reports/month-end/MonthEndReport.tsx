@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 import { IconAlertCircle, IconCircleCheck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { MonthEndDebtAndFinancing } from "@/app/(app)/reports/month-end/MonthEndDebtAndFinancing";
@@ -43,7 +43,6 @@ import type { MonthEndReport } from "@/lib/types";
 export function MonthEndReportScreen() {
   const t = useTranslations("reports");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
 
   const locations = useLocationLookup();
 
@@ -119,7 +118,7 @@ export function MonthEndReportScreen() {
       ) : (
         <>
           <Text size="sm" c="dimmed">
-            {formatPeriod(report.period, locale)}
+            {formatPeriod(report.period)}
           </Text>
 
           <Reconciliation report={report} />
