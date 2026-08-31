@@ -772,6 +772,7 @@ export type BelowCostRow = {
   locationId: string;
   locationName: string;
   quantity: number;
+  currency: Currency;
   catalogPrice: string;
   catalogPriceMinor: number;
   averageUnitCost: string;

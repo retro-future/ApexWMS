@@ -356,7 +356,7 @@
     "blockersTitle": "Приёмку пока нельзя подтвердить",
     "blockerShort": "{product}: отсканировано {scanned} из {expected}",
     "blockerUnpriced": "{imei} — {condition}, цена не указана",
-    "belowCostWarningTitle": "Эта приёмка подняла себестоимость выше цены продажи",
+    "belowCostWarningTitle": "Эти аксессуары теперь стоят не меньше, чем цена их продажи",
     "belowCostWarningBody": "Эти аксессуары теперь стоят не меньше, чем цена их продажи. Измените цену или подтвердите, что убыток допустим.",
     "belowCostWarningRow": "{sku}: продаётся за {price}, теперь стоит {cost}",
     "scan": {
@@ -734,7 +734,7 @@
     "noBelowCost": "Ни один аксессуар не стоит ниже своей себестоимости.",
     "catalogPrice": "Цена в каталоге",
     "averageCost": "Средняя себестоимость",
-    "shortfall": "Недостача",
+    "shortfall": "Разница",
     "quantityOnHand": "На складе",
     "priceSelected": "Оценить выбранные ({count})",
     "bulkRepriceTitle": "Проставить цены",

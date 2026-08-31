@@ -1,4 +1,4 @@
-"""One accessory carried at or above its catalog price, at one location (FR-9.x).
+"""One accessory carried at or above its catalog price, at one location (FR-2.19).
 
 A read row, not an entity: the report flattens the catalog row, the level
 and the location, and its cost is a pool the ledger implies, not a column.
@@ -7,7 +7,7 @@ and the location, and its cost is a pool the ledger implies, not a column.
 from dataclasses import dataclass
 from uuid import UUID
 
-from domain.value_objects import Money
+from domain.value_objects import Currency, Money
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +18,7 @@ class BelowCostRow:
     location_id: UUID
     location_name: str
     quantity: int
+    currency: Currency
     catalog_price: Money
     average_unit_cost: Money
 

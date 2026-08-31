@@ -176,7 +176,9 @@ class BelowCostQueries(Protocol):
     money ledger, and neither aggregate owns the other's half. The average
     is ``sum(amount_minor * INVENTORY_SIGN) / quantity`` over the pair —
     the same fold as ``services/cost_pools.py``'s ``INVENTORY_SIGN``, so
-    the report and a real sale agree about the same goods."""
+    the report and a real sale agree for the receive-and-sell path.
+    Post-cancel state is subject to the same replay-vs-value difference the
+    global reconciler tracks."""
 
     async def list_below_cost(
         self,

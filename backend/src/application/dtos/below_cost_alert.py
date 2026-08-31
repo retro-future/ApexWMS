@@ -1,5 +1,5 @@
 """One accessory whose weighted-average cost has reached or passed its
-catalog price (FR-2.15). A carrier for a confirm-response row, built from
+catalog price (FR-2.19). A carrier for a confirm-response row, built from
 the ``Product`` and its replayed ``CostPool``."""
 
 from dataclasses import dataclass

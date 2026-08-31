@@ -1,4 +1,5 @@
-"""Accessories whose weighted-average cost has caught up to their catalog price.
+"""Accessories whose weighted-average cost has caught up to their catalog
+price (FR-2.19).
 
 Selling below cost is sometimes deliberate (clearance, damage). This never
 blocks; it makes the case visible. The pool is replayed from the ledgers
@@ -39,13 +40,20 @@ class BelowCostChecker:
         self, product_id: UUID, location_id: UUID
     ) -> BelowCostAlert | None:
         product = await self._products.get(product_id)
-        if product is None or product.default_sale_price is None:
+        if product is None or not product.is_active or product.default_sale_price is None:
             return None
         pool = await self._pools.pool_for(product_id, location_id)
         if pool is None:
             return None
         average = pool.average_unit_cost
-        if average is None or average < product.default_sale_price:
+        if average is None:
+            return None
+        # Same exact test as ``SqlBelowCostQueries``' HAVING clause: compare
+        # the whole pool value, not the rounded per-unit average, so the two
+        # paths cannot disagree in the ``[p*q - q/2, p*q)`` rounding window.
+        # ``average`` below is display only.
+        price = product.default_sale_price
+        if pool.value.amount_minor < price.amount_minor * pool.quantity:
             return None
         return BelowCostAlert(
             product_id=product_id,

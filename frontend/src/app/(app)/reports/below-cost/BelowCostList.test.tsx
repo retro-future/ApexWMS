@@ -20,6 +20,7 @@ const row: BelowCostRow = {
   locationId: "location-1",
   locationName: "Chilonzor shop",
   quantity: 12,
+  currency: "USD",
   catalogPrice: "10.00",
   catalogPriceMinor: 1000,
   averageUnitCost: "10.50",
@@ -42,6 +43,7 @@ describe("the below-cost report", () => {
 
     expect(await screen.findByText("CBL-USB-C")).toBeInTheDocument();
     expect(screen.getByText("Chilonzor shop")).toBeInTheDocument();
-    expect(screen.getByText("0.50")).toBeInTheDocument();
+    expect(screen.getByText("$0.50")).toBeInTheDocument();
+    expect(screen.getByText("$10.00")).toBeInTheDocument();
   });
 });

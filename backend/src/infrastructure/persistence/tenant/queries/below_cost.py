@@ -6,6 +6,13 @@ request is too much. Pool value for a (product, location) pair equals
 ``sum(amount_minor * INVENTORY_SIGN[txn_type])`` over the money ledger —
 identical to the fold in ``application/services/cost_pools.py``. Keep the
 CASE below in step with that table.
+
+That fold matches ``INVENTORY_SIGN`` and the global reconciler's identity
+for the receive-and-sell path. Post-cancel state is subject to the same
+replay-vs-value difference the reconciler already tracks: a goods-receipt
+cancel replays COGS at the current average while this SQL subtracts the
+original purchase value, so the two can diverge there (a pre-existing
+ledger property, not something this report introduces).
 """
 
 from typing import Any
@@ -80,8 +87,9 @@ class SqlBelowCostQueries:
                 LocationModel.name,
                 StockLevelModel.quantity,
             )
-            # average >= price  <=>  value >= price * quantity  (quantity > 0),
-            # exact, no rounding.
+            # Both paths test ``pool_value >= price * quantity``; the rounded
+            # per-unit average is display only. ``BelowCostChecker`` uses the
+            # same comparison so confirm and report cannot disagree.
             .having(value_minor >= price_x_qty)
         )
         if location_id is not None:
@@ -122,19 +130,19 @@ class SqlBelowCostQueries:
         value_minor: ColumnElement[Any],
     ) -> Select[Any]:
         if sort is BelowCostSort.SKU:
-            ranked = stmt.order_by(ProductModel.sku)
-        else:
-            # Per-unit shortfall, matching ``BelowCostRow.shortfall``: order by
-            # ``avg - price``, not the quantity-scaled total. Numeric cast avoids
-            # an integer-floor divide.
-            ranked = stmt.order_by(
-                (
-                    cast(value_minor, Numeric) / StockLevelModel.quantity
-                    - ProductModel.default_sale_price_minor
-                ).desc()
-            )
-        # SKU then location breaks exact ties so paging stays deterministic.
-        return ranked.order_by(ProductModel.sku, StockLevelModel.location_id)
+            return stmt.order_by(ProductModel.sku, StockLevelModel.location_id)
+        # Currencies are not numerically comparable (§4.5 rule 4), so group by
+        # currency first, then rank by the per-unit shortfall within each group.
+        # Numeric cast avoids an integer-floor divide.
+        return stmt.order_by(
+            ProductModel.currency,
+            (
+                cast(value_minor, Numeric) / StockLevelModel.quantity
+                - ProductModel.default_sale_price_minor
+            ).desc(),
+            ProductModel.sku,
+            StockLevelModel.location_id,
+        )
 
     async def _count(self, stmt: Select[Any]) -> int:
         subq = stmt.order_by(None).subquery()
@@ -165,6 +173,7 @@ class SqlBelowCostQueries:
             location_id=location_id,
             location_name=location_name,
             quantity=quantity,
+            currency=currency,
             catalog_price=Money(int(price_minor), currency),
             average_unit_cost=Money(average_minor, currency),
         )

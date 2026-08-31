@@ -439,10 +439,6 @@ class World:
     def cost_pools(self) -> CostPoolReader:
         return CostPoolReader(self.products, self.movements, self.transactions)
 
-    @property
-    def cost_pool_reader(self) -> CostPoolReader:
-        return self.cost_pools()
-
     # --- M4 purchasing & receiving ---
 
     def numberer(self) -> DocumentNumberer:
@@ -545,7 +541,7 @@ class World:
         return ConfirmGoodsReceiptHandler(
             self.receipts,
             self.receipt_poster(actor),
-            BelowCostChecker(self.products, self.cost_pool_reader),
+            BelowCostChecker(self.products, self.cost_pools()),
             self.clock,
             self.uow,
             self._as(actor, *permissions),

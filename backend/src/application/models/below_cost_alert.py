@@ -1,5 +1,5 @@
 """One accessory whose weighted-average cost has reached its catalog price
-(FR-2.15), attached to a Goods Receipt confirm response.
+(FR-2.19), attached to a Goods Receipt confirm response.
 
 Not behind ``Permission.Cost.View``: the point is that whoever confirms the
 receipt sees the mismatch. These figures are a comparison the store needs,

@@ -8,8 +8,26 @@ receipt that actually moved the average across the catalog price.
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from tests.api.ledger_helpers import PASSWORD
+from application.services.cost_pools import CostPoolReader
+from infrastructure.persistence.mappers import (
+    FinancialTransactionMapper,
+    ProductMapper,
+    StockMovementMapper,
+)
+from infrastructure.persistence.repositories import (
+    TenantSqlAppendOnlyRepository,
+    TenantSqlRepository,
+)
+from infrastructure.persistence.tenant.models import (
+    FinancialTransactionModel,
+    ProductModel,
+    StockMovementModel,
+)
+from infrastructure.persistence.tenant.queries.below_cost import SqlBelowCostQueries
+from infrastructure.types import TenantSession
+from tests.api.ledger_helpers import PASSWORD, tenant_url
 
 API = "/api/v1"
 
@@ -46,7 +64,7 @@ async def store(client, create_tenant):
     }
 
 
-async def confirm_receipt(client, owner, ids, *, quantity: int, unit_cost: str) -> None:
+async def confirm_receipt(client, owner, ids, *, quantity: int, unit_cost: str) -> dict:
     opened = await client.post(
         f"{API}/receipts",
         headers=owner.auth,
@@ -69,6 +87,7 @@ async def confirm_receipt(client, owner, ids, *, quantity: int, unit_cost: str) 
         json={},
     )
     assert confirmed.status_code == 200, confirmed.text
+    return confirmed.json()["data"]
 
 
 async def below_cost(client, auth, **params):
@@ -104,6 +123,54 @@ class TestTheWorklist:
         assert row["catalogPriceMinor"] == 1000
         assert row["averageUnitCostMinor"] == 1000
         assert row["quantity"] == 20
+        assert row["currency"] == "USD"
+
+    async def test_the_confirm_response_flags_the_same_receipt(self, client, store):
+        owner, ids = store
+        first = await confirm_receipt(client, owner, ids, quantity=10, unit_cost="6.00")
+        assert first["belowCostAlerts"] == []
+
+        second = await confirm_receipt(
+            client, owner, ids, quantity=10, unit_cost="14.00"
+        )
+        alerts = second["belowCostAlerts"]
+        assert len(alerts) == 1
+        assert alerts[0]["sku"] == "CASE-X"
+        assert alerts[0]["averageUnitCostMinor"] == 1000
+
+
+class TestTheTwoFoldsAgree:
+    """The SQL fold and ``CostPoolReader``'s replay must land on the same
+    weighted-average for a receipt that moved it across the catalog price."""
+
+    async def test_sql_average_equals_the_replayed_pool(self, client, settings, store):
+        owner, ids = store
+        await confirm_receipt(client, owner, ids, quantity=10, unit_cost="6.00")
+        await confirm_receipt(client, owner, ids, quantity=7, unit_cost="16.00")
+
+        engine = create_async_engine(await tenant_url(settings, owner.tenant_id))
+        try:
+            async with async_sessionmaker(engine, expire_on_commit=False)() as raw:
+                session = TenantSession(raw)
+                sql_rows, _ = await SqlBelowCostQueries(session).list_below_cost(
+                    page=1, page_size=25
+                )
+                reader = CostPoolReader(
+                    TenantSqlRepository(session, ProductModel, ProductMapper()),
+                    TenantSqlAppendOnlyRepository(
+                        session, StockMovementModel, StockMovementMapper()
+                    ),
+                    TenantSqlAppendOnlyRepository(
+                        session, FinancialTransactionModel, FinancialTransactionMapper()
+                    ),
+                )
+                assert len(sql_rows) == 1
+                row = sql_rows[0]
+                pool = await reader.pool_for(row.product_id, row.location_id)
+                assert pool is not None
+                assert pool.average_unit_cost == row.average_unit_cost
+        finally:
+            await engine.dispose()
 
 
 class TestWhoMayRead:

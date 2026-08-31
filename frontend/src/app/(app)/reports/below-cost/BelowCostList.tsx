@@ -8,12 +8,13 @@ import { useState } from "react";
 import { ListShell } from "@/components/ListShell";
 import { useLocationLookup } from "@/hooks/use-lookup";
 import { makePageReset, useResourceList } from "@/hooks/use-resource";
+import { formatMoney } from "@/lib/money";
 import type { BelowCostRow } from "@/lib/types";
 
 /**
- * Accessories whose average unit cost has reached their catalog price. The row
- * carries no currency, so the money figures are the decimal strings the API
- * already formatted.
+ * Accessories whose average unit cost has reached their catalog price. Each row
+ * carries its own currency, so the money cells are formatted from the minor
+ * amounts rather than trusting a pre-formatted string.
  */
 export function BelowCostList() {
   const t = useTranslations("reports");
@@ -86,14 +87,16 @@ export function BelowCostList() {
             <Text size="sm">{row.quantity}</Text>
           </Table.Td>
           <Table.Td>
-            <Text size="sm">{row.catalogPrice}</Text>
+            <Text size="sm">{formatMoney(row.catalogPriceMinor, row.currency)}</Text>
           </Table.Td>
           <Table.Td>
-            <Text size="sm">{row.averageUnitCost}</Text>
+            <Text size="sm">
+              {formatMoney(row.averageUnitCostMinor, row.currency)}
+            </Text>
           </Table.Td>
           <Table.Td>
             <Text size="sm" c="red">
-              {row.shortfall}
+              {formatMoney(row.shortfallMinor, row.currency)}
             </Text>
           </Table.Td>
         </Table.Tr>

@@ -356,7 +356,7 @@
     "blockersTitle": "Bu kirimni hali tasdiqlab bo'lmaydi",
     "blockerShort": "{product}: {expected} tadan {scanned} ta skanerlangan",
     "blockerUnpriced": "{imei} — {condition}, sotuv narxi yo'q",
-    "belowCostWarningTitle": "Bu kirim tannarxni katalog narxidan oshirib yubordi",
+    "belowCostWarningTitle": "Bu aksessuarlar endi hech bo'lmaganda sotuv narxicha turadi",
     "belowCostWarningBody": "Bu aksessuarlar endi hech bo'lmaganda sotuv narxicha turadi. Narxini qayta belgilang yoki zararga rozi ekaningizni tasdiqlang.",
     "belowCostWarningRow": "{sku}: {price} ga sotiladi, endi {cost} turadi",
     "scan": {
@@ -734,7 +734,7 @@
     "noBelowCost": "Hech bir aksessuar tannarxidan past narxda emas.",
     "catalogPrice": "Katalog narxi",
     "averageCost": "O'rtacha tannarx",
-    "shortfall": "Yetishmovchilik",
+    "shortfall": "Farq",
     "quantityOnHand": "Omborda",
     "priceSelected": "Tanlanganlarga narx ({count})",
     "bulkRepriceTitle": "Telefonlarga narx qo'yish",

@@ -356,7 +356,7 @@
     "blockersTitle": "This receipt cannot be confirmed yet",
     "blockerShort": "{product}: {scanned} of {expected} scanned",
     "blockerUnpriced": "{imei} is {condition} and carries no asking price",
-    "belowCostWarningTitle": "This receipt raised cost above catalog price",
+    "belowCostWarningTitle": "These accessories now cost at least what they sell for",
     "belowCostWarningBody": "These accessories now cost at least what they sell for. Reprice them, or confirm the loss is intended.",
     "belowCostWarningRow": "{sku}: sells at {price}, now costs {cost}",
     "scan": {

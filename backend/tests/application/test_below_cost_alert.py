@@ -1,5 +1,5 @@
 """BelowCostChecker — accessories whose weighted-average cost has caught up
-to their catalog price (FR-2.15)."""
+to their catalog price (FR-2.19)."""
 
 from uuid import uuid4
 
@@ -111,7 +111,7 @@ async def _confirm(world: World, receipt):
 
 
 async def receive_accessory(
-    world: World, product: Product, quantity: int, unit_cost_minor: int
+    world: World, product: Product, quantity: int, unit_cost: int
 ):
     """A confirmed goods receipt for one QUANTITY line at a fixed location."""
     receipt = await _confirmed_receipt(
@@ -120,7 +120,7 @@ async def receive_accessory(
             ReceiptLine(
                 product_id=product.id,
                 quantity=quantity,
-                unit_cost=str(unit_cost_minor),
+                unit_cost=str(unit_cost),
             )
         ],
     )
@@ -132,13 +132,13 @@ async def test_alert_when_new_batch_lifts_average_above_catalog_price(world):
     product = await make_accessory(world, sku="CASE-X", default_sale_price_minor=1000)
 
     # batch 1: 10 @ 6_00 -> average 6_00, below catalog price, no alert
-    await receive_accessory(world, product, quantity=10, unit_cost_minor=600)
-    checker = BelowCostChecker(world.products, world.cost_pool_reader)
+    await receive_accessory(world, product, quantity=10, unit_cost=600)
+    checker = BelowCostChecker(world.products, world.cost_pools())
     receipt1 = world.last_receipt
     assert await checker.alerts_for(receipt1) == []
 
     # batch 2: 10 @ 14_00 -> pool 20 @ (60_00 + 140_00) = 200_00 -> average 10_00
-    receipt2 = await receive_accessory(world, product, quantity=10, unit_cost_minor=1400)
+    receipt2 = await receive_accessory(world, product, quantity=10, unit_cost=1400)
     alerts = await checker.alerts_for(receipt2)
     assert len(alerts) == 1
     assert alerts[0].product_id == product.id
@@ -149,9 +149,27 @@ async def test_alert_when_new_batch_lifts_average_above_catalog_price(world):
 
 async def test_no_alert_for_a_product_with_no_catalog_price(world):
     product = await make_accessory(world, sku="NOPRICE", default_sale_price_minor=None)
-    receipt = await receive_accessory(world, product, quantity=5, unit_cost_minor=900)
-    checker = BelowCostChecker(world.products, world.cost_pool_reader)
+    receipt = await receive_accessory(world, product, quantity=5, unit_cost=900)
+    checker = BelowCostChecker(world.products, world.cost_pools())
     assert await checker.alerts_for(receipt) == []
+
+
+async def test_no_alert_a_cent_below_the_exact_price(world):
+    # price 10_00, pool 3 units worth 29_99: the rounded half-up average is
+    # 10_00, but the exact pool value is a cent short of 3 * 10_00, so neither
+    # the confirm path nor the SQL report alerts.
+    product = await make_accessory(world, sku="EDGE-1", default_sale_price_minor=1000)
+    receipt = await _confirmed_receipt(
+        world,
+        [
+            ReceiptLine(product_id=product.id, quantity=2, unit_cost="1000"),
+            ReceiptLine(product_id=product.id, quantity=1, unit_cost="999"),
+        ],
+    )
+    confirmed = await _confirm(world, receipt)
+
+    checker = BelowCostChecker(world.products, world.cost_pools())
+    assert await checker.alerts_for(confirmed) == []
 
 
 async def test_serialized_lines_are_out_of_scope(world):
@@ -173,13 +191,13 @@ async def test_serialized_lines_are_out_of_scope(world):
     confirmed = await _confirm(world, receipt)
 
     assert confirmed.lines[0].is_serial is True
-    checker = BelowCostChecker(world.products, world.cost_pool_reader)
+    checker = BelowCostChecker(world.products, world.cost_pools())
     assert await checker.alerts_for(confirmed) == []
 
 
 async def test_confirm_goods_receipt_returns_below_cost_alert(world):
     product = await make_accessory(world, sku="CASE-Z", default_sale_price_minor=1000)
-    await receive_accessory(world, product, quantity=10, unit_cost_minor=600)
+    await receive_accessory(world, product, quantity=10, unit_cost=600)
 
     receipt = await _confirmed_receipt(
         world, [ReceiptLine(product_id=product.id, quantity=10, unit_cost="1400")]
@@ -229,6 +247,7 @@ async def test_list_below_cost_handler_maps_rows():
         location_id=uuid4(),
         location_name="Main",
         quantity=20,
+        currency=Currency.USD,
         catalog_price=Money(1000, Currency.USD),
         average_unit_cost=Money(1100, Currency.USD),
     )
@@ -241,6 +260,7 @@ async def test_list_below_cost_handler_maps_rows():
     assert one.sku == "CASE-X"
     assert one.catalog_price_minor == 1000
     assert one.average_unit_cost_minor == 1100
+    assert one.currency == Currency.USD
     assert one.shortfall_minor == 100
 
 
@@ -255,7 +275,7 @@ async def test_two_lines_for_the_same_accessory_yield_one_alert(world):
     )
     confirmed = await _confirm(world, receipt)
 
-    checker = BelowCostChecker(world.products, world.cost_pool_reader)
+    checker = BelowCostChecker(world.products, world.cost_pools())
     alerts = await checker.alerts_for(confirmed)
     assert len(alerts) == 1
     assert alerts[0].product_id == product.id
