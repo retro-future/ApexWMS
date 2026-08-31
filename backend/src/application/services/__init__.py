@@ -19,6 +19,7 @@ three audits are what ``apexwms verify-*`` runs, hand-wired by the CLI
 because there is no request to resolve them in.
 """
 
+from application.services.below_cost import BelowCostChecker
 from application.services.claims import ClaimsFactory
 from application.services.cost_pools import CostPoolReader
 from application.services.count_posting import CountPoster
@@ -51,6 +52,7 @@ from application.services.verification import (
 
 __all__ = [
     "BalanceVerifier",
+    "BelowCostChecker",
     "ClaimsFactory",
     "CostPoolReader",
     "CountPoster",

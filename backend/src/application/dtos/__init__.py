@@ -15,6 +15,7 @@ context through the DI graph?
 
 from application.dtos.ageing import AgeingRow
 from application.dtos.auth_tokens import AuthTokens
+from application.dtos.below_cost_alert import BelowCostAlert
 from application.dtos.current_user import CurrentUser
 from application.dtos.customer_debt import CreditInvoiceDebt, DebtorSummary
 from application.dtos.discrepancy import Discrepancy
@@ -63,6 +64,7 @@ __all__ = [
     "AccrualFigures",
     "AgeingRow",
     "AuthTokens",
+    "BelowCostAlert",
     "CreditInvoiceDebt",
     "CurrentUser",
     "DebtMovement",

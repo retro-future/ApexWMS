@@ -438,6 +438,10 @@ class World:
     def cost_pools(self) -> CostPoolReader:
         return CostPoolReader(self.products, self.movements, self.transactions)
 
+    @property
+    def cost_pool_reader(self) -> CostPoolReader:
+        return self.cost_pools()
+
     # --- M4 purchasing & receiving ---
 
     def numberer(self) -> DocumentNumberer:

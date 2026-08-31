@@ -1,0 +1,55 @@
+"""Accessories whose weighted-average cost has caught up to their catalog price.
+
+Selling below cost is sometimes deliberate (clearance, damage). This never
+blocks; it makes the case visible. The pool is replayed from the ledgers
+(``CostPoolReader``), not read from a column — there is none.
+"""
+
+from uuid import UUID
+
+from application.common.repository import TenantDbRepository
+from application.dtos import BelowCostAlert
+from application.services.cost_pools import CostPoolReader
+from domain.entities import GoodsReceipt, Product
+from infrastructure.persistence.tenant.models import ProductModel
+
+
+class BelowCostChecker:
+    def __init__(
+        self,
+        products: TenantDbRepository[Product, ProductModel],
+        pools: CostPoolReader,
+    ) -> None:
+        self._products = products
+        self._pools = pools
+
+    async def alerts_for(self, receipt: GoodsReceipt) -> list[BelowCostAlert]:
+        seen: set[UUID] = set()
+        alerts: list[BelowCostAlert] = []
+        for line in receipt.lines:
+            if line.is_serial or line.product_id in seen:
+                continue
+            seen.add(line.product_id)
+            alert = await self._alert_for(line.product_id, receipt.location_id)
+            if alert is not None:
+                alerts.append(alert)
+        return alerts
+
+    async def _alert_for(
+        self, product_id: UUID, location_id: UUID
+    ) -> BelowCostAlert | None:
+        product = await self._products.get(product_id)
+        if product is None or product.default_sale_price is None:
+            return None
+        pool = await self._pools.pool_for(product_id, location_id)
+        if pool is None:
+            return None
+        average = pool.average_unit_cost
+        if average is None or average < product.default_sale_price:
+            return None
+        return BelowCostAlert(
+            product_id=product_id,
+            sku=str(product.sku),
+            catalog_price=product.default_sale_price,
+            average_unit_cost=average,
+        )
