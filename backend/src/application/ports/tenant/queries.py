@@ -13,6 +13,7 @@ from uuid import UUID
 from application.dtos import (
     AccessoryOnHand,
     AgeingRow,
+    BelowCostRow,
     CreditInvoiceDebt,
     DebtorSummary,
     FinancialLedgerRow,
@@ -27,7 +28,7 @@ from application.dtos import (
     UnitOrigin,
     UnitSale,
 )
-from application.sorting import AgeingSort, DeviationSort
+from application.sorting import AgeingSort, BelowCostSort, DeviationSort
 from domain.enums import DocumentType, MovementType, TransactionType
 from domain.value_objects import Currency, Money
 
@@ -167,6 +168,23 @@ class StockOnHandQueries(Protocol):
         """The accessory pairs still carrying stock, unvalued: their cost is
         a pool ``CostPoolReader`` replays, not a column to sum (§4.6)."""
         ...
+
+
+class BelowCostQueries(Protocol):
+    """Active accessories whose weighted-average cost has reached their
+    catalog price. Its own port: the read spans ``stock_levels`` and the
+    money ledger, and neither aggregate owns the other's half. The average
+    is ``sum(amount_minor * INVENTORY_SIGN) / quantity`` over the pair —
+    the same fold as ``services/cost_pools.py``'s ``INVENTORY_SIGN``, so
+    the report and a real sale agree about the same goods."""
+
+    async def list_below_cost(
+        self,
+        page: int,
+        page_size: int,
+        location_id: UUID | None = None,
+        sort: BelowCostSort = BelowCostSort.SHORTFALL,
+    ) -> tuple[list[BelowCostRow], int]: ...
 
 
 class SalesInvoiceQueries(Protocol):

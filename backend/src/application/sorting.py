@@ -23,3 +23,8 @@ class AgeingSort(StrEnum):
 
     AGE = "age"
     MARKDOWNS = "markdowns"
+
+
+class BelowCostSort(StrEnum):
+    SHORTFALL = "shortfall"
+    SKU = "sku"

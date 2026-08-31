@@ -24,6 +24,7 @@ from application.ports.provisioning import TenantProvisioner
 from application.ports.security import PasswordHasher, TokenService
 from application.ports.tenancy import TenantScope, TenantWorkspace
 from application.ports.tenant import (
+    BelowCostQueries,
     DeviceUnitQueries,
     DocumentNumberAllocator,
     FinancialTransactionQueries,
@@ -38,6 +39,7 @@ from application.ports.tenant import (
 from application.ports.uow import UnitOfWork
 
 __all__ = [
+    "BelowCostQueries",
     "Clock",
     "DeviceUnitQueries",
     "DocumentNumberAllocator",

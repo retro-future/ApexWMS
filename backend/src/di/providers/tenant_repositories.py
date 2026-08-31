@@ -15,6 +15,7 @@ mid-request rather than resolved at the edge (PRD §3.3).
 from dishka import Provider, Scope, provide
 
 from application.ports import (
+    BelowCostQueries,
     DeviceUnitQueries,
     DocumentNumberAllocator,
     FinancialTransactionQueries,
@@ -30,6 +31,7 @@ from application.ports import (
 from infrastructure.config import Settings
 from infrastructure.persistence.tenant.document_number import SqlDocumentNumberAllocator
 from infrastructure.persistence.tenant.queries import (
+    SqlBelowCostQueries,
     SqlDeviceUnitQueries,
     SqlFinancialTransactionQueries,
     SqlGoodsReceiptQueries,
@@ -73,6 +75,10 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def stock_on_hand_queries(self, session: TenantSession) -> StockOnHandQueries:
         return SqlStockOnHandQueries(session)
+
+    @provide
+    def below_cost_queries(self, session: TenantSession) -> BelowCostQueries:
+        return SqlBelowCostQueries(session)
 
     # --- M4 inbound documents (PRD §4.4, §5.3) -------------------------
 

@@ -5,6 +5,7 @@ queries.py`, injected into handlers. Not a repository, and not the generic
 `SqlAlchemyRepository`. See `.claude/rules/backend/query-services.md`.
 """
 
+from infrastructure.persistence.tenant.queries.below_cost import SqlBelowCostQueries
 from infrastructure.persistence.tenant.queries.device_unit import SqlDeviceUnitQueries
 from infrastructure.persistence.tenant.queries.financial_transaction import (
     SqlFinancialTransactionQueries,
@@ -24,6 +25,7 @@ from infrastructure.persistence.tenant.queries.stock_on_hand import (
 )
 
 __all__ = [
+    "SqlBelowCostQueries",
     "SqlDeviceUnitQueries",
     "SqlFinancialTransactionQueries",
     "SqlGoodsReceiptQueries",
