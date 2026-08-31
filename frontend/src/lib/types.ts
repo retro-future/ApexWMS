@@ -763,7 +763,7 @@ export type NeedsPricingRow = {
 /**
  * One row of the below-cost report: an accessory whose average unit cost has
  * caught up with its catalog price. The decimal fields arrive pre-formatted
- * as strings; the row carries no currency, so display them as given.
+ * as strings; `*Minor` fields plus `currency` drive `formatMoney`.
  */
 export type BelowCostRow = {
   productId: string;

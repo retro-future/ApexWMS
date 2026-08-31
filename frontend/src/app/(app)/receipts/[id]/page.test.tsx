@@ -101,7 +101,7 @@ describe("confirming a goods receipt below cost", () => {
     await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
 
     const alert = await screen.findByText(
-      "These accessories now cost at least what they sell for",
+      "Check the price on these accessories",
     );
     const block = alert.closest("[role='alert']") ?? alert.parentElement!;
     expect(within(block as HTMLElement).getByText(/USB-C-CABLE/)).toHaveTextContent(
@@ -130,7 +130,7 @@ describe("confirming a goods receipt below cost", () => {
 
     await waitFor(() => expect(notifySuccess).toHaveBeenCalled());
     expect(
-      screen.queryByText("These accessories now cost at least what they sell for"),
+      screen.queryByText("Check the price on these accessories"),
     ).not.toBeInTheDocument();
   });
 });

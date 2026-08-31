@@ -356,7 +356,7 @@
     "blockersTitle": "Приёмку пока нельзя подтвердить",
     "blockerShort": "{product}: отсканировано {scanned} из {expected}",
     "blockerUnpriced": "{imei} — {condition}, цена не указана",
-    "belowCostWarningTitle": "Эти аксессуары теперь стоят не меньше, чем цена их продажи",
+    "belowCostWarningTitle": "Проверьте цену на эти аксессуары",
     "belowCostWarningBody": "Эти аксессуары теперь стоят не меньше, чем цена их продажи. Измените цену или подтвердите, что убыток допустим.",
     "belowCostWarningRow": "{sku}: продаётся за {price}, теперь стоит {cost}",
     "scan": {
