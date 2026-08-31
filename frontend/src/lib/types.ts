@@ -745,6 +745,26 @@ export type NeedsPricingRow = {
   reason: NeedsPricingReason;
 };
 
+/**
+ * One row of the below-cost report: an accessory whose average unit cost has
+ * caught up with its catalog price. The decimal fields arrive pre-formatted
+ * as strings; the row carries no currency, so display them as given.
+ */
+export type BelowCostRow = {
+  productId: string;
+  sku: string;
+  productName: string;
+  locationId: string;
+  locationName: string;
+  quantity: number;
+  catalogPrice: string;
+  catalogPriceMinor: number;
+  averageUnitCost: string;
+  averageUnitCostMinor: number;
+  shortfall: string;
+  shortfallMinor: number;
+};
+
 /** One row of FR-9.5's stock ledger. `quantityDelta` is signed. */
 export type MovementRow = {
   id: string;

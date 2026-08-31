@@ -23,6 +23,7 @@ import {
   IconStack2,
   IconTag,
   IconTrashX,
+  IconTrendingDown,
   IconTruck,
   IconUsers,
   IconUsersGroup,
@@ -175,6 +176,12 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           href: "/reports/needs-pricing",
           label: t("needsPricing"),
           icon: IconTag,
+          permission: Permission.Reporting.View,
+        },
+        {
+          href: "/reports/below-cost",
+          label: t("belowCost"),
+          icon: IconTrendingDown,
           permission: Permission.Reporting.View,
         },
         {

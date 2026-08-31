@@ -68,6 +68,7 @@
     "salesSummary": "Sotuv hisoboti",
     "ageing": "Uzoq turgan tovar",
     "needsPricing": "Narxsiz",
+    "belowCost": "Tannarxidan past",
     "financialLedger": "Moliyaviy jurnal",
     "monthEnd": "Oy yakuni"
   },
@@ -725,6 +726,13 @@
       "no_catalog_price": "Modelning katalog narxi yo'q"
     },
     "noNeedsPricing": "Ombordagi hamma narsaning narxi bor.",
+    "belowCostTitle": "Tannarxidan past sotuv",
+    "belowCostSubtitle": "O'rtacha tannarxi katalog narxiga yetgan aksessuarlar. Narxini o'zgartiring yoki sotuv ataylab ekanini tasdiqlang.",
+    "noBelowCost": "Hech bir aksessuar tannarxidan past narxda emas.",
+    "catalogPrice": "Katalog narxi",
+    "averageCost": "O'rtacha tannarx",
+    "shortfall": "Yetishmovchilik",
+    "quantityOnHand": "Omborda",
     "priceSelected": "Tanlanganlarga narx ({count})",
     "bulkRepriceTitle": "Telefonlarga narx qo'yish",
     "bulkRepriceHint": "Har biriga narx yozing. Bo'sh qoldirilgani o'tkazib yuboriladi. Bitta noto'g'ri narx butun to'plamni rad etadi va hech narsa yozilmaydi.",
