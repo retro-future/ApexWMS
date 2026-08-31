@@ -356,6 +356,9 @@
     "blockersTitle": "This receipt cannot be confirmed yet",
     "blockerShort": "{product}: {scanned} of {expected} scanned",
     "blockerUnpriced": "{imei} is {condition} and carries no asking price",
+    "belowCostWarningTitle": "This receipt raised cost above catalog price",
+    "belowCostWarningBody": "These accessories now cost at least what they sell for. Reprice them, or confirm the loss is intended.",
+    "belowCostWarningRow": "{sku}: sells at {price}, now costs {cost}",
     "scan": {
       "title": "Scan",
       "placeholder": "Scan or type an IMEI, then press Enter",

@@ -55,6 +55,7 @@ const receipt: GoodsReceipt = {
     },
   ],
   subtotals: [],
+  belowCostAlerts: [],
 };
 
 function scanResult(imei: string): ScanResult {

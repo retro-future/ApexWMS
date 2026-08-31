@@ -3,6 +3,7 @@
 import {
   ActionIcon,
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -17,6 +18,7 @@ import { IconAlertCircle, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 
 import { PriceUnitModal } from "@/app/(app)/receipts/PriceUnitModal";
@@ -43,7 +45,13 @@ import { formatMoney } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
 import { confirmBlockers, isSerial, referenceCosts } from "@/lib/receipts";
-import type { GoodsReceipt, PurchaseOrder, ReceivedUnit, ScanResult } from "@/lib/types";
+import type {
+  BelowCostAlert,
+  GoodsReceipt,
+  PurchaseOrder,
+  ReceivedUnit,
+  ScanResult,
+} from "@/lib/types";
 
 export default function ReceiptPage() {
   const t = useTranslations("receipts");
@@ -77,6 +85,9 @@ export default function ReceiptPage() {
   const [confirming, setConfirming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmRefusal, setConfirmRefusal] = useState<string | null>(null);
+  // Only the confirm response carries these; a later GET of the receipt does
+  // not, so they are held in component state rather than read off `receipt`.
+  const [belowCostAlerts, setBelowCostAlerts] = useState<BelowCostAlert[]>([]);
 
   const confirm = useDocumentAction<GoodsReceipt>("receipts", id, {
     path: "/confirm",
@@ -139,10 +150,12 @@ export default function ReceiptPage() {
   async function runConfirm() {
     setActionError(null);
     setConfirmRefusal(null);
+    setBelowCostAlerts([]);
     try {
-      await confirm.mutateAsync(undefined as never);
+      const confirmed = await confirm.mutateAsync(undefined as never);
       notifySuccess(tDoc("confirmed"));
       setConfirming(false);
+      setBelowCostAlerts(confirmed?.belowCostAlerts ?? []);
     } catch (error) {
       // FR-3.8 / FR-3.10 name the offending lines and IMEIs, so the refusal
       // is a worklist and belongs on the page, not in a toast that vanishes.
@@ -208,6 +221,28 @@ export default function ReceiptPage() {
 
       <ErrorAlert message={actionError} />
       <ErrorAlert message={confirmRefusal} />
+
+      {belowCostAlerts.length > 0 && (
+        <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>
+          <Stack gap="2xs">
+            <Text fw={500}>{t("belowCostWarningTitle")}</Text>
+            <Text size="sm">{t("belowCostWarningBody")}</Text>
+            <List size="sm">
+              {belowCostAlerts.map((alert) => (
+                <List.Item key={alert.productId}>
+                  <Anchor component={Link} href={`/products/${alert.productId}`}>
+                    {t("belowCostWarningRow", {
+                      sku: alert.sku,
+                      price: alert.catalogPrice,
+                      cost: alert.averageUnitCost,
+                    })}
+                  </Anchor>
+                </List.Item>
+              ))}
+            </List>
+          </Stack>
+        </Alert>
+      )}
 
       {draft && !blockers.isReady && (
         <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>

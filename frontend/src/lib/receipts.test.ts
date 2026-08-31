@@ -70,6 +70,7 @@ function receipt(lines: GoodsReceiptLine[]): GoodsReceipt {
     cancelledAt: null,
     lines,
     subtotals: [],
+    belowCostAlerts: [],
   };
 }
 

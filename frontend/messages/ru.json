@@ -356,6 +356,9 @@
     "blockersTitle": "Приёмку пока нельзя подтвердить",
     "blockerShort": "{product}: отсканировано {scanned} из {expected}",
     "blockerUnpriced": "{imei} — {condition}, цена не указана",
+    "belowCostWarningTitle": "Эта приёмка подняла себестоимость выше цены продажи",
+    "belowCostWarningBody": "Эти аксессуары теперь стоят не меньше, чем цена их продажи. Измените цену или подтвердите, что убыток допустим.",
+    "belowCostWarningRow": "{sku}: продаётся за {price}, теперь стоит {cost}",
     "scan": {
       "title": "Сканирование",
       "placeholder": "Отсканируйте или введите IMEI и нажмите Enter",

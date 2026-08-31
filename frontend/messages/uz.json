@@ -356,6 +356,9 @@
     "blockersTitle": "Bu kirimni hali tasdiqlab bo'lmaydi",
     "blockerShort": "{product}: {expected} tadan {scanned} ta skanerlangan",
     "blockerUnpriced": "{imei} — {condition}, sotuv narxi yo'q",
+    "belowCostWarningTitle": "Bu kirim tannarxni katalog narxidan oshirib yubordi",
+    "belowCostWarningBody": "Bu aksessuarlar endi hech bo'lmaganda sotuv narxicha turadi. Narxini qayta belgilang yoki zararga rozi ekaningizni tasdiqlang.",
+    "belowCostWarningRow": "{sku}: {price} ga sotiladi, endi {cost} turadi",
     "scan": {
       "title": "Skanerlash",
       "placeholder": "IMEI ni skanerlang yoki kiriting va Enter bosing",

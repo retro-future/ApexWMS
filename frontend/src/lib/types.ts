@@ -199,6 +199,19 @@ export type ReceivedUnit = {
   cashPaid?: string | null;
 };
 
+/**
+ * One accessory whose weighted-average cost has caught up with its catalog
+ * price. Returned only on the confirm response, empty on every other read.
+ */
+export type BelowCostAlert = {
+  productId: string;
+  sku: string;
+  catalogPrice: string;
+  catalogPriceMinor: number;
+  averageUnitCost: string;
+  averageUnitCostMinor: number;
+};
+
 export type GoodsReceiptLine = {
   id: string;
   productId: string;
@@ -229,6 +242,8 @@ export type GoodsReceipt = {
   lines: GoodsReceiptLine[];
   /** --- Permission.Cost.View only; empty otherwise --- */
   subtotals: CurrencySubtotal[];
+  /** Populated only on the confirm response; empty on every GET. */
+  belowCostAlerts: BelowCostAlert[];
 };
 
 /** What one beep of the scanner returns (PRD §6). */
