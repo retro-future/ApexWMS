@@ -8,12 +8,15 @@ from application.commands.create_goods_receipt import (
     CreateGoodsReceiptCommand,
     ReceiptLine,
 )
+from application.commands.scan_receipt_unit import ScanReceiptUnitCommand
 from application.services.below_cost import BelowCostChecker
 from domain.entities import Location, Product, Supplier
-from domain.enums import AcquisitionSource, TrackingType
+from domain.enums import AcquisitionSource, DeviceCondition, TrackingType
 from domain.permissions import Permission
 from domain.value_objects import SKU, Currency, Money
 from tests.application.builders import World, make_world
+
+VALID_IMEI = "490154203237518"
 
 
 @pytest.fixture
@@ -59,10 +62,23 @@ async def make_accessory(
     return product
 
 
-async def receive_accessory(
-    world: World, product: Product, quantity: int, unit_cost_minor: int
-):
-    """A confirmed goods receipt for one QUANTITY line at a fixed location."""
+async def make_serial_product(
+    world: World, sku: str, default_sale_price_minor: int
+) -> Product:
+    product = Product(
+        sku=SKU.parse(sku),
+        name=sku,
+        tracking_type=TrackingType.SERIAL,
+        currency=Currency.USD,
+        default_sale_price=Money(default_sale_price_minor, Currency.USD),
+        is_active=True,
+        created_at=world.clock.now(),
+    )
+    world.products.by_id[product.id] = product
+    return product
+
+
+async def _confirmed_receipt(world: World, lines: list[ReceiptLine]):
     location = _a_place(world)
     supplier = _a_supplier(world)
     created = await world.create_goods_receipt().handle(
@@ -70,18 +86,14 @@ async def receive_accessory(
             location_id=location.id,
             acquisition_source=AcquisitionSource.SUPPLIER,
             supplier_id=supplier.id,
-            lines=[
-                ReceiptLine(
-                    product_id=product.id,
-                    quantity=quantity,
-                    unit_cost=str(unit_cost_minor),
-                )
-            ],
+            lines=lines,
         )
     )
     assert created.data is not None
-    receipt = await world.receipts.get(created.data.id)
-    assert receipt is not None
+    return await world.receipts.get(created.data.id)
+
+
+async def _confirm(world: World, receipt):
     await world.confirm_goods_receipt(None, Permission.COST_VIEW).handle(
         ConfirmGoodsReceiptCommand(goods_receipt_id=receipt.id)
     )
@@ -89,6 +101,23 @@ async def receive_accessory(
     assert reloaded is not None
     world.last_receipt = reloaded
     return reloaded
+
+
+async def receive_accessory(
+    world: World, product: Product, quantity: int, unit_cost_minor: int
+):
+    """A confirmed goods receipt for one QUANTITY line at a fixed location."""
+    receipt = await _confirmed_receipt(
+        world,
+        [
+            ReceiptLine(
+                product_id=product.id,
+                quantity=quantity,
+                unit_cost=str(unit_cost_minor),
+            )
+        ],
+    )
+    return await _confirm(world, receipt)
 
 
 async def test_alert_when_new_batch_lifts_average_above_catalog_price(world):
@@ -111,8 +140,48 @@ async def test_alert_when_new_batch_lifts_average_above_catalog_price(world):
     assert alerts[0].average_unit_cost.amount_minor == 1000  # >= triggers
 
 
-async def test_no_alert_for_serialized_lines_or_unpriced_products(world):
+async def test_no_alert_for_a_product_with_no_catalog_price(world):
     product = await make_accessory(world, sku="NOPRICE", default_sale_price_minor=None)
     receipt = await receive_accessory(world, product, quantity=5, unit_cost_minor=900)
     checker = BelowCostChecker(world.products, world.cost_pool_reader)
     assert await checker.alerts_for(receipt) == []
+
+
+async def test_serialized_lines_are_out_of_scope(world):
+    # SERIAL product catalogued at $5_00, received at a $7_00 acquisition cost:
+    # a serialized unit carries its own cost, so the pooled check ignores it.
+    product = await make_serial_product(world, sku="IP-1", default_sale_price_minor=500)
+    receipt = await _confirmed_receipt(
+        world, [ReceiptLine(product_id=product.id, quantity=1)]
+    )
+    await world.scan_receipt_unit(None, Permission.PRICING_SET).handle(
+        ScanReceiptUnitCommand(
+            imei=VALID_IMEI,
+            goods_receipt_id=receipt.id,
+            condition=DeviceCondition.NEW,
+            acquisition_cost="700",
+            asking_price="700",
+        )
+    )
+    confirmed = await _confirm(world, receipt)
+
+    assert confirmed.lines[0].is_serial is True
+    checker = BelowCostChecker(world.products, world.cost_pool_reader)
+    assert await checker.alerts_for(confirmed) == []
+
+
+async def test_two_lines_for_the_same_accessory_yield_one_alert(world):
+    product = await make_accessory(world, sku="CASE-Y", default_sale_price_minor=1000)
+    receipt = await _confirmed_receipt(
+        world,
+        [
+            ReceiptLine(product_id=product.id, quantity=5, unit_cost="1000"),
+            ReceiptLine(product_id=product.id, quantity=5, unit_cost="1200"),
+        ],
+    )
+    confirmed = await _confirm(world, receipt)
+
+    checker = BelowCostChecker(world.products, world.cost_pool_reader)
+    alerts = await checker.alerts_for(confirmed)
+    assert len(alerts) == 1
+    assert alerts[0].product_id == product.id
