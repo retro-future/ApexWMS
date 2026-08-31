@@ -28,6 +28,7 @@ from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
 from application.models import (
     AgeingRowData,
+    BelowCostRowData,
     DebtorData,
     FinancialLedgerRowData,
     MonthEndReportData,
@@ -54,6 +55,10 @@ from application.queries.get_stock_on_hand import (
     GetStockOnHandQuery,
 )
 from application.queries.list_ageing import ListAgeingHandler, ListAgeingQuery
+from application.queries.list_below_cost import (
+    ListBelowCostHandler,
+    ListBelowCostQuery,
+)
 from application.queries.list_debtors import ListDebtorsHandler, ListDebtorsQuery
 from application.queries.list_financial_ledger import (
     ListFinancialLedgerHandler,
@@ -118,6 +123,20 @@ async def list_needs_pricing(
     Manager and Owner, because they are the only ones who can act on it:
     pricing is theirs (§2.1), and a Seller who found the list could not fix
     a single row on it."""
+    require(current, Permission.REPORTING_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/below-cost")
+async def list_below_cost(
+    query: Annotated[ListBelowCostQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[ListBelowCostHandler],
+) -> PagedResult[BelowCostRowData]:
+    """FR-2.19 backwards: active accessories whose weighted-average cost has
+    reached their catalog price, so every further sale books a loss until an
+    Owner or Manager reprices them. A worklist, not a block — selling below
+    cost can be deliberate."""
     require(current, Permission.REPORTING_VIEW)
     return await handler.handle(query)
 

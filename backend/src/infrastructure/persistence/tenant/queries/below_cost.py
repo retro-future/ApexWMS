@@ -122,16 +122,19 @@ class SqlBelowCostQueries:
         value_minor: ColumnElement[Any],
     ) -> Select[Any]:
         if sort is BelowCostSort.SKU:
-            return stmt.order_by(ProductModel.sku)
-        # Per-unit shortfall, matching ``BelowCostRow.shortfall``: order by
-        # ``avg - price``, not the quantity-scaled total. Numeric cast avoids
-        # an integer-floor divide.
-        return stmt.order_by(
-            (
-                cast(value_minor, Numeric) / StockLevelModel.quantity
-                - ProductModel.default_sale_price_minor
-            ).desc()
-        )
+            ranked = stmt.order_by(ProductModel.sku)
+        else:
+            # Per-unit shortfall, matching ``BelowCostRow.shortfall``: order by
+            # ``avg - price``, not the quantity-scaled total. Numeric cast avoids
+            # an integer-floor divide.
+            ranked = stmt.order_by(
+                (
+                    cast(value_minor, Numeric) / StockLevelModel.quantity
+                    - ProductModel.default_sale_price_minor
+                ).desc()
+            )
+        # SKU then location breaks exact ties so paging stays deterministic.
+        return ranked.order_by(ProductModel.sku, StockLevelModel.location_id)
 
     async def _count(self, stmt: Select[Any]) -> int:
         subq = stmt.order_by(None).subquery()

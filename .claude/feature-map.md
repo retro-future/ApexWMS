@@ -223,15 +223,15 @@ questions. Deep dive: [ledgers.md](../docs/architecture/ledgers.md)'s
   `get_device_trace.py` (FR-9.2 — the M8 demo),
   `get_sales_summary.py` (FR-9.3), `list_ageing.py` (FR-9.4),
   `list_movements.py` (FR-9.5), `list_needs_pricing.py` (FR-9.6),
-  `list_price_deviations.py` (FR-9.7),
+  `list_price_deviations.py` (FR-9.7), `list_below_cost.py` (FR-2.19),
   `list_financial_ledger.py` (FR-10.3), `list_debtors.py` (FR-11.10)
 - Models: `models/stock_on_hand.py`, `device_trace.py`, `sales_summary.py`,
   `ageing.py`, `movement_log.py`, `needs_pricing.py`,
-  `financial_ledger.py`, `price_deviation.py`, `debtor.py`
+  `financial_ledger.py`, `price_deviation.py`, `below_cost.py`, `debtor.py`
 - Carriers: `dtos/stock_on_hand.py`, `unit_trace.py`, `sales_summary.py`,
   `ageing.py`, `ledger_log.py` (both raw logs share one row shape),
-  `needs_pricing.py`, `price_deviation.py` — the joined read rows the
-  repositories build
+  `needs_pricing.py`, `price_deviation.py`, `below_cost.py` — the joined
+  read rows the repositories build
 - Services: `services/stock_on_hand.py` (`StockOnHandReader` — merges the
   two tracking types and values accessories through `CostPoolReader`),
   `services/unit_trace.py` (`UnitTraceAssembler` — three append-only
@@ -247,13 +247,18 @@ questions. Deep dive: [ledgers.md](../docs/architecture/ledgers.md)'s
   `list_page`), `SqlGoodsReceiptQueries` (`origin_of`, `supplier_of`,
   `received_quantities`), `SqlStockOnHandQueries` (`serialized_totals` /
   `accessories_on_hand`), `SqlDeviceUnitQueries` (`list_ageing` /
-  `list_needs_pricing`). `queries/document_ref.py` turns a
+  `list_needs_pricing`), `SqlBelowCostQueries` (`list_below_cost` — rebuilds
+  the weighted-average cost in SQL). `queries/document_ref.py` turns a
   `(document_type, document_id)` pair into its number for both logs
+- `services/below_cost.py` (`BelowCostChecker`) — called from
+  `commands/confirm_goods_receipt.py` to flag a line whose new average has
+  reached the catalog price (FR-2.19)
 - Routers: `presentation/routers/reports.py` (`/reports`), plus
   `GET /device-units/{id}/trace` on `device_units.py`
 - Screens: `frontend/src/app/(app)/reports/` — one folder per report
   (`stock-on-hand/`, `trace/`, `movements/`, `sales-summary/`, `ageing/`,
-  `needs-pricing/`, `price-deviations/`, `financial-ledger/`, `debtors/`),
+  `needs-pricing/`, `price-deviations/`, `below-cost/`, `financial-ledger/`,
+  `debtors/`),
   plus `components/DeviceTraceTimeline.tsx` (the FR-9.2 timeline, also shown
   on the unit page) and `reports/BulkRepriceModal.tsx` (FR-2.21, the write
   the ageing and needs-pricing worklists exist to feed)
