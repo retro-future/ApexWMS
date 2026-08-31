@@ -68,6 +68,7 @@ const invoice: SalesInvoice = {
   paidMinor: 0,
   remainingMinor: 0,
   payments: [],
+  belowCostAlerts: [],
 };
 
 /** The same invoice, selling a case rather than a handset. */

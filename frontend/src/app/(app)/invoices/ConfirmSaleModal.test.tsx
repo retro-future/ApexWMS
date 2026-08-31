@@ -38,6 +38,7 @@ const DRAFT: SalesInvoice = {
   paidMinor: 0,
   remainingMinor: 0,
   payments: [],
+  belowCostAlerts: [],
 };
 
 const SELLER = makeMe(

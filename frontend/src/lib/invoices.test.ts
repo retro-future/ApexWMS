@@ -62,6 +62,7 @@ function invoice(lines: SalesInvoiceLine[]): SalesInvoice {
     paidMinor: 0,
     remainingMinor: 0,
     payments: [],
+    belowCostAlerts: [],
   };
 }
 

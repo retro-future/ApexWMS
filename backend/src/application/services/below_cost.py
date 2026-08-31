@@ -6,13 +6,22 @@ blocks; it makes the case visible. The pool is replayed from the ledgers
 (``CostPoolReader``), not read from a column — there is none.
 """
 
+from collections.abc import Iterable
+from typing import Protocol
 from uuid import UUID
 
 from application.common.repository import TenantDbRepository
 from application.dtos import BelowCostAlert
 from application.services.cost_pools import CostPoolReader
-from domain.entities import GoodsReceipt, Product
+from domain.entities import GoodsReceipt, Product, SalesInvoice
 from infrastructure.persistence.tenant.models import ProductModel
+
+
+class _CostedLine(Protocol):
+    @property
+    def product_id(self) -> UUID: ...
+    @property
+    def is_serial(self) -> bool: ...
 
 
 class BelowCostChecker:
@@ -25,13 +34,21 @@ class BelowCostChecker:
         self._pools = pools
 
     async def alerts_for(self, receipt: GoodsReceipt) -> list[BelowCostAlert]:
+        return await self._alerts_for(receipt.lines, receipt.location_id)
+
+    async def alerts_for_invoice(self, invoice: SalesInvoice) -> list[BelowCostAlert]:
+        return await self._alerts_for(invoice.lines, invoice.location_id)
+
+    async def _alerts_for(
+        self, lines: Iterable[_CostedLine], location_id: UUID
+    ) -> list[BelowCostAlert]:
         seen: set[UUID] = set()
         alerts: list[BelowCostAlert] = []
-        for line in receipt.lines:
+        for line in lines:
             if line.is_serial or line.product_id in seen:
                 continue
             seen.add(line.product_id)
-            alert = await self._alert_for(line.product_id, receipt.location_id)
+            alert = await self._alert_for(line.product_id, location_id)
             if alert is not None:
                 alerts.append(alert)
         return alerts

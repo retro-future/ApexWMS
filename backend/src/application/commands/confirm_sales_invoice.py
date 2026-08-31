@@ -35,6 +35,7 @@ from application.ports import (
     TenantUnitOfWork,
 )
 from application.services import (
+    BelowCostChecker,
     InvoicePoster,
     PaymentPoster,
     SalePriceParser,
@@ -85,6 +86,7 @@ class ConfirmSalesInvoiceHandler(
         poster: InvoicePoster,
         payment_poster: PaymentPoster,
         prices: SalePriceParser,
+        checker: BelowCostChecker,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
@@ -95,6 +97,7 @@ class ConfirmSalesInvoiceHandler(
         self._poster = poster
         self._payment_poster = payment_poster
         self._prices = prices
+        self._checker = checker
         self._clock = clock
         self._uow = uow
         self._current = current
@@ -111,6 +114,9 @@ class ConfirmSalesInvoiceHandler(
         await self._apply_terms(invoice, request)
 
         invoice.confirm(self._clock.now(), self._current.user_id)
+        # Read the pool before the sale drains it: the figure is "what these
+        # cost going in", the same basis the goods-receipt warning uses.
+        alerts = await self._checker.alerts_for_invoice(invoice)
         await self._poster.sell(invoice)
         await self._take_down_payment(invoice, request)
         await self._invoices.update(invoice, spec)
@@ -118,7 +124,9 @@ class ConfirmSalesInvoiceHandler(
 
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
+                invoice,
+                await self._payments.find(PaymentsForInvoice(invoice.id)),
+                below_cost_alerts=alerts,
             )
         )
 

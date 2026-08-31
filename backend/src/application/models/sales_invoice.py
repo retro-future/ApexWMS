@@ -3,12 +3,14 @@
 The nested line class lives here rather than in its own module: it is one
 branch of this payload's tree, never returned on its own by anything.
 
-**Every figure here is a price, and none of them is a cost.** A Seller must
-see what they are charging, so nothing in this payload is behind
-``Permission.Cost.View`` — and nothing needs to be, because what the goods
-cost the store never appears on it (FR-1.7). The margin on a sale is a
-reporting question (FR-9.4, FR-10.5), answered from the ledgers by someone
-who holds that permission, not a field on the document a Seller reads.
+**Every figure here is a price, not a cost** — with one deliberate
+exception: ``belowCostAlerts`` on the confirm response carries the
+accessory's average cost, shown to whoever confirmed the sale so a
+below-cost sale is visible at the counter (see the below-cost design doc).
+Nothing in this payload is behind ``Permission.Cost.View``. The margin on a
+sale is a reporting question (FR-9.4, FR-10.5), answered from the ledgers by
+someone who holds that permission, not a field on the document a Seller
+reads.
 
 A draft's money fields are all null, and that is the API telling the truth
 about FR-4.5b1: a draft reserves no price. The figure the counter displays
@@ -31,6 +33,8 @@ from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
+from application.dtos import BelowCostAlert
+from application.models.below_cost_alert import BelowCostAlertData
 from application.models.currency_subtotal import CurrencySubtotalData
 from application.models.payment import PaymentData
 from domain.entities import Payment, SalesInvoice, SalesInvoiceLine
@@ -119,10 +123,17 @@ class SalesInvoiceData(CamelModel):
     paid_minor: int = 0
     remaining_minor: int = 0
     payments: list[PaymentData] = []
+    # Populated only by the confirm handler (see the below-cost design doc);
+    # empty on get/list/create/cancel.
+    below_cost_alerts: list[BelowCostAlertData] = []
 
     @classmethod
     def from_entity(
-        cls, invoice: SalesInvoice, payments: Sequence[Payment] = ()
+        cls,
+        invoice: SalesInvoice,
+        payments: Sequence[Payment] = (),
+        *,
+        below_cost_alerts: list[BelowCostAlert] | None = None,
     ) -> SalesInvoiceData:
         paid = sum(payment.amount.amount_minor for payment in payments)
         debt_minor = None if invoice.debt is None else invoice.debt.amount_minor
@@ -158,4 +169,8 @@ class SalesInvoiceData(CamelModel):
             paid_minor=paid,
             remaining_minor=owing,
             payments=[PaymentData.from_entity(payment) for payment in payments],
+            below_cost_alerts=[
+                BelowCostAlertData.from_entity(one)
+                for one in (below_cost_alerts or [])
+            ],
         )

@@ -376,6 +376,8 @@ export type SalesInvoice = {
    */
   remainingMinor: number;
   payments: Payment[];
+  /** Populated only on the confirm response; empty on every GET. */
+  belowCostAlerts: BelowCostAlert[];
 };
 
 /**

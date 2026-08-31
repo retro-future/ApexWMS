@@ -1,9 +1,10 @@
 "use client";
 
-import { Alert, Badge, Button, Card, Group, List, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Anchor, Badge, Button, Card, Group, List, Stack, Table, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
@@ -36,7 +37,12 @@ import { isEditable } from "@/lib/documents";
 import { confirmBlockers, quoteSubtotals } from "@/lib/invoices";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
-import type { InvoiceScanResult, SalesInvoice, SalesInvoiceLine } from "@/lib/types";
+import type {
+  BelowCostAlert,
+  InvoiceScanResult,
+  SalesInvoice,
+  SalesInvoiceLine,
+} from "@/lib/types";
 
 export default function InvoicePage() {
   const t = useTranslations("invoices");
@@ -61,6 +67,7 @@ export default function InvoicePage() {
   const [confirming, setConfirming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmRefusal, setConfirmRefusal] = useState<string | null>(null);
+  const [belowCostAlerts, setBelowCostAlerts] = useState<BelowCostAlert[]>([]);
 
   const confirm = useDocumentAction<SalesInvoice, Record<string, unknown>>(
     "invoices",
@@ -109,10 +116,12 @@ export default function InvoicePage() {
   async function runConfirm(terms: Record<string, unknown>) {
     setActionError(null);
     setConfirmRefusal(null);
+    setBelowCostAlerts([]);
     try {
-      await confirm.mutateAsync(terms);
+      const confirmed = await confirm.mutateAsync(terms);
       notifySuccess(tDoc("confirmed"));
       setConfirming(false);
+      setBelowCostAlerts(confirmed?.belowCostAlerts ?? []);
     } catch (error) {
       // FR-4.5b2 and FR-4.7 name the offending line, so the refusal is a
       // worklist and belongs on the page, not in a toast that vanishes.
@@ -180,6 +189,28 @@ export default function InvoicePage() {
 
       <ErrorAlert message={actionError} />
       <ErrorAlert message={confirmRefusal} />
+
+      {belowCostAlerts.length > 0 && (
+        <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>
+          <Stack gap="2xs">
+            <Text fw={500}>{t("belowCostWarningTitle")}</Text>
+            <Text size="sm">{t("belowCostWarningBody")}</Text>
+            <List size="sm">
+              {belowCostAlerts.map((alert) => (
+                <List.Item key={alert.productId}>
+                  <Anchor component={Link} href={`/products/${alert.productId}`}>
+                    {t("belowCostWarningRow", {
+                      sku: alert.sku,
+                      price: alert.catalogPrice,
+                      cost: alert.averageUnitCost,
+                    })}
+                  </Anchor>
+                </List.Item>
+              ))}
+            </List>
+          </Stack>
+        </Alert>
+      )}
 
       {draft && !blockers.isReady && (
         <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>

@@ -407,6 +407,9 @@
     "blockerEmpty": "Hali hech narsa skanerlanmagan.",
     "blockerUnpriced": "{product} uchun narx aniqlanmaydi — uni egasi yoki menejer belgilashi kerak.",
     "approvedBySomeone": "Narx qo'lda o'zgartirilgan",
+    "belowCostWarningTitle": "Tannarxdan past sotildi",
+    "belowCostWarningBody": "Bu aksessuarlar endi do'konga kamida sotilish narxicha tushadi. Sotuv amalga oshdi; agar bu ataylab bo'lmasa, narxini o'zgartiring.",
+    "belowCostWarningRow": "{sku}: {price} ga sotiladi, tannarxi endi {cost}",
     "sell": {
       "title": "Sotish uchun skanerlash",
       "placeholder": "IMEI yoki shtrix-kodni skanerlang yoki kiriting, so'ng Enter bosing",

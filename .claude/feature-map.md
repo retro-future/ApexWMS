@@ -251,8 +251,9 @@ questions. Deep dive: [ledgers.md](../docs/architecture/ledgers.md)'s
   the weighted-average cost in SQL). `queries/document_ref.py` turns a
   `(document_type, document_id)` pair into its number for both logs
 - `services/below_cost.py` (`BelowCostChecker`) — called from
-  `commands/confirm_goods_receipt.py` to flag a line whose new average has
-  reached the catalog price (FR-2.19)
+  `commands/confirm_goods_receipt.py` and `commands/confirm_sales_invoice.py`
+  to flag an accessory whose average cost has reached the catalog price
+  (FR-2.19); non-blocking, returned on the confirm response
 - Routers: `presentation/routers/reports.py` (`/reports`), plus
   `GET /device-units/{id}/trace` on `device_units.py`
 - Screens: `frontend/src/app/(app)/reports/` — one folder per report

@@ -37,6 +37,7 @@ function invoice(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     paidMinor: 0,
     remainingMinor: 0,
     payments: [],
+    belowCostAlerts: [],
     ...overrides,
   };
 }

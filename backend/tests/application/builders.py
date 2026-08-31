@@ -721,6 +721,7 @@ class World:
             self.invoice_poster(actor),
             self.payment_poster(actor),
             SalePriceParser(),
+            BelowCostChecker(self.products, self.cost_pools()),
             self.clock,
             self.uow,
             self._as(actor),

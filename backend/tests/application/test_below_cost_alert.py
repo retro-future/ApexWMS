@@ -264,6 +264,70 @@ async def test_list_below_cost_handler_maps_rows():
     assert one.shortfall_minor == 100
 
 
+async def test_confirming_a_sale_below_cost_returns_an_alert(world):
+    from tests.application.test_sales_invoice import (
+        a_place,
+        catalogued,
+        confirm,
+        opened,
+        scan,
+        stocked_accessory,
+        uzs,
+    )
+
+    location = a_place(world)
+    case = catalogued(
+        world,
+        sku="CASE-SALE",
+        price="10000",
+        tracking=TrackingType.QUANTITY,
+        currency=Currency.UZS,
+        barcode="4006381333931",
+    )
+    # pool: 10 units worth 150_000 -> average 15_000, above the 10_000 catalog
+    await stocked_accessory(world, case, location, 10, uzs("150000"))
+    invoice = await opened(world, location)
+    await scan(world, invoice, "4006381333931")
+    result = await confirm(world, invoice)
+
+    assert result.data is not None
+    assert result.data.status.value == "confirmed"
+    alerts = result.data.below_cost_alerts
+    assert len(alerts) == 1
+    assert alerts[0].sku == "CASE-SALE"
+    assert alerts[0].catalog_price_minor == 10_000
+    assert alerts[0].average_unit_cost_minor == 15_000
+
+
+async def test_a_sale_at_or_above_cost_returns_no_alert(world):
+    from tests.application.test_sales_invoice import (
+        a_place,
+        catalogued,
+        confirm,
+        opened,
+        scan,
+        stocked_accessory,
+        uzs,
+    )
+
+    location = a_place(world)
+    case = catalogued(
+        world,
+        sku="CASE-OK",
+        price="10000",
+        tracking=TrackingType.QUANTITY,
+        currency=Currency.UZS,
+        barcode="4006381333931",
+    )
+    await stocked_accessory(world, case, location, 10, uzs("50000"))
+    invoice = await opened(world, location)
+    await scan(world, invoice, "4006381333931")
+    result = await confirm(world, invoice)
+
+    assert result.data is not None
+    assert result.data.below_cost_alerts == []
+
+
 async def test_two_lines_for_the_same_accessory_yield_one_alert(world):
     product = await make_accessory(world, sku="CASE-Y", default_sale_price_minor=1000)
     receipt = await _confirmed_receipt(

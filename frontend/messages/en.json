@@ -407,6 +407,9 @@
     "blockerEmpty": "Nothing has been scanned yet.",
     "blockerUnpriced": "{product} resolves to no price — an Owner or Manager must price it.",
     "approvedBySomeone": "Price overridden",
+    "belowCostWarningTitle": "Sold below cost",
+    "belowCostWarningBody": "These accessories now cost the store at least what they sell for. This sale went through; reprice them if it was not intended.",
+    "belowCostWarningRow": "{sku}: sells at {price}, now costs {cost}",
     "sell": {
       "title": "Scan to sell",
       "placeholder": "Scan or type an IMEI or barcode, then press Enter",

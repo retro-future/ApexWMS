@@ -58,6 +58,7 @@ function sale(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     paidMinor: 200000,
     remainingMinor: 7000000,
     payments: [payment("a", 200000)],
+    belowCostAlerts: [],
     ...overrides,
   };
 }
