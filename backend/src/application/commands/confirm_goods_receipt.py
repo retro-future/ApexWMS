@@ -20,7 +20,7 @@ from application.dtos import CurrentUser
 from application.errors import NotFoundError
 from application.models import GoodsReceiptData
 from application.ports import Clock, TenantUnitOfWork
-from application.services import ReceiptPoster
+from application.services import BelowCostChecker, ReceiptPoster
 from application.specs import GoodsReceiptForWrite
 from domain.entities import GoodsReceipt
 from domain.permissions import Permission
@@ -41,12 +41,14 @@ class ConfirmGoodsReceiptHandler(
         self,
         receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
         poster: ReceiptPoster,
+        checker: BelowCostChecker,
         clock: Clock,
         uow: TenantUnitOfWork,
         current: CurrentUser,
     ) -> None:
         self._receipts = receipts
         self._poster = poster
+        self._checker = checker
         self._clock = clock
         self._uow = uow
         self._current = current
@@ -63,11 +65,14 @@ class ConfirmGoodsReceiptHandler(
 
         receipt.confirm(self._clock.now(), self._current.user_id)
         await self._poster.receive(receipt)
+        alerts = await self._checker.alerts_for(receipt)
         await self._receipts.update(receipt, spec)
         await self._uow.commit()
 
         return ResultWithData[GoodsReceiptData].succeed_with_data(
             GoodsReceiptData.from_entity(
-                receipt, show_cost=Permission.COST_VIEW in self._current.permissions
+                receipt,
+                show_cost=Permission.COST_VIEW in self._current.permissions,
+                below_cost_alerts=alerts,
             )
         )

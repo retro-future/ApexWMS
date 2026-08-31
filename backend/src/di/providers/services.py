@@ -12,6 +12,7 @@ from dishka import Provider, Scope, provide_all
 
 from application.services import (
     BalanceVerifier,
+    BelowCostChecker,
     ClaimsFactory,
     CostPoolReader,
     CountPoster,
@@ -54,6 +55,7 @@ class ApplicationServicesProvider(Provider):
         DocumentNumberer,
         DocumentLineBuilder,
         ReceiptPoster,
+        BelowCostChecker,
         # --- M5 outbound ---
         CostPoolReader,
         StockOnHandReader,

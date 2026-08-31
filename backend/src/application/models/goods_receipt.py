@@ -18,6 +18,8 @@ from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
+from application.dtos import BelowCostAlert
+from application.models.below_cost_alert import BelowCostAlertData
 from application.models.currency_subtotal import CurrencySubtotalData
 from application.models.received_unit import ReceivedUnitData
 from domain.entities import GoodsReceipt, GoodsReceiptLine
@@ -83,9 +85,21 @@ class GoodsReceiptData(CamelModel):
     # --- Permission.Cost.View only (FR-1.7) ---
     # One figure per currency present, never their sum (FR-2.7).
     subtotals: list[CurrencySubtotalData] = []
+    # Populated only by the confirm handler (see the below-cost design doc);
+    # empty on get/list/create/cancel.
+    below_cost_alerts: list[BelowCostAlertData] = []
 
     @classmethod
-    def from_entity(cls, receipt: GoodsReceipt, *, show_cost: bool) -> GoodsReceiptData:
+    def from_entity(
+        cls,
+        receipt: GoodsReceipt,
+        *,
+        show_cost: bool,
+        below_cost_alerts: list[BelowCostAlert] | None = None,
+    ) -> GoodsReceiptData:
+        alerts = [
+            BelowCostAlertData.from_entity(one) for one in (below_cost_alerts or [])
+        ]
         data = cls(
             id=receipt.id,
             number=receipt.number,
@@ -104,6 +118,7 @@ class GoodsReceiptData(CamelModel):
                 GoodsReceiptLineData.from_entity(line, show_cost=show_cost)
                 for line in receipt.lines
             ],
+            below_cost_alerts=alerts,
         )
         if not show_cost:
             return data

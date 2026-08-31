@@ -170,6 +170,39 @@ async def test_serialized_lines_are_out_of_scope(world):
     assert await checker.alerts_for(confirmed) == []
 
 
+async def test_confirm_goods_receipt_returns_below_cost_alert(world):
+    product = await make_accessory(world, sku="CASE-Z", default_sale_price_minor=1000)
+    await receive_accessory(world, product, quantity=10, unit_cost_minor=600)
+
+    receipt = await _confirmed_receipt(
+        world, [ReceiptLine(product_id=product.id, quantity=10, unit_cost="1400")]
+    )
+    result = await world.confirm_goods_receipt(None, Permission.COST_VIEW).handle(
+        ConfirmGoodsReceiptCommand(goods_receipt_id=receipt.id)
+    )
+
+    assert result.success
+    assert result.data is not None
+    alerts = result.data.below_cost_alerts
+    assert len(alerts) == 1
+    assert alerts[0].sku == "CASE-Z"
+    assert alerts[0].catalog_price_minor == 1000
+    assert alerts[0].average_unit_cost_minor == 1000
+    assert result.data.status.value == "confirmed"
+
+
+async def test_confirm_returns_no_alert_when_below_cost(world):
+    product = await make_accessory(world, sku="OK-1", default_sale_price_minor=5000)
+    receipt = await _confirmed_receipt(
+        world, [ReceiptLine(product_id=product.id, quantity=3, unit_cost="900")]
+    )
+    result = await world.confirm_goods_receipt(None, Permission.COST_VIEW).handle(
+        ConfirmGoodsReceiptCommand(goods_receipt_id=receipt.id)
+    )
+    assert result.data is not None
+    assert result.data.below_cost_alerts == []
+
+
 async def test_two_lines_for_the_same_accessory_yield_one_alert(world):
     product = await make_accessory(world, sku="CASE-Y", default_sale_price_minor=1000)
     receipt = await _confirmed_receipt(

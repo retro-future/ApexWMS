@@ -110,6 +110,7 @@ from application.queries.list_users import ListUsersHandler
 from application.queries.list_write_offs import ListWriteOffsHandler
 from application.services import (
     BalanceVerifier,
+    BelowCostChecker,
     ClaimsFactory,
     CostPoolReader,
     CountPoster,
@@ -544,6 +545,7 @@ class World:
         return ConfirmGoodsReceiptHandler(
             self.receipts,
             self.receipt_poster(actor),
+            BelowCostChecker(self.products, self.cost_pool_reader),
             self.clock,
             self.uow,
             self._as(actor, *permissions),
