@@ -14,6 +14,7 @@ handler that first produced it (see ``.claude/rules/backend/cqrs-response-models
 from application.models.accept_invite import AcceptInviteData
 from application.models.ageing import AgeingRowData
 from application.models.auth_tokens import AuthTokensData
+from application.models.below_cost import BelowCostRowData
 from application.models.below_cost_alert import BelowCostAlertData
 from application.models.count_scan_result import CountScanResultData
 from application.models.create_superadmin import CreateSuperAdminData
@@ -91,6 +92,7 @@ __all__ = [
     "AgeingRowData",
     "AuthTokensData",
     "BelowCostAlertData",
+    "BelowCostRowData",
     "CountScanResultData",
     "CreateSuperAdminData",
     "CreateTenantData",

@@ -109,6 +109,7 @@ from application.queries.get_tenant_logo import GetTenantLogoHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.get_write_off import GetWriteOffHandler
 from application.queries.list_ageing import ListAgeingHandler
+from application.queries.list_below_cost import ListBelowCostHandler
 from application.queries.list_credit_companies import ListCreditCompaniesHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
@@ -238,6 +239,7 @@ class HandlersProvider(Provider):
         # --- M8 reporting ---
         ListNeedsPricingHandler,
         ListAgeingHandler,
+        ListBelowCostHandler,
         GetStockOnHandHandler,
         ListMovementsHandler,
         ListFinancialLedgerHandler,

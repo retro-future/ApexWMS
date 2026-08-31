@@ -1,6 +1,8 @@
 """BelowCostChecker — accessories whose weighted-average cost has caught up
 to their catalog price (FR-2.15)."""
 
+from uuid import uuid4
+
 import pytest
 
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptCommand
@@ -9,6 +11,11 @@ from application.commands.create_goods_receipt import (
     ReceiptLine,
 )
 from application.commands.scan_receipt_unit import ScanReceiptUnitCommand
+from application.dtos import BelowCostRow
+from application.queries.list_below_cost import (
+    ListBelowCostHandler,
+    ListBelowCostQuery,
+)
 from application.services.below_cost import BelowCostChecker
 from domain.entities import Location, Product, Supplier
 from domain.enums import AcquisitionSource, DeviceCondition, TrackingType
@@ -201,6 +208,40 @@ async def test_confirm_returns_no_alert_when_below_cost(world):
     )
     assert result.data is not None
     assert result.data.below_cost_alerts == []
+
+
+class _FakeBelowCostQueries:
+    def __init__(self, rows: list[BelowCostRow]) -> None:
+        self._rows = rows
+
+    async def list_below_cost(
+        self, page, page_size, location_id=None, sort=None
+    ):
+        start = (page - 1) * page_size
+        return self._rows[start : start + page_size], len(self._rows)
+
+
+async def test_list_below_cost_handler_maps_rows():
+    row = BelowCostRow(
+        product_id=uuid4(),
+        sku="CASE-X",
+        product_name="Case X",
+        location_id=uuid4(),
+        location_name="Main",
+        quantity=20,
+        catalog_price=Money(1000, Currency.USD),
+        average_unit_cost=Money(1100, Currency.USD),
+    )
+    handler = ListBelowCostHandler(_FakeBelowCostQueries([row]))
+    result = await handler.handle(ListBelowCostQuery(page=1, page_size=25))
+
+    assert result.success
+    assert result.total_items == 1
+    one = result.data[0]
+    assert one.sku == "CASE-X"
+    assert one.catalog_price_minor == 1000
+    assert one.average_unit_cost_minor == 1100
+    assert one.shortfall_minor == 100
 
 
 async def test_two_lines_for_the_same_accessory_yield_one_alert(world):
