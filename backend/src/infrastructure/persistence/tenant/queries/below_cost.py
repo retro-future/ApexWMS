@@ -11,12 +11,13 @@ CASE below in step with that table.
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Row, Select, and_, case, func, select
+from sqlalchemy import ColumnElement, Numeric, Row, Select, and_, case, cast, func, select
 
 from application.dtos import BelowCostRow
 from application.sorting import BelowCostSort
 from domain.enums import TrackingType, TransactionType
 from domain.value_objects import Currency, Money
+from domain.value_objects.cost_pool import _round_half_up
 from infrastructure.persistence.tenant.models import (
     FinancialTransactionModel,
     LocationModel,
@@ -86,7 +87,7 @@ class SqlBelowCostQueries:
         if location_id is not None:
             stmt = stmt.where(StockLevelModel.location_id == location_id)
 
-        ordered = self._ordered(stmt, sort, value_minor, price_x_qty)
+        ordered = self._ordered(stmt, sort, value_minor)
         rows = list(
             await self._session.execute(
                 ordered.limit(page_size).offset((page - 1) * page_size)
@@ -119,13 +120,18 @@ class SqlBelowCostQueries:
         stmt: Select[Any],
         sort: BelowCostSort,
         value_minor: ColumnElement[Any],
-        price_x_qty: ColumnElement[Any],
     ) -> Select[Any]:
         if sort is BelowCostSort.SKU:
             return stmt.order_by(ProductModel.sku)
-        # shortfall = average - price; ``value_minor - price*quantity`` is
-        # monotone in the same direction and needs no division.
-        return stmt.order_by((value_minor - price_x_qty).desc())
+        # Per-unit shortfall, matching ``BelowCostRow.shortfall``: order by
+        # ``avg - price``, not the quantity-scaled total. Numeric cast avoids
+        # an integer-floor divide.
+        return stmt.order_by(
+            (
+                cast(value_minor, Numeric) / StockLevelModel.quantity
+                - ProductModel.default_sale_price_minor
+            ).desc()
+        )
 
     async def _count(self, stmt: Select[Any]) -> int:
         subq = stmt.order_by(None).subquery()
@@ -148,7 +154,7 @@ class SqlBelowCostQueries:
             value_minor,
         ) = row._tuple()
         currency = Currency(currency_code)
-        average_minor = round(int(value_minor or 0) / quantity)
+        average_minor = _round_half_up(int(value_minor or 0), quantity)
         return BelowCostRow(
             product_id=product_id,
             sku=sku,
