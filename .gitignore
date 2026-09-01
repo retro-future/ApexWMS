@@ -9,6 +9,8 @@ __pycache__/
 
 # Environment
 .env
+.env.prod
+frontend/.env.production
 
 # Local docker-compose port overrides (this machine has another Postgres on 5432)
 docker-compose.override.yml

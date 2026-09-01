@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.9
+# Build context is the repo root; see docker-compose.prod.yml.
+
+FROM node:22-bookworm-slim AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH NEXT_TELEMETRY_DISABLED=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+COPY frontend/package.json ./package.json
+RUN corepack install
+WORKDIR /app
+
+FROM base AS deps
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile
+
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/ ./
+RUN pnpm build
+
+FROM node:22-bookworm-slim AS runtime
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
+
+COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
+EXPOSE 3000
+CMD ["node", "server.js"]
