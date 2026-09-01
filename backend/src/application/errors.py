@@ -6,8 +6,36 @@ status; nothing here knows HTTP exists.
 """
 
 
+from typing import ClassVar
+
+
+def _snake_case(name: str) -> str:
+    out: list[str] = []
+    for i, char in enumerate(name):
+        if char.isupper() and i and not name[i - 1].isupper():
+            out.append("_")
+        out.append(char.lower())
+    return "".join(out)
+
+
 class ApplicationError(Exception):
-    """Base class for use-case failures."""
+    """Base class for use-case failures.
+
+    Each subclass gets a stable ``code`` (snake-cased class name without the
+    ``Error`` suffix) that keys its message in the localization catalog. A
+    raise site may pass ``**params`` for the template to interpolate; the
+    positional ``message`` stays as the English fallback.
+    """
+
+    code: ClassVar[str] = "application"
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.code = _snake_case(cls.__name__.removesuffix("Error"))
+
+    def __init__(self, message: str = "", /, **params: object) -> None:
+        super().__init__(message)
+        self.params: dict[str, object] = params
 
 
 class AuthenticationError(ApplicationError):
@@ -73,7 +101,11 @@ class EntityNotPersistedError(ApplicationError):
     """
 
     def __init__(self, model_name: str, entity_id: object) -> None:
-        super().__init__(f"{model_name} {entity_id} has no persisted row")
+        super().__init__(
+            f"{model_name} {entity_id} has no persisted row",
+            model_name=model_name,
+            entity_id=entity_id,
+        )
         self.model_name = model_name
         self.entity_id = entity_id
 

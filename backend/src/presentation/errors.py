@@ -31,6 +31,8 @@ from application.errors import (
     TenantNotActiveError,
     TenantNotFoundError,
 )
+from application.localization.catalog import MessageCatalog
+from application.localization.locale import Locale
 from domain.errors import (
     CountAlreadyClosedError,
     CountNotClosedError,
@@ -111,9 +113,18 @@ def _status_for(exc: Exception) -> int:
     return 500
 
 
+_catalog = MessageCatalog()
+
+
 async def _handle(request: Request, exc: Exception) -> JSONResponse:
     status = _status_for(exc)
-    detail = str(exc) or exc.__class__.__name__
+    locale = Locale.parse(request.headers.get("accept-language"))
+    code = getattr(exc, "code", None)
+    params = getattr(exc, "params", {})
+    detail = (
+        _catalog.render(locale, "errors", code, **params) if isinstance(code, str) else None
+    )
+    detail = detail or str(exc) or exc.__class__.__name__
     headers = {"WWW-Authenticate": "Bearer"} if status == 401 else None
     return JSONResponse(status_code=status, content={"detail": detail}, headers=headers)
 

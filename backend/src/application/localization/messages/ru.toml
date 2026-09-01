@@ -1,6 +1,24 @@
 # Message catalog — Russian. Missing keys fall back to en.toml.
 
 [errors]
+authentication = "Вы не вошли в систему."
+authorization = "У вас нет прав на это действие."
+invalid_credentials = "Неверная почта или пароль."
+invalid_token = "Сессия больше не действительна. Войдите снова."
+tenant_not_active = "Этот магазин не активен."
+last_owner = "Нельзя убрать единственного владельца магазина."
+already_member = "Этот пользователь уже привязан к магазину."
+invitation = "Приглашение не найдено, просрочено или уже использовано."
+document_not_draft = "Документ уже подтверждён и не может быть изменён."
+document_not_confirmed = "Документ не был подтверждён."
+price_not_set = "У строки нет цены продажи. Укажите цену перед подтверждением."
+empty_invoice = "В счёте должна быть хотя бы одна строка."
+empty_document = "В документе должна быть хотя бы одна строка."
+count_not_closed = "Закройте инвентаризацию перед подтверждением."
+count_already_closed = "Инвентаризация закрыта, сканирование больше недоступно."
+not_a_credit_sale = "По этой продаже нет долга, оплачивать нечего."
+payment_already_reversed = "Этот платёж уже отменён."
+anonymous_debt = "В продаже в долг должен быть указан клиент."
 
 [documents]
 invoice_title = "Счёт"

@@ -1,6 +1,24 @@
 # Message catalog — Uzbek (Latin). Missing keys fall back to en.toml.
 
 [errors]
+authentication = "Siz tizimga kirmagansiz."
+authorization = "Bu amal uchun ruxsatingiz yo'q."
+invalid_credentials = "Email yoki parol noto'g'ri."
+invalid_token = "Sessiya endi yaroqsiz. Qaytadan kiring."
+tenant_not_active = "Bu do'kon faol emas."
+last_owner = "Do'konning yagona egasini olib tashlab bo'lmaydi."
+already_member = "Bu foydalanuvchi allaqachon do'konga biriktirilgan."
+invitation = "Taklif topilmadi, muddati o'tgan yoki ishlatilgan."
+document_not_draft = "Hujjat allaqachon tasdiqlangan va o'zgartirib bo'lmaydi."
+document_not_confirmed = "Hujjat tasdiqlanmagan."
+price_not_set = "Qatorda sotuv narxi yo'q. Tasdiqlashdan oldin narx kiriting."
+empty_invoice = "Hisob-fakturada kamida bitta qator bo'lishi kerak."
+empty_document = "Hujjatda kamida bitta qator bo'lishi kerak."
+count_not_closed = "Tasdiqlashdan oldin inventarizatsiyani yoping."
+count_already_closed = "Inventarizatsiya yopilgan, skanerlash mumkin emas."
+not_a_credit_sale = "Bu sotuvda qarz yo'q, to'lash uchun narsa yo'q."
+payment_already_reversed = "Bu to'lov allaqachon bekor qilingan."
+anonymous_debt = "Nasiyaga sotuvda mijoz ko'rsatilishi kerak."
 
 [documents]
 invoice_title = "Hisob-faktura"

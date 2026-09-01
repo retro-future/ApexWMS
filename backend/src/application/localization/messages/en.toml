@@ -2,6 +2,24 @@
 # [errors] is keyed by an exception's `code`; [documents] by a renderer literal.
 
 [errors]
+authentication = "You are not signed in."
+authorization = "You do not have permission for this action."
+invalid_credentials = "Wrong email or password."
+invalid_token = "Your session is no longer valid. Sign in again."
+tenant_not_active = "This store is not active."
+last_owner = "You cannot remove the store's only owner."
+already_member = "This user already belongs to the store."
+invitation = "This invitation is unknown, expired, or already used."
+document_not_draft = "This document is already confirmed and can no longer be edited."
+document_not_confirmed = "This document was never confirmed."
+price_not_set = "This line has no sale price. Set a price before confirming."
+empty_invoice = "An invoice needs at least one line."
+empty_document = "This document needs at least one line."
+count_not_closed = "Close the stock count before confirming it."
+count_already_closed = "This stock count is closed; no more scanning."
+not_a_credit_sale = "This sale opened no debt, so there is nothing to pay."
+payment_already_reversed = "This payment has already been reversed."
+anonymous_debt = "A store-credit sale must name a customer."
 
 [documents]
 invoice_title = "Invoice"
