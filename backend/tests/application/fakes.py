@@ -100,6 +100,7 @@ from domain.entities import (
 )
 from domain.enums import (
     AppRole,
+    CatalogCodeKind,
     DocumentStatus,
     DocumentType,
     MovementType,
@@ -1145,6 +1146,17 @@ class FakeDocumentNumberAllocator:
         key = (document_type, year)
         self.counters[key] = self.counters.get(key, 0) + 1
         return self.counters[key]
+
+
+class FakeCatalogCodeAllocator:
+    """One counter per kind, as the locked row is."""
+
+    def __init__(self) -> None:
+        self.counters: dict[CatalogCodeKind, int] = {}
+
+    async def next(self, kind: CatalogCodeKind) -> int:
+        self.counters[kind] = self.counters.get(kind, 0) + 1
+        return self.counters[kind]
 
 
 class FakePurchaseOrderRepository(FakeRepository[PurchaseOrder]):

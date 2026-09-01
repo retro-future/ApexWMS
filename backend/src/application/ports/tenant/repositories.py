@@ -8,7 +8,7 @@ tenant, so there is no filter to forget.
 from typing import Protocol
 
 from application.dtos import Letterhead, TenantLogo
-from domain.enums import DocumentType
+from domain.enums import CatalogCodeKind, DocumentType
 
 
 class TenantSettingsRepository(Protocol):
@@ -41,3 +41,14 @@ class DocumentNumberAllocator(Protocol):
     """
 
     async def next_number(self, document_type: DocumentType, year: int) -> int: ...
+
+
+class CatalogCodeAllocator(Protocol):
+    """The per-tenant counters behind a generated SKU or in-store barcode.
+
+    One row per :class:`CatalogCodeKind`, handed out under a row lock so
+    two managers creating a product at the same moment cannot be given the
+    same number. ``CatalogCodeGenerator`` turns the int into the code.
+    """
+
+    async def next(self, kind: CatalogCodeKind) -> int: ...

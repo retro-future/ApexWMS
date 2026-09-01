@@ -17,6 +17,9 @@ has no HTTP surface in the MVP (PRD §3.4, §3.5).
 from dishka import Provider, Scope, provide_all
 
 from application.commands.accept_invite import AcceptInviteHandler
+from application.commands.add_invoice_accessory_line import (
+    AddInvoiceAccessoryLineHandler,
+)
 from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
 from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceHandler
@@ -46,6 +49,7 @@ from application.commands.create_sales_invoice import CreateSalesInvoiceHandler
 from application.commands.create_supplier import CreateSupplierHandler
 from application.commands.create_supplier_return import CreateSupplierReturnHandler
 from application.commands.create_write_off import CreateWriteOffHandler
+from application.commands.generate_product_barcode import GenerateProductBarcodeHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
 from application.commands.open_stock_count import OpenStockCountHandler
@@ -85,6 +89,7 @@ from application.queries.get_customer import GetCustomerHandler
 from application.queries.get_customer_account import GetCustomerAccountHandler
 from application.queries.get_device_trace import GetDeviceTraceHandler
 from application.queries.get_device_unit import GetDeviceUnitHandler
+from application.queries.get_device_unit_label_pdf import GetDeviceUnitLabelPdfHandler
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
 )
@@ -94,6 +99,7 @@ from application.queries.get_me import GetMeHandler
 from application.queries.get_month_end_report import GetMonthEndReportHandler
 from application.queries.get_month_end_report_pdf import GetMonthEndReportPdfHandler
 from application.queries.get_product import GetProductHandler
+from application.queries.get_product_label_pdf import GetProductLabelPdfHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_purchase_order import GetPurchaseOrderHandler
 from application.queries.get_purchase_order_pdf import GetPurchaseOrderPdfHandler
@@ -147,7 +153,9 @@ class HandlersProvider(Provider):
         # --- M2 catalog ---
         CreateProductHandler,
         UpdateProductHandler,
+        GenerateProductBarcodeHandler,
         GetProductHandler,
+        GetProductLabelPdfHandler,
         GetProductPriceHistoryHandler,
         ListProductsHandler,
         CreateLocationHandler,
@@ -164,6 +172,7 @@ class HandlersProvider(Provider):
         ListCustomersHandler,
         # --- M3 stock & unit pricing ---
         GetDeviceUnitHandler,
+        GetDeviceUnitLabelPdfHandler,
         GetDeviceUnitPriceHistoryHandler,
         RepriceDeviceUnitHandler,
         RepriceDeviceUnitsHandler,
@@ -187,6 +196,7 @@ class HandlersProvider(Provider):
         # --- M5 outbound ---
         CreateSalesInvoiceHandler,
         ScanInvoiceLineHandler,
+        AddInvoiceAccessoryLineHandler,
         OverrideInvoiceLinePriceHandler,
         UnscanInvoiceLineHandler,
         ConfirmSalesInvoiceHandler,

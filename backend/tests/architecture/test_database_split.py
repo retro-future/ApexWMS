@@ -33,6 +33,8 @@ TENANT_TABLES = {
     # --- M2 catalog ---
     "products": entities.Product,
     "product_price_changes": entities.ProductPriceChange,
+    "catalog_code_sequences": None,  # the per-tenant SKU/barcode counter
+
     "locations": entities.Location,
     "suppliers": entities.Supplier,
     "customers": entities.Customer,

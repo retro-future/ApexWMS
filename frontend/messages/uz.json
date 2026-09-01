@@ -131,7 +131,14 @@
     "immutableAfterCreate": "Hisob turi va valyuta mahsulot yaratilgandan keyin o'zgarmaydi.",
     "searchPlaceholder": "Artikul, nom, brend bo'yicha qidirish…",
     "filterTracking": "Hisob turi",
-    "isActive": "Faol"
+    "isActive": "Faol",
+    "skuHintAuto": "Kod avtomatik tayinlanishi uchun bo'sh qoldiring (telefonlar uchun PH-000001, aksessuarlar uchun AC-000001).",
+    "generateBarcode": "Ichki shtrix-kodni avtomatik yaratish",
+    "generateBarcodeAction": "Shtrix-kod yaratish",
+    "labels": "Yorliqlar",
+    "labelsHint": "Nomi, narxi va skanerlanadigan kodi bo'lgan javon yorlig'i.",
+    "printLabel": "Yorliqni chop etish",
+    "printLabelSheet": "A4 varaqni chop etish"
   },
   "locations": {
     "title": "Joylar",
@@ -433,7 +440,17 @@
       "sellThisTitle": "Bu telefonni sotish",
       "sellThisBody": "Shu joylashuvda yangi hisob-faktura ochadi va telefonni unga skanerlaydi.",
       "sellThisUnpriced": "Bu telefon uchun narx aniqlanmaydi, shuning uchun egasi yoki menejer narx belgilamaguncha uni sotib bo'lmaydi.",
-      "cameraTrigger": "Kamera bilan skanerlash"
+      "cameraTrigger": "Kamera bilan skanerlash",
+      "addManualTitle": "Aksessuar qo'shish",
+      "addManualHint": "Skanersiz kassa yoki shtrix-kodsiz aksessuar uchun. Telefon IMEI skaneri orqali sotiladi.",
+      "addManualProduct": "Aksessuar",
+      "addManualProductPlaceholder": "Katalogdan qidirish",
+      "addManualQuantity": "Qancha qo'shish",
+      "addManualSubmit": "Qo'shish",
+      "sellAccessory": "Bu aksessuarni sotish",
+      "sellAccessoryTitle": "Bu aksessuarni sotish",
+      "sellAccessoryBody": "Tanlangan joylashuvda yangi hisob-faktura ochadi va unga shu aksessuarni qo'shadi.",
+      "sellAccessoryUnpriced": "Bu aksessuarda katalog narxi yo'q, shuning uchun egasi yoki menejer narx belgilamaguncha uni sotib bo'lmaydi."
     }
   },
   "credit": {
@@ -648,6 +665,7 @@
     "cashPaid": "Naqd to'langan",
     "cashPaidHint": "Faqat ma'lumot uchun — jamiga ham, marjaga ham, hisobotga ham kirmaydi.",
     "reprice": "Narx belgilash",
+    "printLabel": "Yorliq chop etish",
     "repriceTitle": "Apparat narxi",
     "repriceHint": "Har bir o'zgarish saqlanadi, belgilangan narxni olib tashlab bo'lmaydi.",
     "newPrice": "Yangi narx",

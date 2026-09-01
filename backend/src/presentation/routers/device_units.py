@@ -20,7 +20,7 @@ could be conjured directly would be one with no movement behind it, which
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from application.commands.change_device_unit_condition import (
     ChangeDeviceUnitConditionCommand,
@@ -44,10 +44,15 @@ from application.queries.get_device_trace import (
     GetDeviceTraceQuery,
 )
 from application.queries.get_device_unit import GetDeviceUnitHandler, GetDeviceUnitQuery
+from application.queries.get_device_unit_label_pdf import (
+    GetDeviceUnitLabelPdfHandler,
+    GetDeviceUnitLabelPdfQuery,
+)
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
     GetDeviceUnitPriceHistoryQuery,
 )
+from domain.enums import LabelLayout
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 
@@ -102,6 +107,31 @@ async def get_device_trace(
     """
     require(current, Permission.CATALOG_VIEW)
     return await handler.handle(GetDeviceTraceQuery(device_unit_id=device_unit_id))
+
+
+@router.get("/{device_unit_id}/label.pdf", response_class=Response)
+async def get_device_unit_label_pdf(
+    device_unit_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetDeviceUnitLabelPdfHandler],
+    layout: LabelLayout = LabelLayout.SINGLE,
+    copies: int = 1,
+) -> Response:
+    """FR-8.1: the handset's IMEI as a scannable Code128, for a used phone
+    that arrived with no box to scan."""
+    require(current, Permission.CATALOG_VIEW)
+    result = await handler.handle(
+        GetDeviceUnitLabelPdfQuery(
+            device_unit_id=device_unit_id, layout=layout, copies=copies
+        )
+    )
+    assert result.data is not None
+    rendered = result.data
+    return Response(
+        content=rendered.content,
+        media_type=rendered.content_type,
+        headers={"Content-Disposition": f'inline; filename="{rendered.filename}"'},
+    )
 
 
 @router.get("/{device_unit_id}/price-history")

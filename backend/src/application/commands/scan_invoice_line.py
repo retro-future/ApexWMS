@@ -36,10 +36,10 @@ from application.core import CamelModel, Command, IRequestHandler, ResultWithDat
 from application.errors import NotFoundError
 from application.models import InvoiceScanResultData
 from application.ports import TenantUnitOfWork
-from application.services import DeviceUnitLoader
+from application.services import AccessoryLineWriter, DeviceUnitLoader
 from application.specs import ProductByBarcode, ProductBySku, SalesInvoiceForWrite
 from domain.entities import DeviceUnit, Product, SalesInvoice, SalesInvoiceLine
-from domain.enums import DeviceStatus, TrackingType
+from domain.enums import DeviceStatus
 from domain.errors import InvalidIMEIError, UnitNotSellableError, WrongLocationError
 from domain.services import PriceResolver
 from domain.value_objects import IMEI, Money
@@ -67,11 +67,13 @@ class ScanInvoiceLineHandler(
         invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         units: DeviceUnitLoader,
         products: TenantDbRepository[Product, ProductModel],
+        accessory: AccessoryLineWriter,
         uow: TenantUnitOfWork,
     ) -> None:
         self._invoices = invoices
         self._units = units
         self._products = products
+        self._accessory = accessory
         self._uow = uow
 
     async def handle(
@@ -91,7 +93,8 @@ class ScanInvoiceLineHandler(
             line, resolved, changed = self._sell_unit(invoice, unit, product)
         else:
             product = await self._as_product(request.code)
-            line, resolved, changed = self._sell_accessory(invoice, product)
+            line, resolved = await self._accessory.add(invoice, product)
+            changed = True
 
         if changed:
             await self._invoices.update(invoice, spec)
@@ -117,34 +120,6 @@ class ScanInvoiceLineHandler(
             sales_invoice_id=invoice.id,
             product_id=product.id,
             device_unit_id=unit.id,
-            quantity=1,
-            currency=product.currency,
-            tracking_type=product.tracking_type,
-        )
-        invoice.lines.append(line)
-        return line, resolved, True
-
-    def _sell_accessory(
-        self, invoice: SalesInvoice, product: Product
-    ) -> tuple[SalesInvoiceLine, Money, bool]:
-        if product.tracking_type is TrackingType.SERIAL:
-            raise UnitNotSellableError(
-                f"{product.sku} is a serialized model, and a sale is of one named "
-                "handset — scan the phone's IMEI rather than the model's barcode"
-            )
-        # A QUANTITY product with no catalog price cannot be sold at all:
-        # there is no unit to hang a price on (FR-2.12, FR-2.14).
-        resolved = PriceResolver.resolve(None, product)
-
-        existing = invoice.line_for_product(product.id)
-        if existing is not None:
-            existing.quantity += 1
-            return existing, resolved, True
-
-        line = SalesInvoiceLine(
-            id=uuid4(),
-            sales_invoice_id=invoice.id,
-            product_id=product.id,
             quantity=1,
             currency=product.currency,
             tracking_type=product.tracking_type,

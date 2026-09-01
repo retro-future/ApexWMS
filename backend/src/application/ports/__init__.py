@@ -13,6 +13,7 @@ the settings row and the document-number counter.
 from application.ports.clock import Clock
 from application.ports.documents import (
     InvoiceRenderer,
+    LabelRenderer,
     MonthEndReportRenderer,
     PurchaseOrderRenderer,
     SupplierReturnRenderer,
@@ -25,6 +26,7 @@ from application.ports.security import PasswordHasher, TokenService
 from application.ports.tenancy import TenantScope, TenantWorkspace
 from application.ports.tenant import (
     BelowCostQueries,
+    CatalogCodeAllocator,
     DeviceUnitQueries,
     DocumentNumberAllocator,
     FinancialTransactionQueries,
@@ -40,6 +42,7 @@ from application.ports.uow import UnitOfWork
 
 __all__ = [
     "BelowCostQueries",
+    "CatalogCodeAllocator",
     "Clock",
     "DeviceUnitQueries",
     "DocumentNumberAllocator",
@@ -49,6 +52,7 @@ __all__ = [
     "MonthEndReportRenderer",
     "StockMovementQueries",
     "InvoiceRenderer",
+    "LabelRenderer",
     "MasterUnitOfWork",
     "PasswordHasher",
     "SalesInvoiceQueries",

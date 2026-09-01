@@ -18,8 +18,9 @@ model name, an IMEI beneath it) is a choice the caller has already made.
 from typing import Protocol
 from uuid import UUID
 
-from application.dtos import Letterhead, MonthEndReport
+from application.dtos import Letterhead, MonthEndReport, ProductLabel
 from domain.entities import PurchaseOrder, SalesInvoice, SupplierReturn
+from domain.enums import LabelLayout
 
 
 class InvoiceRenderer(Protocol):
@@ -52,6 +53,23 @@ class SupplierReturnRenderer(Protocol):
         supplier: str | None,
         location: str | None,
         descriptions: dict[UUID, str],
+    ) -> bytes: ...
+
+
+class LabelRenderer(Protocol):
+    """FR-2.3-adjacent: a product's shelf label, with a scannable code.
+
+    Not a ``Document`` renderer — a label has no number, no confirm
+    timestamp and no lines somebody named, so it takes neither a document
+    nor *descriptions*.
+    """
+
+    def render(
+        self,
+        label: ProductLabel,
+        letterhead: Letterhead,
+        layout: LabelLayout,
+        copies: int,
     ) -> bytes: ...
 
 

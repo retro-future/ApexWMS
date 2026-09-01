@@ -24,22 +24,28 @@ from application.core import Command, IRequestHandler, ResultWithData
 from application.errors import DuplicateBarcodeError, DuplicateSkuError
 from application.models import ProductData
 from application.ports import Clock, TenantUnitOfWork
-from application.services import ProductRepricer, SalePriceParser
+from application.services import CatalogCodeGenerator, ProductRepricer, SalePriceParser
 from application.specs import ProductByBarcode, ProductBySku
 from domain.entities import Product
 from domain.enums import TrackingType
+from domain.errors import BarcodeNotAllowedError
 from domain.value_objects import SKU, Barcode, Currency
 from infrastructure.persistence.tenant.models import ProductModel
 
 
 class CreateProductCommand(Command[ResultWithData[ProductData]]):
-    sku: str
+    # Blank or omitted: the store lets the system assign one (PH-000001 /
+    # AC-000001). A value the caller sends is used as-is.
+    sku: str | None = None
     name: str
     tracking_type: TrackingType
     brand: str | None = None
     model: str | None = None
     currency: Currency | None = None
     barcode: str | None = None
+    # QUANTITY only: generate an in-store EAN-13 when no barcode was sent.
+    # An explicit barcode wins, so sending both is harmless.
+    generate_barcode: bool = False
     # A string or a whole number, never a JSON float — see application/services/sale_price.py.
     default_sale_price: str | int | None = None
     price_reason: str | None = None
@@ -55,21 +61,24 @@ class CreateProductHandler(
         uow: TenantUnitOfWork,
         sale_price: SalePriceParser,
         repricer: ProductRepricer,
+        codes: CatalogCodeGenerator,
     ) -> None:
         self._products = products
         self._clock = clock
         self._uow = uow
         self._sale_price = sale_price
         self._repricer = repricer
+        self._codes = codes
 
     async def handle(self, request: CreateProductCommand) -> ResultWithData[ProductData]:
-        sku = SKU.parse(request.sku)
-        if await self._products.exists(ProductBySku(str(sku))):
-            raise DuplicateSkuError(f"a product with SKU {sku} already exists")
+        if request.sku and request.sku.strip():
+            sku = SKU.parse(request.sku)
+            if await self._products.exists(ProductBySku(str(sku))):
+                raise DuplicateSkuError(f"a product with SKU {sku} already exists")
+        else:
+            sku = await self._codes.next_sku(request.tracking_type)
 
-        barcode = Barcode.parse(request.barcode) if request.barcode else None
-        if barcode is not None and await self._products.exists(ProductByBarcode(str(barcode))):
-            raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
+        barcode = await self._resolve_barcode(request)
 
         currency = request.currency or Product.default_currency_for(request.tracking_type)
         product = Product(
@@ -98,3 +107,17 @@ class CreateProductHandler(
 
         await self._uow.commit()
         return ResultWithData[ProductData].succeed_with_data(ProductData.from_entity(product))
+
+    async def _resolve_barcode(self, request: CreateProductCommand) -> Barcode | None:
+        if request.barcode:
+            barcode = Barcode.parse(request.barcode)
+            if await self._products.exists(ProductByBarcode(str(barcode))):
+                raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
+            return barcode
+        if not request.generate_barcode:
+            return None
+        if request.tracking_type is TrackingType.SERIAL:
+            raise BarcodeNotAllowedError(
+                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)"
+            )
+        return await self._codes.next_barcode()

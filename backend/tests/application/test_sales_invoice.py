@@ -17,6 +17,9 @@ from uuid import uuid4
 
 import pytest
 
+from application.commands.add_invoice_accessory_line import (
+    AddInvoiceAccessoryLineCommand,
+)
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceCommand
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceCommand
 from application.commands.create_sales_invoice import CreateSalesInvoiceCommand
@@ -325,6 +328,7 @@ class TestOneBeepIsOneLine:
             price="25000",
             barcode=CASE_BARCODE,
         )
+        await stocked_accessory(world, case, location, 5, uzs("100000"))
         invoice = await opened(world, location)
 
         await scan(world, invoice, CASE_BARCODE)
@@ -382,6 +386,133 @@ class TestOneBeepIsOneLine:
         )
 
         assert invoice.lines == []
+
+
+class TestAddingAnAccessoryFromTheCatalog:
+    """FR-4.2c: the same line a barcode scan makes, added by product id."""
+
+    @staticmethod
+    async def add(world: World, invoice, product: Product, quantity: int = 1):
+        return await world.add_invoice_accessory_line().handle(
+            AddInvoiceAccessoryLineCommand(
+                product_id=product.id,
+                quantity=quantity,
+                sales_invoice_id=invoice.id,
+            )
+        )
+
+    async def test_a_quantity_lands_as_one_line_at_the_catalog_price(self):
+        world = make_world()
+        location = a_place(world)
+        case = catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="25000",
+        )
+        await stocked_accessory(world, case, location, 10, uzs("200000"))
+        invoice = await opened(world, location)
+
+        result = await self.add(world, invoice, case, 3)
+
+        assert result.data is not None
+        assert result.data.resolved_price_minor == uzs("25000").amount_minor
+        assert len(invoice.lines) == 1
+        assert invoice.lines[0].quantity == 3
+        assert invoice.lines[0].product_id == case.id
+
+    async def test_the_same_product_again_merges_with_the_scanned_line(self):
+        world = make_world()
+        location = a_place(world)
+        case = catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="25000",
+            barcode=CASE_BARCODE,
+        )
+        await stocked_accessory(world, case, location, 10, uzs("200000"))
+        invoice = await opened(world, location)
+
+        await scan(world, invoice, CASE_BARCODE)
+        await self.add(world, invoice, case, 2)
+
+        assert len(invoice.lines) == 1
+        assert invoice.lines[0].quantity == 3
+
+    async def test_selling_more_than_is_in_stock_is_refused(self):
+        world = make_world()
+        location = a_place(world)
+        case = catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="25000",
+        )
+        await stocked_accessory(world, case, location, 2, uzs("40000"))
+        invoice = await opened(world, location)
+
+        with pytest.raises(InsufficientStockError):
+            await self.add(world, invoice, case, 3)
+        assert invoice.lines == []
+
+    async def test_a_phone_product_is_refused(self):
+        world = make_world()
+        location = a_place(world)
+        phone = catalogued(world)
+        invoice = await opened(world, location)
+
+        with pytest.raises(UnitNotSellableError, match="IMEI"):
+            await self.add(world, invoice, phone)
+
+    async def test_an_accessory_with_no_catalog_price_is_refused(self):
+        world = make_world()
+        location = a_place(world)
+        case = catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price=None,
+        )
+        invoice = await opened(world, location)
+
+        with pytest.raises(PriceNotSetError):
+            await self.add(world, invoice, case)
+
+    async def test_an_unknown_product_is_a_404(self):
+        world = make_world()
+        location = a_place(world)
+        invoice = await opened(world, location)
+
+        with pytest.raises(NotFoundError):
+            await world.add_invoice_accessory_line().handle(
+                AddInvoiceAccessoryLineCommand(
+                    product_id=uuid4(), sales_invoice_id=invoice.id
+                )
+            )
+
+    async def test_a_confirmed_invoice_takes_no_new_line(self):
+        world = make_world()
+        location = a_place(world)
+        phone = catalogued(world)
+        await in_stock(world, phone, location)
+        case = catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="25000",
+        )
+        invoice = await opened(world, location)
+        await scan(world, invoice, PHONE_IMEI)
+        await confirm(world, invoice)
+
+        with pytest.raises(DocumentNotDraftError):
+            await self.add(world, invoice, case)
 
 
 class TestTheDraftDoesNotReserveAPrice:

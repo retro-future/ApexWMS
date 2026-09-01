@@ -36,6 +36,7 @@ from application.dtos.owner_seed import OwnerSeed
 from application.dtos.period import Period
 from application.dtos.posting_entry import MoneyEffect, Posting, PostingEntry
 from application.dtos.price_deviation import PriceDeviation
+from application.dtos.product_label import ProductLabel
 from application.dtos.refresh_token_parts import RefreshTokenParts
 from application.dtos.rendered_document import RenderedDocument
 from application.dtos.requested_tenant import RequestedTenant
@@ -92,6 +93,7 @@ __all__ = [
     "Posting",
     "PostingEntry",
     "PriceDeviation",
+    "ProductLabel",
     "RefreshTokenParts",
     "RenderedDocument",
     "RequestedTenant",

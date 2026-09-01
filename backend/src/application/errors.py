@@ -99,6 +99,23 @@ class DuplicateBarcodeError(ApplicationError):
     """Another product in this store already owns that barcode (FR-2.3)."""
 
 
+class SkuGenerationError(ApplicationError):
+    """The SKU generator kept colliding with existing rows (509-style anomaly).
+
+    A per-tenant counter that hits an occupied slot five times running is
+    not routine retry territory; it means SKUs were assigned by hand in a
+    way that shadows the sequence.
+    """
+
+
+class BarcodeGenerationError(ApplicationError):
+    """The in-store barcode generator kept colliding with existing rows."""
+
+
+class BarcodeAlreadySetError(ApplicationError):
+    """Asked to generate a barcode for a product that already has one."""
+
+
 class DuplicateNameError(ApplicationError):
     """Another location or supplier in this store already owns that name."""
 

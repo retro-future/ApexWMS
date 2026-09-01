@@ -29,6 +29,11 @@ from uuid import UUID
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends, Query, Response
 
+from application.commands.add_invoice_accessory_line import (
+    AddInvoiceAccessoryLineCommand,
+    AddInvoiceAccessoryLineCommandPayload,
+    AddInvoiceAccessoryLineHandler,
+)
 from application.commands.cancel_sales_invoice import (
     CancelSalesInvoiceCommand,
     CancelSalesInvoiceCommandPayload,
@@ -135,6 +140,24 @@ async def scan_invoice_line(
     require(current, Permission.SALES_MANAGE)
     return await handler.handle(
         ScanInvoiceLineCommand(
+            **body.model_dump(exclude_unset=True), sales_invoice_id=sales_invoice_id
+        )
+    )
+
+
+@router.post("/{sales_invoice_id}/lines", status_code=201)
+async def add_invoice_accessory_line(
+    sales_invoice_id: UUID,
+    body: AddInvoiceAccessoryLineCommandPayload,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[AddInvoiceAccessoryLineHandler],
+) -> ResultWithData[InvoiceScanResultData]:
+    """FR-4.2: add an accessory by picking it from the catalog, for a till
+    with no scanner or an accessory with no printed barcode. A phone is
+    refused — it is sold by its IMEI."""
+    require(current, Permission.SALES_MANAGE)
+    return await handler.handle(
+        AddInvoiceAccessoryLineCommand(
             **body.model_dump(exclude_unset=True), sales_invoice_id=sales_invoice_id
         )
     )

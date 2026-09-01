@@ -131,7 +131,14 @@
     "immutableAfterCreate": "Tracking and currency are fixed once the product is created.",
     "searchPlaceholder": "Search by SKU, name, brand…",
     "filterTracking": "Tracking type",
-    "isActive": "Active"
+    "isActive": "Active",
+    "skuHintAuto": "Leave blank to assign one automatically (PH-000001 for phones, AC-000001 for accessories).",
+    "generateBarcode": "Generate an in-store barcode automatically",
+    "generateBarcodeAction": "Generate barcode",
+    "labels": "Labels",
+    "labelsHint": "A shelf label with the name, price and a scannable code.",
+    "printLabel": "Print label",
+    "printLabelSheet": "Print A4 sheet"
   },
   "locations": {
     "title": "Locations",
@@ -433,7 +440,17 @@
       "sellThisTitle": "Sell this handset",
       "sellThisBody": "Opens a new invoice at this location and scans the handset onto it.",
       "sellThisUnpriced": "This handset resolves to no price, so it cannot be sold until an Owner or Manager prices it.",
-      "cameraTrigger": "Scan with camera"
+      "cameraTrigger": "Scan with camera",
+      "addManualTitle": "Add an accessory",
+      "addManualHint": "For a till with no scanner, or an accessory with no barcode. A phone is sold by scanning its IMEI.",
+      "addManualProduct": "Accessory",
+      "addManualProductPlaceholder": "Search the catalogue",
+      "addManualQuantity": "Quantity to add",
+      "addManualSubmit": "Add",
+      "sellAccessory": "Sell this accessory",
+      "sellAccessoryTitle": "Sell this accessory",
+      "sellAccessoryBody": "Opens a new invoice at the chosen location and puts this accessory on it.",
+      "sellAccessoryUnpriced": "This accessory has no catalog price, so it cannot be sold until an Owner or Manager prices it."
     }
   },
   "credit": {
@@ -648,6 +665,7 @@
     "cashPaid": "Cash paid",
     "cashPaidHint": "Informational only — it enters no total, no margin and no report.",
     "reprice": "Set price",
+    "printLabel": "Print label",
     "repriceTitle": "Price this handset",
     "repriceHint": "Every change is recorded, and a price cannot be removed once set.",
     "newPrice": "New price",

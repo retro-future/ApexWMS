@@ -10,6 +10,7 @@ from dishka import Provider, Scope, provide
 
 from application.ports import (
     InvoiceRenderer,
+    LabelRenderer,
     MonthEndReportRenderer,
     PurchaseOrderRenderer,
     SupplierReturnRenderer,
@@ -18,6 +19,7 @@ from infrastructure.config import Settings
 from infrastructure.documents import (
     DocumentPageFactory,
     PdfInvoiceRenderer,
+    PdfLabelRenderer,
     PdfMonthEndReportRenderer,
     PdfPurchaseOrderRenderer,
     PdfSupplierReturnRenderer,
@@ -50,3 +52,7 @@ class DocumentsProvider(Provider):
     @provide
     def month_end_renderer(self, pages: DocumentPageFactory) -> MonthEndReportRenderer:
         return PdfMonthEndReportRenderer(pages)
+
+    @provide
+    def label_renderer(self, settings: Settings) -> LabelRenderer:
+        return PdfLabelRenderer(settings.pdf_font_path)

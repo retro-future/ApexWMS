@@ -11,8 +11,10 @@ on"), even though both resolve at the same scope today.
 from dishka import Provider, Scope, provide_all
 
 from application.services import (
+    AccessoryLineWriter,
     BalanceVerifier,
     BelowCostChecker,
+    CatalogCodeGenerator,
     ClaimsFactory,
     CostPoolReader,
     CountPoster,
@@ -51,6 +53,7 @@ class ApplicationServicesProvider(Provider):
         DeviceUnitRepricer,
         ProductRepricer,
         SalePriceParser,
+        CatalogCodeGenerator,
         # --- M4 purchasing & receiving ---
         DocumentNumberer,
         DocumentLineBuilder,
@@ -59,6 +62,7 @@ class ApplicationServicesProvider(Provider):
         # --- M5 outbound ---
         CostPoolReader,
         StockOnHandReader,
+        AccessoryLineWriter,
         InvoicePoster,
         # --- M5b credit sales ---
         PaymentPoster,

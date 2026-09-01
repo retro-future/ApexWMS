@@ -16,6 +16,7 @@ from dishka import Provider, Scope, provide
 
 from application.ports import (
     BelowCostQueries,
+    CatalogCodeAllocator,
     DeviceUnitQueries,
     DocumentNumberAllocator,
     FinancialTransactionQueries,
@@ -29,6 +30,7 @@ from application.ports import (
     TenantUnitOfWork,
 )
 from infrastructure.config import Settings
+from infrastructure.persistence.tenant.catalog_code import SqlCatalogCodeAllocator
 from infrastructure.persistence.tenant.document_number import SqlDocumentNumberAllocator
 from infrastructure.persistence.tenant.queries import (
     SqlBelowCostQueries,
@@ -85,6 +87,10 @@ class TenantRepositoriesProvider(Provider):
     @provide
     def document_numbers(self, session: TenantSession) -> DocumentNumberAllocator:
         return SqlDocumentNumberAllocator(session)
+
+    @provide
+    def catalog_codes(self, session: TenantSession) -> CatalogCodeAllocator:
+        return SqlCatalogCodeAllocator(session)
 
     @provide
     def goods_receipt_queries(self, session: TenantSession) -> GoodsReceiptQueries:

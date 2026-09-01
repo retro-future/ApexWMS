@@ -11,7 +11,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { IconAlertCircle, IconTag } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -91,6 +91,16 @@ export default function DeviceUnitPage() {
         </Stack>
 
         <Group gap="sm">
+          <Button
+            component="a"
+            href={`/api/backend/device-units/${unit.id}/label.pdf?layout=single`}
+            target="_blank"
+            rel="noreferrer"
+            variant="light"
+            leftSection={<IconTag size={16} />}
+          >
+            {t("printLabel")}
+          </Button>
           {unit.status === "in_stock" && can(Permission.Sales.Manage) && (
             <Button onClick={() => setSelling(true)}>{tSell("sellThis")}</Button>
           )}

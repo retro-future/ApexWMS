@@ -14,6 +14,7 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 from application.commands.accept_invite import AcceptInviteHandler
+from application.commands.add_invoice_accessory_line import AddInvoiceAccessoryLineHandler
 from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
 from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceHandler
@@ -45,6 +46,7 @@ from application.commands.create_supplier import CreateSupplierHandler
 from application.commands.create_supplier_return import CreateSupplierReturnHandler
 from application.commands.create_tenant import CreateTenantHandler
 from application.commands.create_write_off import CreateWriteOffHandler
+from application.commands.generate_product_barcode import GenerateProductBarcodeHandler
 from application.commands.invite_user import InviteUserHandler
 from application.commands.login import LoginHandler
 from application.commands.open_stock_count import OpenStockCountHandler
@@ -109,8 +111,10 @@ from application.queries.list_suppliers import ListSuppliersHandler
 from application.queries.list_users import ListUsersHandler
 from application.queries.list_write_offs import ListWriteOffsHandler
 from application.services import (
+    AccessoryLineWriter,
     BalanceVerifier,
     BelowCostChecker,
+    CatalogCodeGenerator,
     ClaimsFactory,
     CostPoolReader,
     CountPoster,
@@ -139,6 +143,7 @@ from domain.enums import TenantRole, TenantStatus
 from domain.permissions import Permission
 from domain.services import UnitProjector
 from tests.application.fakes import (
+    FakeCatalogCodeAllocator,
     FakeClock,
     FakeCreditCompanyRepository,
     FakeCustomerRepository,
@@ -216,6 +221,7 @@ class World:
     write_offs: FakeWriteOffRepository
     counts: FakeStockCountRepository
     document_numbers: FakeDocumentNumberAllocator
+    catalog_codes: FakeCatalogCodeAllocator
     scope: FakeTenantScope
     uow: FakeUnitOfWork
     provisioner: FakeProvisioner
@@ -354,9 +360,22 @@ class World:
             CurrentUser(user_id=actor or uuid4(), permissions=frozenset()),
         )
 
+    def catalog_code_generator(self) -> CatalogCodeGenerator:
+        return CatalogCodeGenerator(self.catalog_codes, self.products)
+
     def create_product(self, actor: UUID | None = None) -> CreateProductHandler:
         return CreateProductHandler(
-            self.products, self.clock, self.uow, SalePriceParser(), self.repricer(actor)
+            self.products,
+            self.clock,
+            self.uow,
+            SalePriceParser(),
+            self.repricer(actor),
+            self.catalog_code_generator(),
+        )
+
+    def generate_product_barcode(self) -> GenerateProductBarcodeHandler:
+        return GenerateProductBarcodeHandler(
+            self.products, self.uow, self.catalog_code_generator()
         )
 
     def update_product(self, actor: UUID | None = None) -> UpdateProductHandler:
@@ -700,6 +719,15 @@ class World:
             self.invoices,
             self.device_unit_loader(),
             self.products,
+            AccessoryLineWriter(self.levels),
+            self.uow,
+        )
+
+    def add_invoice_accessory_line(self) -> AddInvoiceAccessoryLineHandler:
+        return AddInvoiceAccessoryLineHandler(
+            self.invoices,
+            self.products,
+            AccessoryLineWriter(self.levels),
             self.uow,
         )
 
@@ -1021,6 +1049,7 @@ def make_world(provisioner_fails: bool = False) -> World:
         write_offs=FakeWriteOffRepository(),
         counts=FakeStockCountRepository(),
         document_numbers=FakeDocumentNumberAllocator(),
+        catalog_codes=FakeCatalogCodeAllocator(),
         movements=FakeStockMovementRepository(),
         transactions=FakeFinancialTransactionRepository(),
         levels=FakeStockLevelRepository(),

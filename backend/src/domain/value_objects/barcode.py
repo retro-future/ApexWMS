@@ -54,6 +54,18 @@ class Barcode:
             raise InvalidBarcodeError(f"barcode {self.value} fails the GS1 check digit")
 
     @classmethod
+    def from_payload(cls, payload: str) -> Barcode:
+        """Append the GS1 mod-10 check digit to a 12-digit payload.
+
+        The one place the store's own barcode generator turns a counter
+        into a scannable EAN-13; the check-digit maths is not duplicated
+        at the call site.
+        """
+        if not payload.isascii() or not payload.isdigit() or len(payload) != 12:
+            raise InvalidBarcodeError("barcode payload must be exactly 12 digits")
+        return cls(payload + str(_gs1_check_digit(payload)))
+
+    @classmethod
     def parse(cls, raw: str) -> Barcode:
         """Parse operator input: tolerate surrounding whitespace and
         common scanner separators (spaces, hyphens) inside the code."""

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { AddAccessoryLine } from "@/app/(app)/invoices/AddAccessoryLine";
 import { ConfirmSaleModal } from "@/app/(app)/invoices/ConfirmSaleModal";
 import { CreditPanel } from "@/app/(app)/invoices/CreditPanel";
 import { InvoiceLineRow } from "@/app/(app)/invoices/InvoiceLineRow";
@@ -231,7 +232,10 @@ export default function InvoicePage() {
       )}
 
       {draft && can(Permission.Sales.Manage) && (
-        <SellConsole invoice={invoice} onScanned={applyScan} />
+        <>
+          <SellConsole invoice={invoice} onScanned={applyScan} />
+          <AddAccessoryLine invoice={invoice} onAdded={applyScan} />
+        </>
       )}
 
       <Card withBorder radius="md" padding="lg">

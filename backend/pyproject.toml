@@ -19,6 +19,7 @@ dependencies = [
     # Pure Python, no system libraries — WeasyPrint would need Cairo and
     # Pango, which is a build problem on Windows and in a slim container.
     "fpdf2>=2.8",
+    "python-barcode>=0.16.1",
 ]
 
 [project.scripts]

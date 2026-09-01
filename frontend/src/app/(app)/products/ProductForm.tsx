@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Group,
   Select,
   SimpleGrid,
@@ -36,6 +37,7 @@ type Values = {
   trackingType: TrackingType;
   currency: Currency;
   barcode: string;
+  generateBarcode: boolean;
   price: string;
   isActive: boolean;
 };
@@ -73,16 +75,20 @@ export function ProductForm({ product }: { product?: Product }) {
       trackingType: product?.trackingType ?? "serial",
       currency: initialCurrency,
       barcode: product?.barcode ?? "",
+      generateBarcode: false,
       price: minorToInput(product?.defaultSalePriceMinor, initialCurrency),
       isActive: product?.isActive ?? true,
     },
     validate: {
       sku: (value) =>
-        isEdit || SKU_PATTERN.test(value.trim()) ? null : tCommon("required"),
+        isEdit || !value.trim() || SKU_PATTERN.test(value.trim())
+          ? null
+          : tCommon("required"),
       name: (value) => (value.trim() ? null : tCommon("required")),
       barcode: (value, values) => {
         const digits = value.replace(/[\s-]/g, "");
-        if (!digits || values.trackingType === "serial") return null;
+        if (!digits || values.trackingType === "serial" || values.generateBarcode)
+          return null;
         return BARCODE_LENGTHS.has(digits.length) ? null : t("barcodeHint");
       },
       price: (value, values) => {
@@ -130,9 +136,12 @@ export function ProductForm({ product }: { product?: Product }) {
         notifySuccess(tCommon("updated"));
         router.refresh();
       } else {
+        const wantsGeneratedBarcode = !isSerial && values.generateBarcode;
         const created = await create.mutateAsync({
           ...shared,
-          sku: values.sku.trim(),
+          barcode: wantsGeneratedBarcode ? undefined : shared.barcode,
+          generateBarcode: wantsGeneratedBarcode || undefined,
+          sku: values.sku.trim() || undefined,
           trackingType: values.trackingType,
           currency: values.currency,
         });
@@ -173,7 +182,7 @@ export function ProductForm({ product }: { product?: Product }) {
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <TextInput
                 label={t("sku")}
-                description={isEdit ? undefined : t("skuHint")}
+                description={isEdit ? undefined : t("skuHintAuto")}
                 // Hint below the input, so a two-line hint doesn't push this
                 // field out of alignment with Name beside it.
                 inputWrapperOrder={["label", "input", "description", "error"]}
@@ -245,13 +254,28 @@ export function ProductForm({ product }: { product?: Product }) {
                 {t("noBarcodeForSerial")}
               </Alert>
             ) : (
-              <TextInput
-                label={`${t("barcode")} (${tCommon("optional")})`}
-                description={t("barcodeHint")}
-                inputMode="numeric"
-                disabled={readOnly}
-                {...form.getInputProps("barcode")}
-              />
+              <Stack gap="xs">
+                {!isEdit && (
+                  <Checkbox
+                    label={t("generateBarcode")}
+                    disabled={readOnly}
+                    checked={form.values.generateBarcode}
+                    onChange={(event) =>
+                      form.setFieldValue(
+                        "generateBarcode",
+                        event.currentTarget.checked,
+                      )
+                    }
+                  />
+                )}
+                <TextInput
+                  label={`${t("barcode")} (${tCommon("optional")})`}
+                  description={t("barcodeHint")}
+                  inputMode="numeric"
+                  disabled={readOnly || (!isEdit && form.values.generateBarcode)}
+                  {...form.getInputProps("barcode")}
+                />
+              </Stack>
             )}
 
             {isEdit && (

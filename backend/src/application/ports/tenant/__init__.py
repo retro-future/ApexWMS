@@ -13,6 +13,7 @@ from application.ports.tenant.queries import (
     StockOnHandQueries,
 )
 from application.ports.tenant.repositories import (
+    CatalogCodeAllocator,
     DocumentNumberAllocator,
     TenantSettingsRepository,
 )
@@ -20,6 +21,7 @@ from application.ports.tenant.uow import TenantUnitOfWork
 
 __all__ = [
     "BelowCostQueries",
+    "CatalogCodeAllocator",
     "DeviceUnitQueries",
     "DocumentNumberAllocator",
     "FinancialTransactionQueries",

@@ -12,6 +12,8 @@ from application.errors import (
     ApplicationError,
     AuthenticationError,
     AuthorizationError,
+    BarcodeAlreadySetError,
+    BarcodeGenerationError,
     DuplicateBarcodeError,
     DuplicateImeiError,
     DuplicateNameError,
@@ -24,6 +26,7 @@ from application.errors import (
     MissingTenantError,
     NotFoundError,
     ProvisioningFailedError,
+    SkuGenerationError,
     SlugAlreadyTakenError,
     TenantNotActiveError,
     TenantNotFoundError,
@@ -61,6 +64,9 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (DuplicateBarcodeError, 409),
     (DuplicateNameError, 409),
     (DuplicateImeiError, 409),
+    (SkuGenerationError, 409),
+    (BarcodeGenerationError, 409),
+    (BarcodeAlreadySetError, 409),
     # A document in the wrong state is a conflict, not bad input: the
     # same request would have succeeded a moment earlier (§4.4).
     (DocumentNotDraftError, 409),

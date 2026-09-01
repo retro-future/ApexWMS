@@ -10,6 +10,7 @@ No table here carries a ``tenant_id``: isolation is physical (PRD §3.1).
 """
 
 from .base import TenantBase
+from .catalog_code import CatalogCodeSequenceModel
 from .credit_company import CreditCompanyModel
 from .customer import CustomerModel
 from .device_unit import DeviceUnitModel
@@ -37,6 +38,7 @@ from .supplier_return import SupplierReturnLineModel, SupplierReturnModel
 from .write_off import WriteOffLineModel, WriteOffModel
 
 __all__ = [
+    "CatalogCodeSequenceModel",
     "CreditCompanyModel",
     "CustomerModel",
     "DeviceUnitModel",

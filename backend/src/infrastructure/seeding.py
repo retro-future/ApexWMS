@@ -28,7 +28,11 @@ from application.common.repository import TenantDbRepository
 from application.common.specification import Specification
 from application.dtos import CurrentUser
 from application.errors import ApplicationError
-from application.services import ProductRepricer, SalePriceParser
+from application.services import (
+    CatalogCodeGenerator,
+    ProductRepricer,
+    SalePriceParser,
+)
 from domain.entities import Customer, Employee, Product, Supplier
 from domain.enums import TenantRole, TrackingType
 from infrastructure.clock import SystemClock
@@ -42,6 +46,7 @@ from infrastructure.persistence.repositories import (
     TenantSqlAppendOnlyRepository,
     TenantSqlRepository,
 )
+from infrastructure.persistence.tenant.catalog_code import SqlCatalogCodeAllocator
 from infrastructure.persistence.tenant.models import (
     CustomerModel,
     EmployeeModel,
@@ -127,6 +132,9 @@ async def seed_catalog(
                     ),
                     clock,
                     CurrentUser(user_id=owner, permissions=frozenset()),
+                ),
+                codes=CatalogCodeGenerator(
+                    SqlCatalogCodeAllocator(tenant_session), product_repo
                 ),
             )
             customer_repo: TenantDbRepository[Customer, CustomerModel] = TenantSqlRepository(

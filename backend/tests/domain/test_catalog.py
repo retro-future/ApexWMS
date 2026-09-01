@@ -76,6 +76,16 @@ class TestBarcode:
         with pytest.raises(InvalidBarcodeError):
             Barcode.parse(raw)
 
+    def test_from_payload_appends_the_check_digit(self):
+        barcode = Barcode.from_payload("200000000001")
+        assert barcode.value == "2000000000015"
+        assert Barcode.parse(barcode.value) == barcode
+
+    @pytest.mark.parametrize("payload", ["20000000000", "2000000000012", "20000000000X"])
+    def test_from_payload_needs_exactly_twelve_digits(self, payload: str):
+        with pytest.raises(InvalidBarcodeError):
+            Barcode.from_payload(payload)
+
 
 class TestCurrencyDefaults:
     def test_a_phone_defaults_to_usd_and_an_accessory_to_som(self):

@@ -12,9 +12,13 @@ from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from application.commands.create_product import CreateProductCommand, CreateProductHandler
+from application.commands.generate_product_barcode import (
+    GenerateProductBarcodeCommand,
+    GenerateProductBarcodeHandler,
+)
 from application.commands.update_product import (
     UpdateProductCommand,
     UpdateProductCommandPayload,
@@ -24,11 +28,16 @@ from application.core import PagedResult, ResultWithData
 from application.dtos import CurrentUser
 from application.models import PriceChangeData, ProductData
 from application.queries.get_product import GetProductHandler, GetProductQuery
+from application.queries.get_product_label_pdf import (
+    GetProductLabelPdfHandler,
+    GetProductLabelPdfQuery,
+)
 from application.queries.get_product_price_history import (
     GetProductPriceHistoryHandler,
     GetProductPriceHistoryQuery,
 )
 from application.queries.list_products import ListProductsHandler, ListProductsQuery
+from domain.enums import LabelLayout
 from domain.permissions import Permission
 from presentation.security import bearer_scheme, require
 
@@ -70,6 +79,40 @@ async def get_product(
 ) -> ResultWithData[ProductData]:
     require(current, Permission.CATALOG_VIEW)
     return await handler.handle(GetProductQuery(product_id=product_id))
+
+
+@router.post("/{product_id}/barcode")
+async def generate_product_barcode(
+    product_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GenerateProductBarcodeHandler],
+) -> ResultWithData[ProductData]:
+    """FR-2.3: assign an in-store EAN-13 to an accessory that has none."""
+    require(current, Permission.CATALOG_MANAGE)
+    return await handler.handle(
+        GenerateProductBarcodeCommand(product_id=product_id)
+    )
+
+
+@router.get("/{product_id}/label.pdf", response_class=Response)
+async def get_product_label_pdf(
+    product_id: UUID,
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[GetProductLabelPdfHandler],
+    layout: LabelLayout = LabelLayout.SINGLE,
+    copies: int = 24,
+) -> Response:
+    require(current, Permission.CATALOG_VIEW)
+    result = await handler.handle(
+        GetProductLabelPdfQuery(product_id=product_id, layout=layout, copies=copies)
+    )
+    assert result.data is not None
+    rendered = result.data
+    return Response(
+        content=rendered.content,
+        media_type=rendered.content_type,
+        headers={"Content-Disposition": f'inline; filename="{rendered.filename}"'},
+    )
 
 
 @router.get("/{product_id}/price-history")

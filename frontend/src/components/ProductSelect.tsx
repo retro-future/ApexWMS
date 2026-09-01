@@ -5,7 +5,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { useState } from "react";
 
 import { useResourceList } from "@/hooks/use-resource";
-import type { Product } from "@/lib/types";
+import type { Product, TrackingType } from "@/lib/types";
 
 /**
  * A server-filtered product picker, shared by the two document forms.
@@ -22,6 +22,7 @@ export function ProductSelect({
   placeholder,
   error,
   disabled,
+  trackingType,
 }: {
   value: string | null;
   onChange: (product: Product | null) => void;
@@ -29,6 +30,8 @@ export function ProductSelect({
   placeholder?: string;
   error?: React.ReactNode;
   disabled?: boolean;
+  /** Restrict the list to one kind of product (e.g. only accessories). */
+  trackingType?: TrackingType;
 }) {
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
@@ -41,7 +44,9 @@ export function ProductSelect({
     isActive: true,
   });
 
-  const products = query.data?.items ?? [];
+  const products = (query.data?.items ?? []).filter(
+    (product) => !trackingType || product.trackingType === trackingType,
+  );
 
   return (
     <Select

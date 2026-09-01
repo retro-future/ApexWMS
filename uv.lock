@@ -67,6 +67,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
+    { name = "python-barcode" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "tzdata" },
     { name = "uvicorn", extra = ["standard"] },
@@ -95,6 +96,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "pyjwt", specifier = ">=2.10" },
+    { name = "python-barcode", specifier = ">=0.16.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
     { name = "tzdata", specifier = ">=2025.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
@@ -785,6 +787,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/e2/08a497ef684b88559c9cc5f4ad53a37e7b99e727094a86d6ea32536d5d3c/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1", size = 16930, upload-time = "2026-05-26T09:56:02.576Z" },
+]
+
+[[package]]
+name = "python-barcode"
+version = "0.16.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0e/f2/4c0b07f100e1e184ba682021322c336bbba6aa7adfabd2616f70eff917d9/python_barcode-0.16.1.tar.gz", hash = "sha256:665ed09516b0088b5593061c5ac8662caa0b08d56bdad328388b1cab39939ac5", size = 233777, upload-time = "2025-08-27T11:05:45.614Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/34/810885dca784b02e5ad0f71ced9c06ba5e9d33a6493bc886f7470ce82a39/python_barcode-0.16.1-py3-none-any.whl", hash = "sha256:5776567478c9a0dae473374bb86631ba0b5ea99aaf302763b364e367ac51f367", size = 228046, upload-time = "2025-08-27T11:05:42.776Z" },
 ]
 
 [[package]]

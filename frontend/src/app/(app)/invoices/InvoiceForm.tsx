@@ -13,8 +13,9 @@ import type { Customer, Location, SalesInvoice } from "@/lib/types";
 
 /**
  * FR-4.1: a Seller opens an invoice with a location and, optionally, a
- * customer. It has no lines — every line arrives by scan (FR-4.2), and
- * there is no endpoint that adds one any other way.
+ * customer. It has no lines — a phone line arrives only by scanning its
+ * IMEI (FR-4.2); an accessory line is added by scan or by picking it from
+ * the catalog (FR-4.2c), both on the invoice page.
  *
  * The three fields here are also the only chance to set them: there is no
  * `PATCH /invoices/{id}`, so an invoice raised against the wrong location
