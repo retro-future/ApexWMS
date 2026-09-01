@@ -1,4 +1,9 @@
-"""Fake catalog data for a provisioned tenant (dev/demo use only).
+"""Catalog seeding for a provisioned tenant.
+
+``seed_catalog`` fills a store's tables with fake demo data (dev/demo
+only, Faker). ``seed_phones`` fills only ``products``, from the real
+model list in ``phone_catalog.py`` — the one table whose contents are the
+same for every store.
 
 Not business logic for any milestone — a thin fan-out over the same
 command handlers ``presentation/routers/products.py`` etc. call, so a
@@ -118,25 +123,7 @@ async def seed_catalog(
                 tenant_session, EmployeeModel, EmployeeMapper()
             )
             owner = await _owner_of(employee_repo)
-            product_repo: TenantDbRepository[Product, ProductModel] = TenantSqlRepository(
-                tenant_session, ProductModel, ProductMapper()
-            )
-            product_handler = CreateProductHandler(
-                products=product_repo,
-                clock=clock,
-                uow=uow,
-                sale_price=SalePriceParser(),
-                repricer=ProductRepricer(
-                    TenantSqlAppendOnlyRepository(
-                        tenant_session, ProductPriceChangeModel, ProductPriceChangeMapper()
-                    ),
-                    clock,
-                    CurrentUser(user_id=owner, permissions=frozenset()),
-                ),
-                codes=CatalogCodeGenerator(
-                    SqlCatalogCodeAllocator(tenant_session), product_repo
-                ),
-            )
+            product_handler = _product_handler(tenant_session, clock, uow, owner)
             customer_repo: TenantDbRepository[Customer, CustomerModel] = TenantSqlRepository(
                 tenant_session, CustomerModel, AutoMapper(Customer, CustomerModel)
             )
@@ -162,6 +149,80 @@ async def seed_catalog(
         products_created=created_products,
         customers_created=created_customers,
         suppliers_created=created_suppliers,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PhoneSeedSummary:
+    products_created: int
+    skipped: int
+
+
+async def seed_phones(tenant_db_url: str, *, limit: int | None = None) -> PhoneSeedSummary:
+    """Fill an already-provisioned tenant's ``products`` with the real
+    phone models from ``phone_catalog.PHONES``. Prices are left unset.
+
+    Idempotent: a model whose deterministic SKU already exists raises a
+    duplicate error, which is counted as skipped rather than aborting.
+    """
+    from infrastructure.phone_catalog import PHONES, sku_for
+
+    specs = PHONES if limit is None else PHONES[:limit]
+
+    engine = create_async_engine(tenant_db_url)
+    created = skipped = 0
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+            tenant_session = TenantSession(session)
+            clock = SystemClock()
+            uow = SqlTenantUnitOfWork(tenant_session)
+            employee_repo: TenantDbRepository[Employee, EmployeeModel] = TenantSqlRepository(
+                tenant_session, EmployeeModel, EmployeeMapper()
+            )
+            owner = await _owner_of(employee_repo)
+            handler = _product_handler(tenant_session, clock, uow, owner)
+
+            for spec in specs:
+                command = CreateProductCommand(
+                    sku=sku_for(spec),
+                    name=spec.name,
+                    brand=spec.brand,
+                    model=spec.model_label,
+                    tracking_type=TrackingType.SERIAL,
+                )
+                try:
+                    await handler.handle(command)
+                    created += 1
+                except ApplicationError:
+                    skipped += 1
+    finally:
+        await engine.dispose()
+
+    return PhoneSeedSummary(products_created=created, skipped=skipped)
+
+
+def _product_handler(
+    tenant_session: TenantSession,
+    clock: SystemClock,
+    uow: SqlTenantUnitOfWork,
+    owner: UUID,
+) -> CreateProductHandler:
+    product_repo: TenantDbRepository[Product, ProductModel] = TenantSqlRepository(
+        tenant_session, ProductModel, ProductMapper()
+    )
+    return CreateProductHandler(
+        products=product_repo,
+        clock=clock,
+        uow=uow,
+        sale_price=SalePriceParser(),
+        repricer=ProductRepricer(
+            TenantSqlAppendOnlyRepository(
+                tenant_session, ProductPriceChangeModel, ProductPriceChangeMapper()
+            ),
+            clock,
+            CurrentUser(user_id=owner, permissions=frozenset()),
+        ),
+        codes=CatalogCodeGenerator(SqlCatalogCodeAllocator(tenant_session), product_repo),
     )
 
 

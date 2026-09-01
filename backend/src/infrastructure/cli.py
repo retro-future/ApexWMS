@@ -9,6 +9,7 @@
     apexwms suspend-tenant <uuid> | apexwms activate-tenant <uuid>
     apexwms retry-provisioning <uuid> [--timezone tz]
     apexwms seed-tenant <uuid> [--products N] [--customers N] [--suppliers N]
+    apexwms seed-phones <uuid> [--limit N]   # real phone models into products
     apexwms verify-projections --all-tenants | --tenant <uuid>
     apexwms verify-financials  --all-tenants | --tenant <uuid>
     apexwms verify-balances    --all-tenants | --tenant <uuid>
@@ -98,6 +99,14 @@ def main(argv: list[str] | None = None) -> int:
     seed.add_argument("--suppliers", type=int, default=5)
     seed.add_argument("--seed", type=int, default=None, help="random seed, for reproducible data")
 
+    seed_phones = sub.add_parser(
+        "seed-phones", help="fill a tenant's products with the real phone-model list"
+    )
+    seed_phones.add_argument("tenant_id", type=UUID)
+    seed_phones.add_argument(
+        "--limit", type=int, default=None, help="seed only the first N models"
+    )
+
     # The three audits (PRD §11, FR-10.7, FR-10.7b). Same target flags as
     # ``migrate``, because they answer the same shape of question about the
     # same fleet.
@@ -135,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_retry_provisioning(settings, args.tenant_id, args.timezone))
     if args.command == "seed-tenant":
         return asyncio.run(_seed_tenant(settings, args))
+    if args.command == "seed-phones":
+        return asyncio.run(_seed_phones(settings, args))
     if args.command in ("verify-projections", "verify-financials", "verify-balances"):
         tenant_id = None if args.all_tenants else args.tenant
         return asyncio.run(_verify(settings, args.command, tenant_id))
@@ -526,6 +537,32 @@ async def _seed_tenant(settings: Settings, args: argparse.Namespace) -> int:
     print(f"  products:  {summary.products_created}")
     print(f"  customers: {summary.customers_created}")
     print(f"  suppliers: {summary.suppliers_created}")
+    return 0
+
+
+async def _seed_phones(settings: Settings, args: argparse.Namespace) -> int:
+    from infrastructure.seeding import seed_phones
+
+    engine = create_async_engine(settings.master_db_url)
+    try:
+        async with async_sessionmaker(engine)() as session:
+            row = await session.get(TenantDatabaseModel, args.tenant_id)
+    finally:
+        await engine.dispose()
+
+    if row is None:
+        print(f"no such tenant database: {args.tenant_id}", file=sys.stderr)
+        print(
+            "(has this tenant finished provisioning? see `apexwms list-tenants`)",
+            file=sys.stderr,
+        )
+        return 1
+
+    url = tenant_db_url(settings.master_db_url, row.db_name)
+    summary = await seed_phones(url, limit=args.limit)
+    print(f"tenant {args.tenant_id} phones seeded:")
+    print(f"  products created: {summary.products_created}")
+    print(f"  skipped (already present): {summary.skipped}")
     return 0
 
 
