@@ -21,6 +21,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
+from application.localization.locale import Locale
 from application.ports import (
     InvoiceRenderer,
     TenantSettingsRepository,
@@ -50,12 +51,14 @@ class GetSalesInvoicePdfHandler(
         units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         settings: TenantSettingsRepository,
         renderer: InvoiceRenderer,
+        locale: Locale,
     ) -> None:
         self._invoices = invoices
         self._products = products
         self._units = units
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetSalesInvoicePdfQuery
@@ -78,7 +81,7 @@ class GetSalesInvoicePdfHandler(
             filename=f"{invoice.number}.pdf",
             content_type="application/pdf",
             content=self._renderer.render(
-                invoice, letterhead, await self._descriptions(invoice)
+                invoice, letterhead, await self._descriptions(invoice), self._locale
             ),
         )
         return ResultWithData[RenderedDocument].succeed_with_data(rendered)

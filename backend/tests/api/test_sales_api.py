@@ -390,6 +390,20 @@ class TestTheInvoicePrints:
         assert "Apex Mobile" in page
         assert "$520.00" in page
 
+    async def test_the_page_follows_the_request_locale(self, client, settings, owner):
+        invoice = await a_sold_phone(client, settings, owner)
+
+        english = await client.get(
+            f"/api/v1/invoices/{invoice['id']}/pdf", headers=owner.auth
+        )
+        uzbek = await client.get(
+            f"/api/v1/invoices/{invoice['id']}/pdf",
+            headers={**owner.auth, "Accept-Language": "uz"},
+        )
+
+        assert "Invoice" in pdf_text(english.content)
+        assert "Hisob-faktura" in pdf_text(uzbek.content)
+
     async def test_regenerating_it_produces_the_same_file(
         self, client, settings, owner
     ):

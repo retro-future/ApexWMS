@@ -16,11 +16,11 @@ line on this page where they could be added.
 from uuid import UUID
 
 from application.dtos import Letterhead
+from application.localization.locale import Locale
 from domain.entities import SalesInvoice
 from domain.value_objects import Money
-from infrastructure.documents.page import DocumentPageFactory
+from infrastructure.documents.page import DocumentPage, DocumentPageFactory
 
-_HEADERS = ("Item", "Qty", "Price", "Total")
 _WIDTHS = (95.0, 20.0, 30.0, 35.0)
 
 
@@ -29,13 +29,17 @@ class PdfInvoiceRenderer:
         self._pages = pages
 
     def render(
-        self, invoice: SalesInvoice, letterhead: Letterhead, descriptions: dict[UUID, str]
+        self,
+        invoice: SalesInvoice,
+        letterhead: Letterhead,
+        descriptions: dict[UUID, str],
+        locale: Locale,
     ) -> bytes:
-        page = self._pages.page()
+        page = self._pages.page(locale)
         page.start(invoice)
         page.letterhead(letterhead)
-        page.heading(invoice, "Invoice")
-        page.table(_HEADERS, _WIDTHS, self._rows(invoice, descriptions))
+        page.heading(invoice, page.t("invoice_title"))
+        page.table(_headers(page), _WIDTHS, self._rows(invoice, descriptions))
         page.subtotals(invoice.subtotals())
         page.cancellation(invoice)
         return page.output()
@@ -56,3 +60,12 @@ class PdfInvoiceRenderer:
     @staticmethod
     def _amount(amount: Money | None) -> str:
         return "" if amount is None else amount.format()
+
+
+def _headers(page: DocumentPage) -> tuple[str, str, str, str]:
+    return (
+        page.t("col_item"),
+        page.t("col_qty"),
+        page.t("col_price"),
+        page.t("col_total"),
+    )

@@ -95,7 +95,11 @@ async def client(settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
-        httpx.AsyncClient(transport=transport, base_url="http://test") as client,
+        httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Accept-Language": "en"},
+        ) as client,
     ):
         yield client
 

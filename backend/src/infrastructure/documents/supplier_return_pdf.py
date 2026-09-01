@@ -13,10 +13,10 @@ the repository's join, so nothing here needs the live handset.
 from uuid import UUID
 
 from application.dtos import Letterhead
+from application.localization.locale import Locale
 from domain.entities import SupplierReturn
 from infrastructure.documents.page import DocumentPageFactory
 
-_HEADERS = ("Item", "IMEI", "Qty")
 _WIDTHS = (95.0, 60.0, 25.0)
 
 
@@ -31,19 +31,21 @@ class PdfSupplierReturnRenderer:
         supplier: str | None,
         location: str | None,
         descriptions: dict[UUID, str],
+        locale: Locale,
     ) -> bytes:
-        page = self._pages.page()
+        page = self._pages.page(locale)
         page.start(document)
         page.letterhead(letterhead)
-        page.heading(document, "Return to supplier")
+        page.heading(document, page.t("supplier_return_title"))
         page.details(
             [
-                ("Supplier", supplier or str(document.supplier_id)),
-                ("From", location or str(document.location_id)),
-                ("Reason", document.reason.value.replace("_", " ")),
+                (page.t("detail_supplier"), supplier or str(document.supplier_id)),
+                (page.t("detail_from"), location or str(document.location_id)),
+                (page.t("detail_reason"), document.reason.value.replace("_", " ")),
             ]
         )
-        page.table(_HEADERS, _WIDTHS, self._rows(document, descriptions))
+        headers = (page.t("col_item"), page.t("col_imei"), page.t("col_qty"))
+        page.table(headers, _WIDTHS, self._rows(document, descriptions))
         page.cancellation(document)
         return page.output()
 

@@ -26,6 +26,8 @@ from pathlib import Path
 from fpdf import FPDF
 
 from application.dtos import Letterhead
+from application.localization.catalog import MessageCatalog
+from application.localization.locale import Locale
 from domain.entities import Document
 from domain.value_objects import Currency, Money
 
@@ -41,10 +43,21 @@ _EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
 
 
 class DocumentPage:
-    def __init__(self, font: Path | None = None) -> None:
+    def __init__(
+        self,
+        catalog: MessageCatalog,
+        locale: Locale = Locale.EN,
+        font: Path | None = None,
+    ) -> None:
+        self._catalog = catalog
+        self._locale = locale
         self._font_path = font
         self._pdf = FPDF()
         self._family = _CORE_FAMILY
+
+    def t(self, key: str, /, **params: object) -> str:
+        """A fixed word on the page, in the document's locale."""
+        return self._catalog.render(self._locale, "documents", key, **params) or key
 
     def start(self, document: Document) -> None:
         """One page per render — a ``DocumentPage`` is not reused."""
@@ -85,9 +98,8 @@ class DocumentPage:
         self._cell(0, _LINE * 1.4, f"{title}  {document.number}", wrap=True)
         self._pdf.set_font(self._family, size=9)
         if document.confirmed_at is not None:
-            self._cell(
-                0, _LINE, f"Confirmed {document.confirmed_at:%Y-%m-%d %H:%M %Z}", wrap=True
-            )
+            stamp = f"{document.confirmed_at:%Y-%m-%d %H:%M %Z}"
+            self._cell(0, _LINE, self.t("confirmed_at", timestamp=stamp), wrap=True)
         self._pdf.ln(_LINE * 0.5)
 
     def details(self, rows: Iterable[tuple[str, str]]) -> None:
@@ -119,7 +131,10 @@ class DocumentPage:
         self._pdf.set_font(self._family, size=11)
         for currency, amount in sorted(totals.items(), key=lambda pair: pair[0].value):
             self._pdf.cell(115.0, _LINE, "")
-            self._cell(65.0, _LINE, f"Total ({currency.value})  {amount.format()}", wrap=True)
+            text = self.t(
+                "total_for_currency", currency=currency.value, amount=amount.format()
+            )
+            self._cell(65.0, _LINE, text, wrap=True)
 
     def cancellation(self, document: Document) -> None:
         """A cancelled document still prints, and says so (§4.3 rule 2)."""
@@ -127,8 +142,8 @@ class DocumentPage:
             return
         self._pdf.ln(_LINE)
         self._pdf.set_font(self._family, size=10)
-        reason = document.cancellation_reason or "no reason given"
-        self._pdf.multi_cell(0, _LINE, self._text(f"CANCELLED: {reason}"))
+        reason = document.cancellation_reason or self.t("no_reason_given")
+        self._pdf.multi_cell(0, _LINE, self._text(self.t("cancelled", reason=reason)))
 
     def output(self) -> bytes:
         return bytes(self._pdf.output())
@@ -163,9 +178,12 @@ class DocumentPageFactory:
     exists touches the filesystem, and that belongs at startup.
     """
 
-    def __init__(self, font_path: str | None = None) -> None:
+    def __init__(
+        self, catalog: MessageCatalog, font_path: str | None = None
+    ) -> None:
+        self._catalog = catalog
         path = Path(font_path) if font_path else None
         self._font = path if path is not None and path.is_file() else None
 
-    def page(self) -> DocumentPage:
-        return DocumentPage(self._font)
+    def page(self, locale: Locale = Locale.EN) -> DocumentPage:
+        return DocumentPage(self._catalog, locale, self._font)

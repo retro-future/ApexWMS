@@ -13,6 +13,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
+from application.localization.locale import Locale
 from application.ports import (
     SupplierReturnRenderer,
     TenantSettingsRepository,
@@ -46,6 +47,7 @@ class GetSupplierReturnPdfHandler(
         locations: TenantDbRepository[Location, LocationModel],
         settings: TenantSettingsRepository,
         renderer: SupplierReturnRenderer,
+        locale: Locale,
     ) -> None:
         self._returns = returns
         self._products = products
@@ -53,6 +55,7 @@ class GetSupplierReturnPdfHandler(
         self._locations = locations
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetSupplierReturnPdfQuery
@@ -78,6 +81,7 @@ class GetSupplierReturnPdfHandler(
             None if supplier is None else supplier.name,
             None if location is None else location.name,
             await self._descriptions(document),
+            self._locale,
         )
         return ResultWithData[RenderedDocument].succeed_with_data(
             RenderedDocument(

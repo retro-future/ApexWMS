@@ -15,6 +15,7 @@ from application.dtos import (
     MonthEndReport,
     Period,
 )
+from application.localization.catalog import MessageCatalog
 from domain.value_objects import Currency, CurrencyTotals, Money
 from infrastructure.documents.month_end_pdf import PdfMonthEndReportRenderer
 from infrastructure.documents.page import DocumentPageFactory
@@ -47,7 +48,7 @@ def _report(figures: AccrualFigures) -> MonthEndReport:
 
 
 def _render(figures: AccrualFigures) -> str:
-    renderer = PdfMonthEndReportRenderer(DocumentPageFactory())
+    renderer = PdfMonthEndReportRenderer(DocumentPageFactory(MessageCatalog()))
     return pdf_text(renderer.render(_report(figures), Letterhead()))
 
 

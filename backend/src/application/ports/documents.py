@@ -19,6 +19,7 @@ from typing import Protocol
 from uuid import UUID
 
 from application.dtos import Letterhead, MonthEndReport, ProductLabel
+from application.localization.locale import Locale
 from domain.entities import PurchaseOrder, SalesInvoice, SupplierReturn
 from domain.enums import LabelLayout
 
@@ -27,7 +28,11 @@ class InvoiceRenderer(Protocol):
     """FR-8.1: a confirmed sale, on paper, with the store's own details."""
 
     def render(
-        self, invoice: SalesInvoice, letterhead: Letterhead, descriptions: dict[UUID, str]
+        self,
+        invoice: SalesInvoice,
+        letterhead: Letterhead,
+        descriptions: dict[UUID, str],
+        locale: Locale,
     ) -> bytes: ...
 
 
@@ -40,6 +45,7 @@ class PurchaseOrderRenderer(Protocol):
         letterhead: Letterhead,
         supplier: str | None,
         descriptions: dict[UUID, str],
+        locale: Locale,
     ) -> bytes: ...
 
 
@@ -53,6 +59,7 @@ class SupplierReturnRenderer(Protocol):
         supplier: str | None,
         location: str | None,
         descriptions: dict[UUID, str],
+        locale: Locale,
     ) -> bytes: ...
 
 

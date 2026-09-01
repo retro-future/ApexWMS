@@ -8,6 +8,7 @@ its own mutable page.
 
 from dishka import Provider, Scope, provide
 
+from application.localization.catalog import MessageCatalog
 from application.ports import (
     InvoiceRenderer,
     LabelRenderer,
@@ -30,8 +31,10 @@ class DocumentsProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def pages(self, settings: Settings) -> DocumentPageFactory:
-        return DocumentPageFactory(settings.pdf_font_path)
+    def pages(
+        self, settings: Settings, catalog: MessageCatalog
+    ) -> DocumentPageFactory:
+        return DocumentPageFactory(catalog, settings.pdf_font_path)
 
     @provide
     def invoice_renderer(self, pages: DocumentPageFactory) -> InvoiceRenderer:

@@ -17,6 +17,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
+from application.localization.locale import Locale
 from application.ports import (
     PurchaseOrderRenderer,
     TenantSettingsRepository,
@@ -46,12 +47,14 @@ class GetPurchaseOrderPdfHandler(
         suppliers: TenantDbRepository[Supplier, SupplierModel],
         settings: TenantSettingsRepository,
         renderer: PurchaseOrderRenderer,
+        locale: Locale,
     ) -> None:
         self._orders = orders
         self._products = products
         self._suppliers = suppliers
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetPurchaseOrderPdfQuery
@@ -75,6 +78,7 @@ class GetPurchaseOrderPdfHandler(
             await self._settings.get_letterhead(),
             None if supplier is None else supplier.name,
             await self._descriptions(order),
+            self._locale,
         )
         return ResultWithData[RenderedDocument].succeed_with_data(
             RenderedDocument(
