@@ -17,6 +17,7 @@ from di.providers.config import ConfigProvider
 from di.providers.documents import DocumentsProvider
 from di.providers.domain_services import DomainServicesProvider
 from di.providers.handlers import HandlersProvider
+from di.providers.localization import LocalizationProvider
 from di.providers.mappers import MapperProvider
 from di.providers.master_db import MasterDbProvider
 from di.providers.master_repositories import MasterRepositoriesProvider
@@ -35,6 +36,7 @@ __all__ = [
     "DocumentsProvider",
     "DomainServicesProvider",
     "HandlersProvider",
+    "LocalizationProvider",
     "MapperProvider",
     "MasterDbProvider",
     "MasterRepositoriesProvider",
