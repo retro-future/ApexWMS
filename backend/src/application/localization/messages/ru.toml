@@ -1,0 +1,19 @@
+# Message catalog — Russian. Missing keys fall back to en.toml.
+
+[errors]
+
+[documents]
+invoice_title = "Счёт"
+purchase_order_title = "Заказ поставщику"
+supplier_return_title = "Возврат поставщику"
+col_item = "Товар"
+col_qty = "Кол-во"
+col_price = "Цена"
+col_total = "Сумма"
+confirmed_at = "Подтверждён {timestamp}"
+total_for_currency = "Итого ({currency})  {amount}"
+cancelled = "ОТМЕНЁН: {reason}"
+no_reason_given = "причина не указана"
+detail_supplier = "Поставщик"
+detail_location = "Склад"
+detail_reason = "Причина"

@@ -1,0 +1,19 @@
+# Message catalog — Uzbek (Latin). Missing keys fall back to en.toml.
+
+[errors]
+
+[documents]
+invoice_title = "Hisob-faktura"
+purchase_order_title = "Yetkazib beruvchiga buyurtma"
+supplier_return_title = "Yetkazib beruvchiga qaytarish"
+col_item = "Tovar"
+col_qty = "Soni"
+col_price = "Narxi"
+col_total = "Jami"
+confirmed_at = "Tasdiqlangan {timestamp}"
+total_for_currency = "Jami ({currency})  {amount}"
+cancelled = "BEKOR QILINDI: {reason}"
+no_reason_given = "sabab ko'rsatilmagan"
+detail_supplier = "Yetkazib beruvchi"
+detail_location = "Ombor"
+detail_reason = "Sabab"

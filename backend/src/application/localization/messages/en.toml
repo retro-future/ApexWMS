@@ -1,0 +1,20 @@
+# Message catalog — English (also the fallback for any key a locale is missing).
+# [errors] is keyed by an exception's `code`; [documents] by a renderer literal.
+
+[errors]
+
+[documents]
+invoice_title = "Invoice"
+purchase_order_title = "Purchase Order"
+supplier_return_title = "Supplier Return"
+col_item = "Item"
+col_qty = "Qty"
+col_price = "Price"
+col_total = "Total"
+confirmed_at = "Confirmed {timestamp}"
+total_for_currency = "Total ({currency})  {amount}"
+cancelled = "CANCELLED: {reason}"
+no_reason_given = "no reason given"
+detail_supplier = "Supplier"
+detail_location = "Location"
+detail_reason = "Reason"
