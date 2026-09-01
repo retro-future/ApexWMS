@@ -12,6 +12,9 @@ invalid_credentials = "Wrong email or password."
 invalid_token = "Your session is no longer valid. Sign in again."
 tenant_not_active = "This store is not active."
 last_owner = "A store must keep at least one Owner."
+unit_not_sellable = "IMEI {imei} is {status} and cannot be sold."
+wrong_location = "IMEI {imei} is held at another location; {number} sells from its own."
+insufficient_stock = "This location holds {on_hand} of {sku}; {number} would sell {wanted}. There is no partial fulfilment."
 
 [documents]
 invoice_title = "Invoice"

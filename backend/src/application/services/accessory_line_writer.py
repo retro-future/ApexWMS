@@ -68,5 +68,9 @@ class AccessoryLineWriter:
             raise InsufficientStockError(
                 f"this store holds {on_hand} of {product.sku} at {invoice.number}'s "
                 f"location, and the invoice would sell {wanted} — there is no partial "
-                "fulfilment (FR-4.7)"
+                "fulfilment (FR-4.7)",
+                on_hand=on_hand,
+                sku=product.sku,
+                wanted=wanted,
+                number=invoice.number,
             )

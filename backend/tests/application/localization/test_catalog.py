@@ -40,3 +40,12 @@ def test_packaged_catalog_loads_and_documents_keys_match_across_locales() -> Non
     assert "invoice_title" in en_docs
     for locale in (Locale.RU, Locale.UZ):
         assert cat.locale_keys(locale, "documents") >= en_docs
+
+
+def test_every_english_key_is_translated_in_ru_and_uz() -> None:
+    cat = MessageCatalog()
+    for table in ("errors", "documents"):
+        english = cat.keys(table)
+        for locale in (Locale.RU, Locale.UZ):
+            missing = english - cat.locale_keys(locale, table)
+            assert not missing, f"{locale.value} {table} missing: {sorted(missing)}"

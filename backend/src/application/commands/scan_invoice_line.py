@@ -152,12 +152,16 @@ class ScanInvoiceLineHandler(
     def _assert_sellable(invoice: SalesInvoice, unit: DeviceUnit) -> None:
         if unit.status is not DeviceStatus.IN_STOCK:
             raise UnitNotSellableError(
-                f"IMEI {unit.imei} is {unit.status.value} and cannot be sold (FR-4.3)"
+                f"IMEI {unit.imei} is {unit.status.value} and cannot be sold (FR-4.3)",
+                imei=str(unit.imei),
+                status=unit.status.value,
             )
         if unit.location_id != invoice.location_id:
             raise WrongLocationError(
                 f"IMEI {unit.imei} is held at another location, and {invoice.number} "
-                "sells from its own (FR-4.4)"
+                "sells from its own (FR-4.4)",
+                imei=str(unit.imei),
+                number=invoice.number,
             )
 
     @staticmethod

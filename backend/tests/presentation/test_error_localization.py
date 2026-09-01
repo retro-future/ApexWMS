@@ -3,7 +3,7 @@ import json
 from starlette.requests import Request
 
 from application.errors import ApplicationError, InvalidCredentialsError
-from domain.errors import DomainError, InsufficientStockError
+from domain.errors import DomainError, EmptyInvoiceError, WrongLocationError
 from presentation.errors import _handle
 
 
@@ -21,6 +21,16 @@ async def test_catalogued_error_is_localized() -> None:
     assert await _detail(InvalidCredentialsError(), "ru") == "Неверная почта или пароль."
 
 
+async def test_error_params_are_interpolated_into_the_localized_template() -> None:
+    detail = await _detail(
+        WrongLocationError("english fallback", imei="356938035643809", number="INV-7"),
+        "ru",
+    )
+    assert "356938035643809" in detail
+    assert "INV-7" in detail
+    assert "английском" not in detail  # the fallback string is not used
+
+
 async def test_unknown_accept_language_uses_the_default_locale() -> None:
     assert await _detail(InvalidCredentialsError(), "fr") == "Email yoki parol noto'g'ri."
 
@@ -30,8 +40,8 @@ async def test_no_accept_language_uses_the_default_locale() -> None:
 
 
 async def test_uncatalogued_code_uses_the_exception_message() -> None:
-    detail = await _detail(InsufficientStockError("holds 2, wanted 5"), "ru")
-    assert detail == "holds 2, wanted 5"
+    detail = await _detail(EmptyInvoiceError("INV-1 has no lines"), "ru")
+    assert detail == "INV-1 has no lines"
 
 
 def test_every_user_facing_error_has_a_code() -> None:
