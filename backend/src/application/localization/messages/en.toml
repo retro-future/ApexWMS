@@ -14,6 +14,7 @@ tenant_not_active = "This store is not active."
 last_owner = "A store must keep at least one Owner."
 unit_not_sellable = "IMEI {imei} is {status} and cannot be sold."
 wrong_location = "IMEI {imei} is held at another location; {number} sells from its own."
+anonymous_debt = "{number} lends on store credit but names no customer. A debt has to belong to someone."
 insufficient_stock = "This location holds {on_hand} of {sku}; {number} would sell {wanted}. There is no partial fulfilment."
 
 [documents]

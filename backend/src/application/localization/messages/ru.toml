@@ -9,6 +9,7 @@ tenant_not_active = "Этот магазин не активен."
 last_owner = "В магазине должен остаться хотя бы один владелец."
 unit_not_sellable = "IMEI {imei}: статус «{status}», продажа невозможна."
 wrong_location = "IMEI {imei} находится на другом складе, а {number} продаёт со своего."
+anonymous_debt = "{number} продаёт в долг, но не указан клиент. Долг должен быть за кем-то закреплён."
 insufficient_stock = "На складе {on_hand} шт. {sku}, а {number} продаёт {wanted}. Частичная отгрузка невозможна."
 
 [documents]

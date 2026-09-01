@@ -245,7 +245,8 @@ class SalesInvoice(Document):
         if self.customer_id is None:
             raise AnonymousDebtError(
                 f"{self.number} lends on store credit but names no customer — "
-                "a debt has to belong to somebody (§4.7)"
+                "a debt has to belong to somebody (§4.7)",
+                number=self.number,
             )
         if self.credit_company_id is not None:
             raise CreditTermsError(

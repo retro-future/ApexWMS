@@ -9,6 +9,7 @@ tenant_not_active = "Bu do'kon faol emas."
 last_owner = "Do'konda kamida bitta egasi qolishi kerak."
 unit_not_sellable = "IMEI {imei}: holati «{status}», sotib bo'lmaydi."
 wrong_location = "IMEI {imei} boshqa omborda, {number} esa o'zinikidan sotadi."
+anonymous_debt = "{number} nasiyaga sotmoqda, lekin mijoz ko’rsatilmagan. Qarz kimgadir tegishli bo’lishi kerak."
 insufficient_stock = "Omborda {sku} {on_hand} dona, {number} esa {wanted} dona sotadi. Qisman yetkazish yo'q."
 
 [documents]
