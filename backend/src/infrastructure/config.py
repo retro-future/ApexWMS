@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     tenant_pool_size: int = 5
 
     # Document PDFs (FR-8.1). fpdf2's built-in Helvetica covers Latin-1
-    # only, which is enough for Uzbek Latin and "so'm" but not Cyrillic.
-    # Point this at a Unicode TTF (DejaVu Sans, Noto Sans) to print Russian
-    # names properly; unset, they degrade to '?' rather than failing the
-    # download.
+    # only, which is enough for Uzbek Latin and "so'm" but not Cyrillic. A
+    # DejaVu Sans TTF ships at src/infrastructure/documents/fonts/; point
+    # this at it (see .env.example) to print Russian names properly. Unset,
+    # Cyrillic degrades to '?' rather than failing the download.
     pdf_font_path: str | None = None
