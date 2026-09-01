@@ -32,7 +32,7 @@ services:
     image: apexwms-backend:latest
     command: ["sh", "-c", "apexwms migrate-master && apexwms migrate --all-tenants"]
     environment:
-      APEXWMS_MASTER_DB_URL: ${APEXWMS_MASTER_DB_URL}
+      APEXWMS_MASTER_DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       APEXWMS_JWT_SECRET: ${APEXWMS_JWT_SECRET}
     depends_on:
       postgres:
@@ -46,7 +46,7 @@ services:
     image: apexwms-backend:latest
     restart: unless-stopped
     environment:
-      APEXWMS_MASTER_DB_URL: ${APEXWMS_MASTER_DB_URL}
+      APEXWMS_MASTER_DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       APEXWMS_JWT_SECRET: ${APEXWMS_JWT_SECRET}
       APEXWMS_DEBUG: ${APEXWMS_DEBUG:-false}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
