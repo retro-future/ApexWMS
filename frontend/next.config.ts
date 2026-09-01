@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
+  // Ships a self-contained server bundle (.next/standalone) for the Docker image.
+  output: "standalone",
   // Lets the dev server serve phones/tablets on the LAN (e.g. testing login
   // on a real device) instead of silently blocking RSC/navigation requests.
   // The ngrok-free.app wildcard covers the free-tier random subdomain that

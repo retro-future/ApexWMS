@@ -1,0 +1,106 @@
+# Production / pre-deploy stack. Runs the same locally and on the server.
+#
+#   cp .env.prod.example .env.prod   # then edit
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Add `--profile edge` to also run Caddy (auto-HTTPS on CADDY_DOMAIN).
+# Without it, the frontend is published on FRONTEND_PORT for your own nginx.
+
+name: apexwms-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: master schema, then every tenant database. Backend waits for it.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: apexwms-backend:latest
+    command: ["sh", "-c", "apexwms migrate-master && apexwms migrate --all-tenants"]
+    environment:
+      APEXWMS_MASTER_DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      APEXWMS_JWT_SECRET: ${APEXWMS_JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: apexwms-backend:latest
+    restart: unless-stopped
+    environment:
+      APEXWMS_MASTER_DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      APEXWMS_JWT_SECRET: ${APEXWMS_JWT_SECRET}
+      APEXWMS_DEBUG: ${APEXWMS_DEBUG:-false}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: apexwms-frontend:latest
+    restart: unless-stopped
+    environment:
+      APEX_API_URL: ${APEX_API_URL:-http://backend:8000/api/v1}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-127.0.0.1:3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["edge"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN}
+      CADDY_EMAIL: ${CADDY_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
