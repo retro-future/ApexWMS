@@ -184,8 +184,21 @@ class TestGrouping:
         assert body["totalItems"] == 1
         row = body["data"][0]
         assert row["label"] == "iPhone 15 Pro"
+        assert row["sku"] == "IP15P-256"
         assert row["quantity"] == 2
         assert subtotals(row) == {"USD": 135000}
+
+    async def test_the_sku_rides_along_only_when_grouping_by_product(
+        self, client, store
+    ):
+        owner, ids = store
+        await a_phone_on_the_shelf(client, owner, ids)
+
+        by_location = (await on_hand(client, owner.auth, groupBy="location"))["data"][0]
+        by_product = (await on_hand(client, owner.auth, groupBy="product"))["data"][0]
+
+        assert "sku" not in by_location
+        assert by_product["sku"] == "IP15P-256"
 
     async def test_by_brand_groups_on_the_free_text_column(self, client, store):
         owner, ids = store

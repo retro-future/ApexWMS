@@ -712,6 +712,8 @@ export type StockOnHandRow = {
   groupBy: StockGroupBy;
   key: string | null;
   label: string;
+  /** Only present when grouping by product. */
+  sku?: string | null;
   quantity: number;
   /** --- Permission.Cost.View only --- */
   costValue?: CurrencySubtotal[] | null;

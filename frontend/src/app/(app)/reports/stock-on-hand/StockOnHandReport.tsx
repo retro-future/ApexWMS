@@ -108,9 +108,16 @@ export function StockOnHandReport() {
         <Table.Tr key={`${row.groupBy}-${row.key ?? row.label}`}>
           <Table.Td>
             {groupBy === "product" && row.key ? (
-              <Anchor component={Link} href={`/products/${row.key}`} fw={500}>
-                {row.label}
-              </Anchor>
+              <div>
+                <Anchor component={Link} href={`/products/${row.key}`} fw={500}>
+                  {row.label}
+                </Anchor>
+                {row.sku && (
+                  <Text size="xs" c="dimmed">
+                    {row.sku}
+                  </Text>
+                )}
+              </div>
             ) : (
               <Text size="sm" fw={500}>
                 {row.label || tCommon("none")}

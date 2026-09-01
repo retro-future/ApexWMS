@@ -29,6 +29,7 @@ class OnHandBucket:
     label: str
     quantity: int
     value: Money
+    sku: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,7 @@ class AccessoryOnHand:
     quantity: int
     key: UUID | str | None
     label: str
+    sku: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,3 +55,4 @@ class StockOnHandGroup:
     label: str
     quantity: int
     cost_value: CurrencyTotals
+    sku: str | None = None

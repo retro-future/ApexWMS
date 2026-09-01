@@ -21,6 +21,8 @@ class StockOnHandData(CamelModel):
     key: str | None
     label: str
     quantity: int
+    # Only set when grouping by product; None for location/brand rows.
+    sku: str | None = None
     # --- Permission.Cost.View only (FR-9.1) ---
     cost_value: list[CurrencySubtotalData] | None = None
 
@@ -33,6 +35,7 @@ class StockOnHandData(CamelModel):
             key=None if group.key is None else str(group.key),
             label=group.label,
             quantity=group.quantity,
+            sku=group.sku,
         )
         if not show_cost:
             return data

@@ -153,7 +153,7 @@ async def list_ageing(
     return await handler.handle(query)
 
 
-@router.get("/stock-on-hand")
+@router.get("/stock-on-hand", response_model_exclude_none=True)
 async def get_stock_on_hand(
     query: Annotated[GetStockOnHandQuery, Query()],
     current: FromDishka[CurrentUser],

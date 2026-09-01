@@ -13,7 +13,7 @@ returns the pairs and ``StockOnHandReader`` values them.
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Row, func, select
+from sqlalchemy import ColumnElement, Row, func, null, select
 
 from application.dtos import AccessoryOnHand, OnHandBucket, StockGroupBy
 from domain.enums import TrackingType
@@ -43,11 +43,12 @@ class SqlStockOnHandQueries:
         product_id: UUID | None = None,
         brand: str | None = None,
     ) -> list[OnHandBucket]:
-        key, label = self._dimension(group_by)
+        key, label, sku = self._dimension(group_by)
         stmt = (
             select(
                 key,
                 label,
+                sku,
                 ProductModel.currency,
                 func.count(DeviceUnitModel.id),
                 func.sum(DeviceUnitModel.acquisition_cost_minor),
@@ -73,7 +74,7 @@ class SqlStockOnHandQueries:
         product_id: UUID | None = None,
         brand: str | None = None,
     ) -> list[AccessoryOnHand]:
-        key, label = self._dimension(group_by)
+        key, label, sku = self._dimension(group_by)
         stmt = (
             select(
                 StockLevelModel.product_id,
@@ -81,6 +82,7 @@ class SqlStockOnHandQueries:
                 StockLevelModel.quantity,
                 key,
                 label,
+                sku,
             )
             .join(ProductModel, ProductModel.id == StockLevelModel.product_id)
             .join(LocationModel, LocationModel.id == StockLevelModel.location_id)
@@ -99,20 +101,24 @@ class SqlStockOnHandQueries:
     @staticmethod
     def _dimension(
         group_by: StockGroupBy,
-    ) -> tuple[ColumnElement[Any], ColumnElement[Any]]:
-        """The key and the human label both statements group by, stated once
-        so the two halves cannot group differently."""
+    ) -> tuple[ColumnElement[Any], ColumnElement[Any], ColumnElement[Any]]:
+        """The key, the human label and the SKU both statements group by,
+        stated once so the two halves cannot group differently. The SKU is
+        only meaningful when grouping by product."""
+        no_sku = null().label("group_sku")
         if group_by is StockGroupBy.PRODUCT:
             return (
                 ProductModel.id.label("group_key"),
                 ProductModel.name.label("group_label"),
+                ProductModel.sku.label("group_sku"),
             )
         if group_by is StockGroupBy.BRAND:
             branded = func.coalesce(ProductModel.brand, UNBRANDED)
-            return branded.label("group_key"), branded.label("group_label")
+            return branded.label("group_key"), branded.label("group_label"), no_sku
         return (
             LocationModel.id.label("group_key"),
             LocationModel.name.label("group_label"),
+            no_sku,
         )
 
     @staticmethod
@@ -127,11 +133,12 @@ class SqlStockOnHandQueries:
         return filters
 
     @staticmethod
-    def _to_bucket(row: Row[tuple[Any, Any, str, int, int]]) -> OnHandBucket:
-        key, label, currency_code, count, cost_minor = row._tuple()
+    def _to_bucket(row: Row[tuple[Any, Any, str | None, str, int, int]]) -> OnHandBucket:
+        key, label, sku, currency_code, count, cost_minor = row._tuple()
         return OnHandBucket(
             key=key,
             label=label,
+            sku=sku,
             quantity=count,
             # Postgres widens SUM(BIGINT) to NUMERIC, and Money refuses
             # anything that is not an int.
@@ -139,12 +146,15 @@ class SqlStockOnHandQueries:
         )
 
     @staticmethod
-    def _to_accessory(row: Row[tuple[UUID, UUID, int, Any, Any]]) -> AccessoryOnHand:
-        product_id, location_id, quantity, key, label = row._tuple()
+    def _to_accessory(
+        row: Row[tuple[UUID, UUID, int, Any, Any, str | None]],
+    ) -> AccessoryOnHand:
+        product_id, location_id, quantity, key, label, sku = row._tuple()
         return AccessoryOnHand(
             product_id=product_id,
             location_id=location_id,
             quantity=quantity,
             key=key,
             label=label,
+            sku=sku,
         )

@@ -36,10 +36,12 @@ class StockOnHandReader:
     ) -> list[StockOnHandGroup]:
         quantities: dict[UUID | str | None, int] = {}
         labels: dict[UUID | str | None, str] = {}
+        skus: dict[UUID | str | None, str | None] = {}
         values: dict[UUID | str | None, CurrencyTotals] = {}
 
         def fold(bucket: OnHandBucket) -> None:
             labels[bucket.key] = bucket.label
+            skus[bucket.key] = bucket.sku
             quantities[bucket.key] = quantities.get(bucket.key, 0) + bucket.quantity
             running = values.get(bucket.key, CurrencyTotals.empty())
             values[bucket.key] = running.add(bucket.value)
@@ -61,6 +63,7 @@ class StockOnHandReader:
                     label=row.label,
                     quantity=row.quantity,
                     value=pool.value,
+                    sku=row.sku,
                 )
             )
 
@@ -71,6 +74,7 @@ class StockOnHandReader:
                 label=labels[key],
                 quantity=quantities[key],
                 cost_value=values[key],
+                sku=skus[key],
             )
             for key in sorted(labels, key=lambda one: (labels[one], str(one)))
         ]
