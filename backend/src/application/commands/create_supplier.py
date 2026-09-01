@@ -43,7 +43,11 @@ class CreateSupplierHandler(
         if await self._suppliers.exists(
             Specification(SupplierModel).where(SupplierModel.name == name)
         ):
-            raise DuplicateNameError(f"a supplier called {name!r} already exists")
+            raise DuplicateNameError(
+            f"a supplier called {name!r} already exists",
+            subject_key="supplier",
+            name=name,
+        )
 
         supplier = Supplier(
             id=uuid4(),

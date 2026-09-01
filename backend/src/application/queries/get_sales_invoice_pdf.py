@@ -21,6 +21,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
+from application.localization.locale import Locale
 from application.ports import (
     InvoiceRenderer,
     TenantSettingsRepository,
@@ -50,12 +51,14 @@ class GetSalesInvoicePdfHandler(
         units: TenantDbRepository[DeviceUnit, DeviceUnitModel],
         settings: TenantSettingsRepository,
         renderer: InvoiceRenderer,
+        locale: Locale,
     ) -> None:
         self._invoices = invoices
         self._products = products
         self._units = units
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetSalesInvoicePdfQuery
@@ -65,12 +68,16 @@ class GetSalesInvoicePdfHandler(
         )
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         if invoice.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{invoice.number} is still a draft and holds no prices — "
-                "confirm it before printing it"
+                "confirm it before printing it",
+                key="draft_cannot_print",
+                number=invoice.number,
             )
 
         letterhead = await self._settings.get_letterhead()
@@ -78,7 +85,7 @@ class GetSalesInvoicePdfHandler(
             filename=f"{invoice.number}.pdf",
             content_type="application/pdf",
             content=self._renderer.render(
-                invoice, letterhead, await self._descriptions(invoice)
+                invoice, letterhead, await self._descriptions(invoice), self._locale
             ),
         )
         return ResultWithData[RenderedDocument].succeed_with_data(rendered)

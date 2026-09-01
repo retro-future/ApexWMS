@@ -28,7 +28,11 @@ class DeviceUnitLoader:
         """
         unit = await self._units.find_one(DeviceUnitById(device_unit_id))
         if unit is None:
-            raise NotFoundError("no such device unit in this store")
+            raise NotFoundError(
+                "no such device unit in this store",
+                key="not_found",
+                subject_key="device_unit",
+            )
         return unit, await self._catalog_row_of(unit)
 
     async def load_by_imei(self, imei: str) -> tuple[DeviceUnit, Product] | None:
@@ -49,5 +53,9 @@ class DeviceUnitLoader:
         if product is None:
             # Impossible through a foreign key, and worth saying plainly rather
             # than failing later with an attribute error on None.
-            raise NotFoundError(f"device unit {unit.id} points at a missing product")
+            raise NotFoundError(
+                f"device unit {unit.id} points at a missing product",
+                key="not_found",
+                subject_key="product",
+            )
         return product

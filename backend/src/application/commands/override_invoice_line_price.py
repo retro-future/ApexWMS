@@ -77,7 +77,9 @@ class OverrideInvoiceLinePriceHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         invoice.assert_editable()
         line = self._target_line(invoice.lines, request.line_id, invoice.number)
@@ -105,7 +107,7 @@ class OverrideInvoiceLinePriceHandler(
     ) -> SalesInvoiceLine:
         line = next((one for one in lines if one.id == line_id), None)
         if line is None:
-            raise NotFoundError(f"{number} has no line {line_id}")
+            raise NotFoundError(f"{number} has no line {line_id}", key="not_found_line")
         return line
 
     @staticmethod

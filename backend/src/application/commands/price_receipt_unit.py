@@ -63,7 +63,9 @@ class PriceReceiptUnitHandler(
         receipt = await self._receipts.find_one(spec)
         if receipt is None:
             raise NotFoundError(
-                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+                f"goods receipt {request.goods_receipt_id} does not exist in this store",
+                key="not_found",
+                subject_key="goods_receipt",
             )
         receipt.assert_editable()
 
@@ -115,4 +117,8 @@ class PriceReceiptUnitHandler(
             for unit in line.units:
                 if unit.imei == wanted:
                     return line, unit
-        raise NotFoundError(f"{receipt.number} has no scan of IMEI {wanted}")
+        raise NotFoundError(
+            f"{receipt.number} has no scan of IMEI {wanted}",
+            key="not_found_scan",
+            imei=str(wanted),
+        )

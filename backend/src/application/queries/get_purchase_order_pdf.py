@@ -17,6 +17,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
+from application.localization.locale import Locale
 from application.ports import (
     PurchaseOrderRenderer,
     TenantSettingsRepository,
@@ -46,12 +47,14 @@ class GetPurchaseOrderPdfHandler(
         suppliers: TenantDbRepository[Supplier, SupplierModel],
         settings: TenantSettingsRepository,
         renderer: PurchaseOrderRenderer,
+        locale: Locale,
     ) -> None:
         self._orders = orders
         self._products = products
         self._suppliers = suppliers
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetPurchaseOrderPdfQuery
@@ -61,12 +64,16 @@ class GetPurchaseOrderPdfHandler(
         )
         if order is None:
             raise NotFoundError(
-                f"purchase order {request.purchase_order_id} does not exist in this store"
+                f"purchase order {request.purchase_order_id} does not exist in this store",
+                key="not_found",
+                subject_key="purchase_order",
             )
         if order.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{order.number} is still a draft and its lines may hold no cost — "
-                "confirm it before printing it"
+                "confirm it before printing it",
+                key="draft_cannot_print",
+                number=order.number,
             )
 
         supplier = await self._suppliers.get(order.supplier_id)
@@ -75,6 +82,7 @@ class GetPurchaseOrderPdfHandler(
             await self._settings.get_letterhead(),
             None if supplier is None else supplier.name,
             await self._descriptions(order),
+            self._locale,
         )
         return ResultWithData[RenderedDocument].succeed_with_data(
             RenderedDocument(

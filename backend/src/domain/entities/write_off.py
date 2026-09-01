@@ -67,7 +67,8 @@ class WriteOff(Document):
     def _assert_has_lines(self) -> None:
         if not self.lines:
             raise EmptyDocumentError(
-                f"{self.number} has no lines — nothing is being written off"
+                f"{self.number} has no lines — nothing is being written off",
+                number=self.number,
             )
 
     def _assert_no_unit_twice(self) -> None:
@@ -78,6 +79,7 @@ class WriteOff(Document):
             if line.device_unit_id in seen:
                 raise DuplicateScanError(
                     f"{self.number} writes the same handset off twice — "
-                    "one phone, one line"
+                    "one phone, one line",
+                    number=self.number,
                 )
             seen.add(line.device_unit_id)

@@ -7,6 +7,7 @@ type CallOptions = {
   body?: string;
   accessToken?: string;
   contentType?: string | null;
+  locale?: string;
 };
 
 /**
@@ -16,10 +17,11 @@ type CallOptions = {
  */
 export function callBackend(
   path: string,
-  { method = "GET", body, accessToken, contentType }: CallOptions = {},
+  { method = "GET", body, accessToken, contentType, locale }: CallOptions = {},
 ): Promise<Response> {
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (locale) headers["Accept-Language"] = locale;
   if (body !== undefined)
     headers["Content-Type"] = contentType ?? "application/json";
 

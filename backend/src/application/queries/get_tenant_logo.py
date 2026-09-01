@@ -29,7 +29,10 @@ class GetTenantLogoHandler(
     ) -> ResultWithData[RenderedDocument]:
         logo = (await self._settings.get_letterhead()).logo
         if logo is None:
-            raise NotFoundError("this store has not set a letterhead logo")
+            raise NotFoundError(
+                "this store has not set a letterhead logo",
+                key="no_letterhead_logo",
+            )
         extension = _EXTENSIONS.get(logo.content_type, "bin")
         return ResultWithData[RenderedDocument].succeed_with_data(
             RenderedDocument(

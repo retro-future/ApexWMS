@@ -152,7 +152,8 @@ class StockCount(Document):
         if self.is_closed:
             raise CountAlreadyClosedError(
                 f"{self.number} was closed and its discrepancies reported — "
-                "reopening it would let the adjustments describe a different shelf"
+                "reopening it would let the adjustments describe a different shelf",
+                number=self.number,
             )
 
     def assert_valuable(self) -> None:
@@ -198,14 +199,16 @@ class StockCount(Document):
         if not self.units and not self.lines:
             raise EmptyDocumentError(
                 f"{self.number} snapshotted nothing and scanned nothing — there is "
-                "no shelf here to report on"
+                "no shelf here to report on",
+                number=self.number,
             )
 
     def _assert_closed(self) -> None:
         if not self.is_closed:
             raise CountNotClosedError(
                 f"{self.number} has not been closed — its discrepancies have to be "
-                "reported before they are applied (FR-6.3)"
+                "reported before they are applied (FR-6.3)",
+                number=self.number,
             )
 
     def _assert_surprises_priced(self) -> None:
@@ -222,7 +225,10 @@ class StockCount(Document):
         if unknown:
             raise UnpricedUnitError(
                 f"{self.number} cannot be confirmed — these handsets are unknown to "
-                f"the store and name no product: {', '.join(unknown)} (FR-6.3)"
+                f"the store and name no product: {', '.join(unknown)} (FR-6.3)",
+                key="count_unknown_handsets",
+                number=self.number,
+                items=", ".join(unknown),
             )
 
         costless = sorted(
@@ -233,5 +239,8 @@ class StockCount(Document):
         if costless:
             raise UnpricedUnitError(
                 f"{self.number} cannot be confirmed — nothing says what these cost, "
-                f"and a surplus is booked at its value: {', '.join(costless)} (FR-6.4b)"
+                f"and a surplus is booked at its value: {', '.join(costless)} (FR-6.4b)",
+                key="count_uncosted_surplus",
+                number=self.number,
+                items=", ".join(costless),
             )

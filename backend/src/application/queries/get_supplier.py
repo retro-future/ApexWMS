@@ -21,7 +21,11 @@ class GetSupplierHandler(IRequestHandler[ResultWithData[SupplierData], GetSuppli
     async def handle(self, request: GetSupplierQuery) -> ResultWithData[SupplierData]:
         supplier = await self._suppliers.get(request.supplier_id)
         if supplier is None:
-            raise NotFoundError("no such supplier in this store")
+            raise NotFoundError(
+                "no such supplier in this store",
+                key="not_found",
+                subject_key="supplier",
+            )
         return ResultWithData[SupplierData].succeed_with_data(
             SupplierData.from_entity(supplier)
         )

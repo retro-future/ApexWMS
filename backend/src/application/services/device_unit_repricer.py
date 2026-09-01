@@ -56,7 +56,9 @@ class DeviceUnitRepricer:
             raise CurrencyMismatchError(
                 f"priced in {new_price.currency.value} but IMEI {unit.imei} is "
                 f"denominated in {unit.currency.value} — a unit takes its currency "
-                "from its product (FR-2.13)"
+                "from its product (FR-2.13)",
+                key="reprice_currency_mismatch",
+                imei=str(unit.imei),
             )
         if unit.asking_price == new_price:
             return

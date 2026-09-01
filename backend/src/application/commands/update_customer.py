@@ -40,7 +40,11 @@ class UpdateCustomerHandler(
         assert request.customer_id is not None
         customer = await self._customers.find_one(CustomerForWrite(request.customer_id))
         if customer is None:
-            raise NotFoundError("no such customer in this store")
+            raise NotFoundError(
+                "no such customer in this store",
+                key="not_found",
+                subject_key="customer",
+            )
 
         if request.full_name is not None:
             customer.full_name = request.full_name.strip()

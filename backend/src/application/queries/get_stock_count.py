@@ -42,7 +42,9 @@ class GetStockCountHandler(
         count = await self._counts.find_one(StockCountById(request.stock_count_id))
         if count is None:
             raise NotFoundError(
-                f"stock count {request.stock_count_id} does not exist in this store"
+                f"stock count {request.stock_count_id} does not exist in this store",
+                key="not_found",
+                subject_key="stock_count",
             )
         return ResultWithData[StockCountData].succeed_with_data(
             StockCountData.from_entity(

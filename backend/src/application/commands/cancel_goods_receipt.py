@@ -66,7 +66,9 @@ class CancelGoodsReceiptHandler(
         receipt = await self._receipts.find_one(spec)
         if receipt is None:
             raise NotFoundError(
-                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+                f"goods receipt {request.goods_receipt_id} does not exist in this store",
+                key="not_found",
+                subject_key="goods_receipt",
             )
 
         receipt.cancel(self._clock.now(), self._current.user_id, request.reason)

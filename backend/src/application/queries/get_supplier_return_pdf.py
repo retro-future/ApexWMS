@@ -13,6 +13,7 @@ from application.common.repository import TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
 from application.errors import NotFoundError
+from application.localization.locale import Locale
 from application.ports import (
     SupplierReturnRenderer,
     TenantSettingsRepository,
@@ -46,6 +47,7 @@ class GetSupplierReturnPdfHandler(
         locations: TenantDbRepository[Location, LocationModel],
         settings: TenantSettingsRepository,
         renderer: SupplierReturnRenderer,
+        locale: Locale,
     ) -> None:
         self._returns = returns
         self._products = products
@@ -53,6 +55,7 @@ class GetSupplierReturnPdfHandler(
         self._locations = locations
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetSupplierReturnPdfQuery
@@ -62,12 +65,16 @@ class GetSupplierReturnPdfHandler(
         )
         if document is None:
             raise NotFoundError(
-                f"supplier return {request.supplier_return_id} does not exist in this store"
+                f"supplier return {request.supplier_return_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier_return",
             )
         if document.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{document.number} is still a draft and nothing has left the shelf — "
-                "confirm it before printing it"
+                "confirm it before printing it",
+                key="draft_cannot_print",
+                number=document.number,
             )
 
         supplier = await self._suppliers.get(document.supplier_id)
@@ -78,6 +85,7 @@ class GetSupplierReturnPdfHandler(
             None if supplier is None else supplier.name,
             None if location is None else location.name,
             await self._descriptions(document),
+            self._locale,
         )
         return ResultWithData[RenderedDocument].succeed_with_data(
             RenderedDocument(

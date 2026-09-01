@@ -57,14 +57,17 @@ class SetTenantLogoHandler(
         try:
             raw = base64.b64decode(content, validate=True)
         except (binascii.Error, ValueError) as exc:
-            raise InvalidLogoError("the logo is not valid base64") from exc
+            raise InvalidLogoError("the logo is not valid base64", key="logo_bad_base64") from exc
         if not raw:
-            raise InvalidLogoError("the logo is empty")
+            raise InvalidLogoError("the logo is empty", key="logo_empty")
         if len(raw) > _MAX_BYTES:
             raise InvalidLogoError(
-                f"the logo is {len(raw)} bytes; the limit is {_MAX_BYTES}"
+                f"the logo is {len(raw)} bytes; the limit is {_MAX_BYTES}",
+                key="logo_too_big",
+                size=len(raw),
+                limit=_MAX_BYTES,
             )
         for signature, content_type in _SIGNATURES.items():
             if raw.startswith(signature):
                 return TenantLogo(content=raw, content_type=content_type)
-        raise InvalidLogoError("the logo is neither a PNG nor a JPEG")
+        raise InvalidLogoError("the logo is neither a PNG nor a JPEG", key="logo_wrong_type")

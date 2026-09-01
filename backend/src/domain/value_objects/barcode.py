@@ -46,12 +46,18 @@ class Barcode:
         if len(self.value) not in self.VALID_LENGTHS:
             raise InvalidBarcodeError(
                 f"barcode must be {', '.join(map(str, self.VALID_LENGTHS))} digits (EAN/UPC), "
-                f"got {len(self.value)}"
+                f"got {len(self.value)}",
+                key="barcode_wrong_length",
+                lengths=", ".join(map(str, self.VALID_LENGTHS)),
             )
         if not self.value.isascii() or not self.value.isdigit():
-            raise InvalidBarcodeError("barcode must contain only digits 0-9")
+            raise InvalidBarcodeError(
+                "barcode must contain only digits 0-9", key="barcode_not_digits"
+            )
         if _gs1_check_digit(self.value[:-1]) != int(self.value[-1]):
-            raise InvalidBarcodeError(f"barcode {self.value} fails the GS1 check digit")
+            raise InvalidBarcodeError(
+                f"barcode {self.value} fails the GS1 check digit", key="barcode_bad_check"
+            )
 
     @classmethod
     def from_payload(cls, payload: str) -> Barcode:

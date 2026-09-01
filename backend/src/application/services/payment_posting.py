@@ -104,18 +104,23 @@ class PaymentPoster:
         if not invoice.payment_type.opens_debt or invoice.debt is None:
             raise NotACreditSaleError(
                 f"{invoice.number} is {invoice.payment_type.value} and was settled "
-                "at confirm, so there is nothing to pay down (FR-11.4)"
+                "at confirm, so there is nothing to pay down (FR-11.4)",
+                key="not_a_credit_sale",
+                number=invoice.number,
             )
         if invoice.status is not DocumentStatus.CONFIRMED:
             raise NotACreditSaleError(
                 f"{invoice.number} is {invoice.status.value} and owes nothing — a "
-                "cancelled sale's debt is void (FR-11.11)"
+                "cancelled sale's debt is void (FR-11.11)",
+                key="debt_already_void",
+                number=invoice.number,
             )
 
         if amount.currency is not Currency.UZS:
             raise CurrencyMismatchError(
                 f"a payment of {amount.currency.value} settles nothing — all "
-                "customer debt is written in som (§4.7)"
+                "customer debt is written in som (§4.7)",
+                key="payment_not_som",
             )
 
         paid = Money.zero(Currency.UZS)
@@ -125,5 +130,8 @@ class PaymentPoster:
         if amount > remaining:
             raise OverpaymentError(
                 f"{amount.format()} is more than the {remaining.format()} still owed "
-                f"on {invoice.number}"
+                f"on {invoice.number}",
+                amount=amount.format(),
+                remaining=remaining.format(),
+                number=invoice.number,
             )

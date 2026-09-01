@@ -97,7 +97,11 @@ class CostPoolReader:
         """
         pool = await self.pool_for(product_id, location_id)
         if pool is None:
-            raise NotFoundError(f"product {product_id} does not exist in this store")
+            raise NotFoundError(
+                f"product {product_id} does not exist in this store",
+                key="not_found",
+                subject_key="product",
+            )
         _, value = pool.issue(quantity)
         return value
 

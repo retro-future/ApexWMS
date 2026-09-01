@@ -49,7 +49,7 @@ class ChangePasswordHandler(IRequestHandler[Result, ChangePasswordCommand]):
     async def handle(self, request: ChangePasswordCommand) -> Result:
         user = await self._users.find_one(UserForWrite(self._user_id))
         if user is None:
-            raise NotFoundError("no such user")
+            raise NotFoundError("no such user", key="not_found", subject_key="user")
         if user.password_hash is None or not self._hasher.verify(
             user.password_hash, request.current_password
         ):

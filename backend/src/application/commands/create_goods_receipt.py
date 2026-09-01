@@ -134,21 +134,27 @@ class CreateGoodsReceiptHandler(
     async def _assert_parties_exist(self, request: CreateGoodsReceiptCommand) -> None:
         if await self._locations.get(request.location_id) is None:
             raise NotFoundError(
-                f"location {request.location_id} does not exist in this store"
+                f"location {request.location_id} does not exist in this store",
+                key="not_found",
+                subject_key="location",
             )
         if (
             request.supplier_id is not None
             and await self._suppliers.get(request.supplier_id) is None
         ):
             raise NotFoundError(
-                f"supplier {request.supplier_id} does not exist in this store"
+                f"supplier {request.supplier_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier",
             )
         if (
             request.customer_id is not None
             and await self._customers.get(request.customer_id) is None
         ):
             raise NotFoundError(
-                f"customer {request.customer_id} does not exist in this store"
+                f"customer {request.customer_id} does not exist in this store",
+                key="not_found",
+                subject_key="customer",
             )
 
     async def _linked_order(
@@ -161,12 +167,16 @@ class CreateGoodsReceiptHandler(
         )
         if order is None:
             raise NotFoundError(
-                f"purchase order {request.purchase_order_id} does not exist in this store"
+                f"purchase order {request.purchase_order_id} does not exist in this store",
+                key="not_found",
+                subject_key="purchase_order",
             )
         if order.status is not DocumentStatus.CONFIRMED:
             raise DocumentNotConfirmedError(
                 f"{order.number} is {order.status.value}; a receipt can only be "
-                "raised against a confirmed order"
+                "raised against a confirmed order",
+                key="receipt_needs_confirmed_order",
+                number=order.number,
             )
         return order
 
@@ -209,7 +219,11 @@ class CreateGoodsReceiptHandler(
         """FR-3.9: a receipt may never take an order past what it ordered."""
         ordered = order.ordered_quantities()
         if not lines:
-            raise OverReceiptError(f"{order.number} has nothing left to receive")
+            raise OverReceiptError(
+                f"{order.number} has nothing left to receive",
+                key="over_receipt_nothing_left",
+                number=order.number,
+            )
         requested: dict[UUID, int] = {}
         for line in lines:
             requested[line.product_id] = requested.get(line.product_id, 0) + line.quantity
@@ -219,5 +233,10 @@ class CreateGoodsReceiptHandler(
                 raise OverReceiptError(
                     f"{order.number} ordered {ordered.get(product_id, 0)} of "
                     f"{product_id}, already received {received.get(product_id, 0)}, "
-                    f"this receipt would take it to {total}"
+                    f"this receipt would take it to {total}",
+                    key="over_receipt_exceeds",
+                    number=order.number,
+                    ordered=ordered.get(product_id, 0),
+                    received=received.get(product_id, 0),
+                    total=total,
                 )

@@ -41,7 +41,11 @@ class ChangeUserRoleHandler(IRequestHandler[Result, ChangeUserRoleCommand]):
     async def handle(self, request: ChangeUserRoleCommand) -> Result:
         employee = await self._employees.find_one(EmployeeForWrite(request.target_user_id))
         if employee is None:
-            raise NotFoundError("no such employee at this store")
+            raise NotFoundError(
+                "no such employee at this store",
+                key="not_found",
+                subject_key="employee",
+            )
         if (
             employee.role is TenantRole.OWNER
             and request.role is not TenantRole.OWNER

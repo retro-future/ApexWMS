@@ -39,12 +39,16 @@ class IMEI:
             raise InvalidIMEIError(f"IMEI must be a string, got {type(self.value).__name__}")
         if len(self.value) != self.LENGTH:
             raise InvalidIMEIError(
-                f"IMEI must be exactly {self.LENGTH} digits, got {len(self.value)}"
+                f"IMEI must be exactly {self.LENGTH} digits, got {len(self.value)}",
+                key="imei_wrong_length",
+                length=self.LENGTH,
             )
         if not self.value.isascii() or not self.value.isdigit():
-            raise InvalidIMEIError("IMEI must contain only digits 0-9")
+            raise InvalidIMEIError("IMEI must contain only digits 0-9", key="imei_not_digits")
         if _luhn_checksum(self.value) != 0:
-            raise InvalidIMEIError(f"IMEI {self.value} fails the Luhn check digit")
+            raise InvalidIMEIError(
+                f"IMEI {self.value} fails the Luhn check digit", key="imei_bad_check"
+            )
 
     @classmethod
     def parse(cls, raw: str) -> IMEI:

@@ -53,7 +53,9 @@ class PricePurchaseOrderLineHandler(
         order = await self._orders.find_one(spec)
         if order is None:
             raise NotFoundError(
-                f"purchase order {request.purchase_order_id} does not exist in this store"
+                f"purchase order {request.purchase_order_id} does not exist in this store",
+                key="not_found",
+                subject_key="purchase_order",
             )
         order.assert_editable()
 
@@ -75,4 +77,4 @@ class PricePurchaseOrderLineHandler(
         for line in order.lines:
             if line.id == line_id:
                 return line
-        raise NotFoundError(f"{order.number} has no line {line_id}")
+        raise NotFoundError(f"{order.number} has no line {line_id}", key="not_found_line")

@@ -21,5 +21,9 @@ class GetProductHandler(IRequestHandler[ResultWithData[ProductData], GetProductQ
     async def handle(self, request: GetProductQuery) -> ResultWithData[ProductData]:
         product = await self._products.get(request.product_id)
         if product is None:
-            raise NotFoundError("no such product in this store")
+            raise NotFoundError(
+                "no such product in this store",
+                key="not_found",
+                subject_key="product",
+            )
         return ResultWithData[ProductData].succeed_with_data(ProductData.from_entity(product))

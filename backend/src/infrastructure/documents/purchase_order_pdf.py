@@ -11,11 +11,11 @@ the handsets it describes do not exist yet.
 from uuid import UUID
 
 from application.dtos import Letterhead
+from application.localization.locale import Locale
 from domain.entities import PurchaseOrder
 from domain.value_objects import Money
-from infrastructure.documents.page import DocumentPageFactory
+from infrastructure.documents.page import DocumentPage, DocumentPageFactory
 
-_HEADERS = ("Item", "Qty", "Unit cost", "Total")
 _WIDTHS = (95.0, 20.0, 30.0, 35.0)
 
 
@@ -29,13 +29,14 @@ class PdfPurchaseOrderRenderer:
         letterhead: Letterhead,
         supplier: str | None,
         descriptions: dict[UUID, str],
+        locale: Locale,
     ) -> bytes:
-        page = self._pages.page()
+        page = self._pages.page(locale)
         page.start(order)
         page.letterhead(letterhead)
-        page.heading(order, "Purchase order")
-        page.details([("Supplier", supplier or str(order.supplier_id))])
-        page.table(_HEADERS, _WIDTHS, self._rows(order, descriptions))
+        page.heading(order, page.t("purchase_order_title"))
+        page.details([(page.t("detail_supplier"), supplier or str(order.supplier_id))])
+        page.table(_headers(page), _WIDTHS, self._rows(order, descriptions))
         page.subtotals(order.subtotals())
         page.cancellation(order)
         return page.output()
@@ -56,3 +57,12 @@ class PdfPurchaseOrderRenderer:
     @staticmethod
     def _amount(amount: Money | None) -> str:
         return "" if amount is None else amount.format()
+
+
+def _headers(page: DocumentPage) -> tuple[str, str, str, str]:
+    return (
+        page.t("col_item"),
+        page.t("col_qty"),
+        page.t("col_unit_cost"),
+        page.t("col_total"),
+    )

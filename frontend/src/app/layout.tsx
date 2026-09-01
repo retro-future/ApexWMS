@@ -4,14 +4,14 @@ import "@mantine/notifications/styles.css";
 import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { Providers } from "@/app/providers";
 
-export const metadata: Metadata = {
-  title: "ApexWMS",
-  description: "Warehouse management for phone stores",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("common");
+  return { title: t("appName"), description: t("tagline") };
+}
 
 export default async function RootLayout({
   children,

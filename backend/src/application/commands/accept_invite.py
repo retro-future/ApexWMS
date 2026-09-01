@@ -128,7 +128,7 @@ class AcceptInviteHandler(
         )
         held = {a.role for a in await self._app_roles.find(roles_of_user)}
         if invitation.app_role in held:
-            raise AlreadyMemberError(invitation.email)
+            raise AlreadyMemberError(invitation.email, email=invitation.email)
         await self._app_roles.add(
             UserAppRole(id=uuid4(), user_id=user.id, role=invitation.app_role)
         )
@@ -158,7 +158,7 @@ class AcceptInviteHandler(
 
         async with self._scope.for_tenant(invitation.tenant_id) as workspace:
             if await workspace.employees.get(user.id) is not None:
-                raise AlreadyMemberError(invitation.email)
+                raise AlreadyMemberError(invitation.email, email=invitation.email)
             await workspace.employees.add(
                 Employee(
                     # Not a fresh id: the ledger's foreign keys depend on this

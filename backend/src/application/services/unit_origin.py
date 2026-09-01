@@ -31,12 +31,18 @@ class UnitOriginGuard:
         ):
             raise UnitNotFromSupplierError(
                 f"IMEI {unit.imei} did not enter stock through a supplier "
-                f"delivery, so {number} cannot send it back (FR-5.2b)"
+                f"delivery, so {number} cannot send it back (FR-5.2b)",
+                key="origin_not_supplier_delivery",
+                imei=str(unit.imei),
+                number=number,
             )
 
         origin = await self._receipts.supplier_of(unit.source_document_id)
         if origin != supplier_id:
             raise UnitNotFromSupplierError(
                 f"IMEI {unit.imei} came from another supplier, and {number} "
-                "sends goods back to the one it names (FR-5.2b)"
+                "sends goods back to the one it names (FR-5.2b)",
+                key="origin_other_supplier",
+                imei=str(unit.imei),
+                number=number,
             )

@@ -62,7 +62,9 @@ class ConfirmStockCountHandler(
         count = await self._counts.find_one(spec)
         if count is None:
             raise NotFoundError(
-                f"stock count {request.stock_count_id} does not exist in this store"
+                f"stock count {request.stock_count_id} does not exist in this store",
+                key="not_found",
+                subject_key="stock_count",
             )
 
         count.confirm(self._clock.now(), self._current.user_id)

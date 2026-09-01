@@ -39,7 +39,11 @@ class CreateLocationHandler(
         if await self._locations.exists(
             Specification(LocationModel).where(LocationModel.name == name)
         ):
-            raise DuplicateNameError(f"a location called {name!r} already exists")
+            raise DuplicateNameError(
+            f"a location called {name!r} already exists",
+            subject_key="location",
+            name=name,
+        )
 
         location = Location(
             id=uuid4(), name=name, is_active=True, created_at=self._clock.now()

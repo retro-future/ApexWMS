@@ -94,7 +94,9 @@ class RepriceDeviceUnitsHandler(
         missing = [str(unit_id) for unit_id in wanted if unit_id not in found]
         if missing:
             raise NotFoundError(
-                f"no such device unit in this store: {', '.join(missing)}"
+                f"no such device unit in this store: {', '.join(missing)}",
+                key="not_found",
+                subject_key="device_unit",
             )
 
         resolved: list[tuple[DeviceUnit, Money]] = []
@@ -103,7 +105,11 @@ class RepriceDeviceUnitsHandler(
             unit.assert_repriceable()
             product = await self._products.get(unit.product_id)
             if product is None:
-                raise NotFoundError(f"device unit {unit.id} points at a missing product")
+                raise NotFoundError(
+                    f"device unit {unit.id} points at a missing product",
+                    key="not_found",
+                    subject_key="product",
+                )
             price = self._sale_price.parse(item.asking_price, product.currency)
             assert price is not None  # the field is required
             resolved.append((unit, price))

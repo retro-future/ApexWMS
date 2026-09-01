@@ -15,5 +15,7 @@ class TimezoneValidator:
         try:
             ZoneInfo(timezone)
         except (ZoneInfoNotFoundError, ValueError, KeyError):
-            raise InvalidTimezoneError(f"not an IANA timezone: {timezone!r}") from None
+            raise InvalidTimezoneError(
+            f"not an IANA timezone: {timezone!r}", timezone=str(timezone)
+        ) from None
         return timezone

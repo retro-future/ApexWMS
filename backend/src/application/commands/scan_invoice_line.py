@@ -83,7 +83,9 @@ class ScanInvoiceLineHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         invoice.assert_editable()
 
@@ -145,19 +147,27 @@ class ScanInvoiceLineHandler(
         if product is None:
             product = await self._products.find_one(ProductBySku(code))
         if product is None:
-            raise NotFoundError(f"nothing in this store is identified by {code!r}")
+            raise NotFoundError(
+                f"nothing in this store is identified by {code!r}",
+                key="not_found_by_code",
+                code=code,
+            )
         return product
 
     @staticmethod
     def _assert_sellable(invoice: SalesInvoice, unit: DeviceUnit) -> None:
         if unit.status is not DeviceStatus.IN_STOCK:
             raise UnitNotSellableError(
-                f"IMEI {unit.imei} is {unit.status.value} and cannot be sold (FR-4.3)"
+                f"IMEI {unit.imei} is {unit.status.value} and cannot be sold (FR-4.3)",
+                imei=str(unit.imei),
+                status=unit.status.value,
             )
         if unit.location_id != invoice.location_id:
             raise WrongLocationError(
                 f"IMEI {unit.imei} is held at another location, and {invoice.number} "
-                "sells from its own (FR-4.4)"
+                "sells from its own (FR-4.4)",
+                imei=str(unit.imei),
+                number=invoice.number,
             )
 
     @staticmethod

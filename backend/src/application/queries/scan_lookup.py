@@ -71,7 +71,11 @@ class ScanLookupHandler(IRequestHandler[ResultWithData[ScanLookupData], ScanLook
                 ScanLookupData.for_product(ProductData.from_entity(product))
             )
 
-        raise NotFoundError(f"nothing in this store matches the code {code}")
+        raise NotFoundError(
+            f"nothing in this store matches the code {code}",
+            key="not_found_by_code",
+            code=code,
+        )
 
     async def _find_device(self, code: str) -> tuple[DeviceUnit, Product] | None:
         try:

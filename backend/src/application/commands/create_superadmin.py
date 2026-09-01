@@ -59,7 +59,7 @@ class CreateSuperAdminHandler(
         if await self._users.exists(
             Specification(UserModel).where(UserModel.email == email)
         ):
-            raise AlreadyMemberError(email)
+            raise AlreadyMemberError(email, email=email)
 
         temporary_password = self._tokens.new_opaque_secret()
         user = User(

@@ -40,7 +40,11 @@ class UpdateSupplierHandler(
         assert request.supplier_id is not None
         supplier = await self._suppliers.find_one(SupplierForWrite(request.supplier_id))
         if supplier is None:
-            raise NotFoundError("no such supplier in this store")
+            raise NotFoundError(
+                "no such supplier in this store",
+                key="not_found",
+                subject_key="supplier",
+            )
 
         sent = request.model_fields_set
         if request.name is not None:
@@ -49,7 +53,11 @@ class UpdateSupplierHandler(
                 SupplierModel.name == name, SupplierModel.id != supplier.id
             )
             if await self._suppliers.exists(taken):
-                raise DuplicateNameError(f"a supplier called {name!r} already exists")
+                raise DuplicateNameError(
+                    f"a supplier called {name!r} already exists",
+                    subject_key="supplier",
+                    name=name,
+                )
             supplier.name = name
         if request.is_active is not None:
             supplier.is_active = request.is_active

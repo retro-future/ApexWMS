@@ -74,7 +74,7 @@ class CreateProductHandler(
         if request.sku and request.sku.strip():
             sku = SKU.parse(request.sku)
             if await self._products.exists(ProductBySku(str(sku))):
-                raise DuplicateSkuError(f"a product with SKU {sku} already exists")
+                raise DuplicateSkuError(f"a product with SKU {sku} already exists", sku=str(sku))
         else:
             sku = await self._codes.next_sku(request.tracking_type)
 
@@ -112,12 +112,15 @@ class CreateProductHandler(
         if request.barcode:
             barcode = Barcode.parse(request.barcode)
             if await self._products.exists(ProductByBarcode(str(barcode))):
-                raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
+                raise DuplicateBarcodeError(
+                    f"a product with barcode {barcode} already exists", barcode=str(barcode)
+                )
             return barcode
         if not request.generate_barcode:
             return None
         if request.tracking_type is TrackingType.SERIAL:
             raise BarcodeNotAllowedError(
-                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)"
+                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)",
+                key="barcode_on_serial",
             )
         return await self._codes.next_barcode()

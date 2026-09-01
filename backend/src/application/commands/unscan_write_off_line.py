@@ -39,7 +39,9 @@ class UnscanWriteOffLineHandler(IRequestHandler[Result, UnscanWriteOffLineComman
         document = await self._write_offs.find_one(spec)
         if document is None:
             raise NotFoundError(
-                f"write-off {request.write_off_id} does not exist in this store"
+                f"write-off {request.write_off_id} does not exist in this store",
+                key="not_found",
+                subject_key="write_off",
             )
         document.assert_editable()
 
@@ -47,7 +49,11 @@ class UnscanWriteOffLineHandler(IRequestHandler[Result, UnscanWriteOffLineComman
         unit = await self._units.find_one(DeviceUnitByImei(str(wanted)))
         line = None if unit is None else document.line_for_unit(unit.id)
         if line is None:
-            raise NotFoundError(f"{document.number} has no scan of IMEI {wanted}")
+            raise NotFoundError(
+                f"{document.number} has no scan of IMEI {wanted}",
+                key="not_found_scan",
+                imei=str(wanted),
+            )
 
         document.lines.remove(line)
         await self._write_offs.update(document, spec)

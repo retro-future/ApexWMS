@@ -37,7 +37,11 @@ class UpdateLocationHandler(
         assert request.location_id is not None
         location = await self._locations.find_one(LocationForWrite(request.location_id))
         if location is None:
-            raise NotFoundError("no such location in this store")
+            raise NotFoundError(
+                "no such location in this store",
+                key="not_found",
+                subject_key="location",
+            )
 
         if request.name is not None:
             name = request.name.strip()
@@ -45,7 +49,11 @@ class UpdateLocationHandler(
                 LocationModel.name == name, LocationModel.id != location.id
             )
             if await self._locations.exists(taken):
-                raise DuplicateNameError(f"a location called {name!r} already exists")
+                raise DuplicateNameError(
+                    f"a location called {name!r} already exists",
+                    subject_key="location",
+                    name=name,
+                )
             location.name = name
         if request.is_active is not None:
             location.is_active = request.is_active

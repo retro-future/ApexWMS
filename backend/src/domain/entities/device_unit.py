@@ -96,7 +96,10 @@ class DeviceUnit(UuidEntity, TenantEntity):
         """FR-2.16: only stock still on the shelf may be repriced."""
         if not self.status.is_on_hand:
             raise UnitNotRepriceableError(
-                f"IMEI {self.imei} is {self.status.value} and can no longer be repriced"
+                f"IMEI {self.imei} is {self.status.value} and can no longer be repriced",
+                key="unit_not_repriceable",
+                imei=str(self.imei),
+                status=self.status.value,
             )
 
     def cash_paid_display(self) -> str | None:

@@ -39,7 +39,11 @@ class GetCustomerAccountHandler(
     ) -> ResultWithData[CustomerAccountData]:
         customer = await self._customers.get(request.customer_id)
         if customer is None:
-            raise NotFoundError("no such customer in this store")
+            raise NotFoundError(
+                "no such customer in this store",
+                key="not_found",
+                subject_key="customer",
+            )
 
         history = await self._invoices.credit_history_for(customer.id)
         return ResultWithData[CustomerAccountData].succeed_with_data(

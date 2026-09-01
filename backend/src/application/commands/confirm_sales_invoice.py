@@ -109,7 +109,9 @@ class ConfirmSalesInvoiceHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         await self._apply_terms(invoice, request)
 
@@ -153,7 +155,11 @@ class ConfirmSalesInvoiceHandler(
             return
         company = await self._companies.get(company_id)
         if company is None:
-            raise NotFoundError("no such credit company in this store")
+            raise NotFoundError(
+                "no such credit company in this store",
+                key="not_found",
+                subject_key="credit_company",
+            )
         if not company.is_active:
             raise CreditTermsError(
                 f"{company.name} is no longer a financing partner of this store"

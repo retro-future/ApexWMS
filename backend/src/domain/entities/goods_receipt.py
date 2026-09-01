@@ -188,24 +188,31 @@ class GoodsReceipt(Document):
         if self.acquisition_source is AcquisitionSource.SUPPLIER:
             if self.supplier_id is None:
                 raise ReceiptSourceError(
-                    "a receipt from a supplier must name one (FR-3.3b)"
+                    "a receipt from a supplier must name one (FR-3.3b)",
+                    key="receipt_supplier_missing",
                 )
             return
 
         if self.supplier_id is not None:
             raise ReceiptSourceError(
                 "a trade-in is bought from a walk-in customer, not a supplier — "
-                "it names no supplier (FR-3.3b)"
+                "it names no supplier (FR-3.3b)",
+                key="receipt_tradein_has_supplier",
             )
         if self.purchase_order_id is not None:
             raise ReceiptSourceError(
                 "a trade-in cannot be received against a purchase order — there is "
-                "no order for a phone that walked in the door (FR-3.3b)"
+                "no order for a phone that walked in the door (FR-3.3b)",
+                key="receipt_tradein_has_order",
             )
 
     def _assert_lines_complete(self) -> None:
         if not self.lines:
-            raise ReceiptIncompleteError(f"{self.number} has no lines to receive")
+            raise ReceiptIncompleteError(
+                f"{self.number} has no lines to receive",
+                key="receipt_no_lines",
+                number=self.number,
+            )
 
         short = [
             f"{line.product_id}: {len(line.units)} of {line.quantity} scanned"
@@ -214,14 +221,18 @@ class GoodsReceipt(Document):
         ]
         if short:
             raise ReceiptIncompleteError(
-                f"{self.number} cannot be confirmed — {'; '.join(short)} (FR-3.8)"
+                f"{self.number} cannot be confirmed — {'; '.join(short)} (FR-3.8)",
+                key="receipt_lines_short",
+                number=self.number,
+                detail="; ".join(short),
             )
 
         scanned = Counter(str(unit.imei) for unit in self.units())
         repeated = sorted(imei for imei, count in scanned.items() if count > 1)
         if repeated:
             raise DuplicateScanError(
-                f"{self.number} scans the same handset twice: {', '.join(repeated)}"
+                f"{self.number} scans the same handset twice: {', '.join(repeated)}",
+                number=self.number,
             )
 
         unpriced_lines = [
@@ -232,7 +243,10 @@ class GoodsReceipt(Document):
         if unpriced_lines:
             raise UnpricedUnitError(
                 f"{self.number} cannot be confirmed — no unit cost on "
-                f"{', '.join(unpriced_lines)}"
+                f"{', '.join(unpriced_lines)}",
+                key="unpriced_no_unit_cost",
+                number=self.number,
+                items=", ".join(unpriced_lines),
             )
 
     def _assert_priced(self) -> None:
@@ -246,12 +260,18 @@ class GoodsReceipt(Document):
         if costless:
             raise UnpricedUnitError(
                 f"{self.number} cannot be confirmed — no acquisition cost on "
-                f"{', '.join(costless)} (FR-3.4b)"
+                f"{', '.join(costless)} (FR-3.4b)",
+                key="unpriced_no_acquisition_cost",
+                number=self.number,
+                items=", ".join(costless),
             )
 
         unpriced = sorted(str(u.imei) for u in self.units() if u.needs_asking_price)
         if unpriced:
             raise UnpricedUnitError(
                 f"{self.number} cannot be confirmed — these are not NEW and carry no "
-                f"asking price: {', '.join(unpriced)} (FR-3.10)"
+                f"asking price: {', '.join(unpriced)} (FR-3.10)",
+                key="unpriced_no_asking_price",
+                number=self.number,
+                items=", ".join(unpriced),
             )

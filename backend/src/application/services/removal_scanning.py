@@ -66,7 +66,8 @@ class RemovalScanner:
         if product.tracking_type is TrackingType.SERIAL:
             raise UnitNotRemovableError(
                 f"{product.sku} is a serialized model, and {number} moves one named "
-                "handset — scan the phone's IMEI rather than the model's barcode"
+                "handset — scan the phone's IMEI rather than the model's barcode",
+                key="scan_wants_imei",
             )
         return product, None
 
@@ -88,7 +89,11 @@ class RemovalScanner:
         if product is None:
             product = await self._products.find_one(ProductBySku(code))
         if product is None:
-            raise NotFoundError(f"nothing in this store is identified by {code!r}")
+            raise NotFoundError(
+                f"nothing in this store is identified by {code!r}",
+                key="not_found_by_code",
+                code=code,
+            )
         return product
 
     @staticmethod
@@ -96,10 +101,15 @@ class RemovalScanner:
         if unit.status is not DeviceStatus.IN_STOCK:
             raise UnitNotRemovableError(
                 f"IMEI {unit.imei} is {unit.status.value} and is not on the shelf, "
-                f"so {number} cannot move it (FR-5.2)"
+                f"so {number} cannot move it (FR-5.2)",
+                imei=str(unit.imei),
+                status=unit.status.value,
+                number=number,
             )
         if unit.location_id != location_id:
             raise WrongLocationError(
                 f"IMEI {unit.imei} is held at another location, and {number} moves "
-                "stock from its own"
+                "stock from its own",
+                imei=str(unit.imei),
+                number=number,
             )

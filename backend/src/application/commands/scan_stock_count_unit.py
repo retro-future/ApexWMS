@@ -95,7 +95,9 @@ class ScanStockCountUnitHandler(
         count = await self._counts.find_one(self._spec)
         if count is None:
             raise NotFoundError(
-                f"stock count {request.stock_count_id} does not exist in this store"
+                f"stock count {request.stock_count_id} does not exist in this store",
+                key="not_found",
+                subject_key="stock_count",
             )
 
         imei = self._as_imei(request.code)
@@ -173,7 +175,8 @@ class ScanStockCountUnitHandler(
         if product.tracking_type is TrackingType.SERIAL:
             raise NotFoundError(
                 f"{product.sku} is a serialized model, and a count records each "
-                "handset — scan the phone's IMEI rather than the model's barcode"
+                "handset — scan the phone's IMEI rather than the model's barcode",
+                key="count_wants_imei",
             )
 
         line = count.line_for_product(product.id)
@@ -213,11 +216,16 @@ class ScanStockCountUnitHandler(
         if product_id is None:
             raise NotFoundError(
                 "a cost is denominated by the model it belongs to (§4.5 rule 3) — "
-                "name the product this handset is before pricing it"
+                "name the product this handset is before pricing it",
+                key="cost_needs_product",
             )
         product = await self._products.get(product_id)
         if product is None:
-            raise NotFoundError(f"product {product_id} does not exist in this store")
+            raise NotFoundError(
+                f"product {product_id} does not exist in this store",
+                key="not_found",
+                subject_key="product",
+            )
         return Money.from_major(request.acquisition_cost, product.currency)
 
     @staticmethod
@@ -238,7 +246,11 @@ class ScanStockCountUnitHandler(
         if product is None:
             product = await self._products.find_one(ProductBySku(code))
         if product is None:
-            raise NotFoundError(f"nothing in this store is identified by {code!r}")
+            raise NotFoundError(
+                f"nothing in this store is identified by {code!r}",
+                key="not_found_by_code",
+                code=code,
+            )
         return product
 
     def _result(

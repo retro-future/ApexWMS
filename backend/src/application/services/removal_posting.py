@@ -151,18 +151,25 @@ class RemovalPoster:
         unit = await self._units.find_one(DeviceUnitById(line.device_unit_id))
         if unit is None:
             raise NotFoundError(
-                f"handset {line.device_unit_id} does not exist in this store"
+                f"handset {line.device_unit_id} does not exist in this store",
+                key="not_found",
+                subject_key="device_unit",
             )
         # Re-checked at confirm because a draft reserves nothing (§4.4).
         if unit.status is not DeviceStatus.IN_STOCK:
             raise UnitNotRemovableError(
                 f"IMEI {unit.imei} is {unit.status.value} and is no longer on the "
-                f"shelf, so {document.number} cannot move it (FR-5.2)"
+                f"shelf, so {document.number} cannot move it (FR-5.2)",
+                imei=str(unit.imei),
+                status=unit.status.value,
+                number=document.number,
             )
         if unit.location_id != document.location_id:
             raise WrongLocationError(
                 f"IMEI {unit.imei} has moved and is no longer held at "
-                f"{document.number}'s location"
+                f"{document.number}'s location",
+                imei=str(unit.imei),
+                number=document.number,
             )
         # Not a race like the two above — a unit's origin never changes.
         # This catches a draft opened before FR-5.2b existed.
@@ -179,7 +186,11 @@ class RemovalPoster:
     ) -> None:
         product = await self._products.get(line.product_id)
         if product is None:
-            raise NotFoundError(f"product {line.product_id} does not exist in this store")
+            raise NotFoundError(
+                f"product {line.product_id} does not exist in this store",
+                key="not_found",
+                subject_key="product",
+            )
 
         level = await self._levels.find_one(
             StockLevelForPair(line.product_id, document.location_id)
@@ -188,5 +199,9 @@ class RemovalPoster:
         if on_hand < line.quantity:
             raise InsufficientStockError(
                 f"{document.number} moves {line.quantity} of {product.sku} but only "
-                f"{on_hand} are here — there is no partial fulfilment"
+                f"{on_hand} are here — there is no partial fulfilment",
+                on_hand=on_hand,
+                sku=product.sku,
+                wanted=line.quantity,
+                number=document.number,
             )

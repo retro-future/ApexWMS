@@ -6,8 +6,42 @@ nothing about HTTP.
 """
 
 
+from typing import ClassVar
+
+
+def _snake_case(name: str) -> str:
+    out: list[str] = []
+    for i, char in enumerate(name):
+        if char.isupper() and i and not name[i - 1].isupper():
+            out.append("_")
+        out.append(char.lower())
+    return "".join(out)
+
+
 class DomainError(Exception):
-    """Base class for all domain rule violations."""
+    """Base class for all domain rule violations.
+
+    Each subclass gets a stable ``code`` (snake-cased class name without the
+    ``Error`` suffix) that keys its message in the localization catalog. A
+    raise site may pass ``**params`` for the template to interpolate; the
+    positional ``message`` stays as the English fallback.
+    """
+
+    code: ClassVar[str] = "domain"
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.code = _snake_case(cls.__name__.removesuffix("Error"))
+
+    def __init__(
+        self, message: str = "", /, *, key: str | None = None, **params: object
+    ) -> None:
+        super().__init__(message)
+        # One exception class can stand for several distinct messages (a
+        # document in the wrong state, terms that disagree); ``key`` picks
+        # the catalog entry, defaulting to the class ``code``.
+        self.message_key: str = key or type(self).code
+        self.params: dict[str, object] = params
 
 
 class InvalidMoneyError(DomainError):

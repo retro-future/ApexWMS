@@ -41,7 +41,9 @@ class GetPurchaseOrderHandler(
         )
         if order is None:
             raise NotFoundError(
-                f"purchase order {request.purchase_order_id} does not exist in this store"
+                f"purchase order {request.purchase_order_id} does not exist in this store",
+                key="not_found",
+                subject_key="purchase_order",
             )
         received = await self._queries.received_quantities(order.id)
         return ResultWithData[PurchaseOrderData].succeed_with_data(

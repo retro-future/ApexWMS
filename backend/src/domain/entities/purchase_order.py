@@ -94,5 +94,6 @@ class PurchaseOrder(Document):
         if unpriced:
             raise UnpricedOrderLineError(
                 f"{self.number} cannot be confirmed — no unit cost on "
-                f"{', '.join(unpriced)}"
+                f"{', '.join(unpriced)}",
+                number=self.number,
             )

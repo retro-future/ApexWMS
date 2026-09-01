@@ -23,7 +23,9 @@ class GetWriteOffHandler(IRequestHandler[ResultWithData[WriteOffData], GetWriteO
         document = await self._write_offs.find_one(WriteOffById(request.write_off_id))
         if document is None:
             raise NotFoundError(
-                f"write-off {request.write_off_id} does not exist in this store"
+                f"write-off {request.write_off_id} does not exist in this store",
+                key="not_found",
+                subject_key="write_off",
             )
         return ResultWithData[WriteOffData].succeed_with_data(
             WriteOffData.from_entity(document)

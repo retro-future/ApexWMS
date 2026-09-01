@@ -85,9 +85,13 @@ class CreateSupplierReturnHandler(
     async def _assert_parties_exist(self, request: CreateSupplierReturnCommand) -> None:
         if await self._suppliers.get(request.supplier_id) is None:
             raise NotFoundError(
-                f"supplier {request.supplier_id} does not exist in this store"
+                f"supplier {request.supplier_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier",
             )
         if await self._locations.get(request.location_id) is None:
             raise NotFoundError(
-                f"location {request.location_id} does not exist in this store"
+                f"location {request.location_id} does not exist in this store",
+                key="not_found",
+                subject_key="location",
             )

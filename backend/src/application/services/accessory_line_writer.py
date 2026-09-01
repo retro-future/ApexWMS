@@ -32,7 +32,8 @@ class AccessoryLineWriter:
         if product.tracking_type is TrackingType.SERIAL:
             raise UnitNotSellableError(
                 f"{product.sku} is a serialized model, and a sale is of one named "
-                "handset — scan the phone's IMEI rather than the model's barcode"
+                "handset — scan the phone's IMEI rather than the model's barcode",
+                key="scan_wants_imei",
             )
         # Raises PriceNotSetError naming who can fix it: a QUANTITY product
         # with no catalog price has nowhere else a price could come from.
@@ -68,5 +69,9 @@ class AccessoryLineWriter:
             raise InsufficientStockError(
                 f"this store holds {on_hand} of {product.sku} at {invoice.number}'s "
                 f"location, and the invoice would sell {wanted} — there is no partial "
-                "fulfilment (FR-4.7)"
+                "fulfilment (FR-4.7)",
+                on_hand=on_hand,
+                sku=product.sku,
+                wanted=wanted,
+                number=invoice.number,
             )

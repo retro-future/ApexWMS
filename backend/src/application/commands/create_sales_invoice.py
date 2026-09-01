@@ -91,8 +91,16 @@ class CreateSalesInvoiceHandler(
 
     async def _assert_parties_exist(self, request: CreateSalesInvoiceCommand) -> None:
         if await self._locations.get(request.location_id) is None:
-            raise NotFoundError(f"location {request.location_id} does not exist in this store")
+            raise NotFoundError(
+                f"location {request.location_id} does not exist in this store",
+                key="not_found",
+                subject_key="location",
+            )
         if request.customer_id is None:
             return
         if await self._customers.get(request.customer_id) is None:
-            raise NotFoundError(f"customer {request.customer_id} does not exist in this store")
+            raise NotFoundError(
+                f"customer {request.customer_id} does not exist in this store",
+                key="not_found",
+                subject_key="customer",
+            )
