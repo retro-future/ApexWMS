@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { callBackend } from "@/server/backend";
+import { serverLocale } from "@/server/locale";
 import { refreshTokens } from "@/server/refresh";
 import {
   clearTokensOn,
@@ -42,11 +43,14 @@ async function handle(
   const { accessToken, refreshToken } = await readTokens();
   if (!accessToken) return unauthorized();
 
+  const locale = await serverLocale();
+
   let upstream = await callBackend(target, {
     method,
     body: body || undefined,
     accessToken,
     contentType,
+    locale,
   });
 
   let rotated: Tokens | null = null;
@@ -63,6 +67,7 @@ async function handle(
       body: body || undefined,
       accessToken: rotated.accessToken,
       contentType,
+      locale,
     });
   }
 

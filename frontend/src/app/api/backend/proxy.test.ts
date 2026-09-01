@@ -8,7 +8,12 @@ const { callBackend, readTokens } = vi.hoisted(() => ({
   readTokens: vi.fn(),
 }));
 
+const cookieGet = vi.fn();
+
 vi.mock("server-only", () => ({}));
+vi.mock("next/headers", () => ({
+  cookies: () => Promise.resolve({ get: cookieGet }),
+}));
 vi.mock("@/server/backend", () => ({ callBackend }));
 vi.mock("@/server/refresh", () => ({ refreshTokens: vi.fn() }));
 vi.mock("@/server/session", () => ({
@@ -28,6 +33,13 @@ function context(path: string[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   readTokens.mockResolvedValue({ accessToken: "at", refreshToken: "rt" });
+  cookieGet.mockReturnValue(undefined);
+  callBackend.mockResolvedValue(
+    new Response(JSON.stringify({ success: true, data: null }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  );
 });
 
 describe("the BFF proxy", () => {
@@ -80,6 +92,32 @@ describe("the BFF proxy", () => {
 
     expect(res.status).toBe(204);
     expect(res.headers.get("Content-Type")).toBeNull();
+  });
+
+  it("forwards the apex_locale cookie as Accept-Language", async () => {
+    cookieGet.mockImplementation((name: string) =>
+      name === "apex_locale" ? { value: "ru" } : undefined,
+    );
+
+    await GET(request("invoices"), context(["invoices"]));
+
+    expect(callBackend).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ locale: "ru" }),
+    );
+  });
+
+  it("falls back to the default locale when the cookie is missing or invalid", async () => {
+    cookieGet.mockImplementation((name: string) =>
+      name === "apex_locale" ? { value: "klingon" } : undefined,
+    );
+
+    await GET(request("invoices"), context(["invoices"]));
+
+    expect(callBackend).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ locale: "uz" }),
+    );
   });
 
   it("refuses without a session rather than calling the backend", async () => {
