@@ -10,6 +10,34 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-01-document-and-error-localization-design.md`
 
+## Status (2026-09-01)
+
+Done on branch `feat/i18n-documents-errors`:
+
+- Tasks 1-5, 7: locale plumbing end to end, `MessageCatalog`, error `detail`
+  routed through the catalog, invoice / purchase order / supplier return PDFs
+  render in the request locale.
+- Task 6: only the counter-facing scan errors (`unit_not_sellable`,
+  `wrong_location`, `insufficient_stock`) migrated to params + translated.
+  The other ~50 interpolated raise sites still fall back to their English
+  message. This is the main remaining chunk.
+- Task 8: DejaVu Sans is committed under
+  `backend/src/infrastructure/documents/fonts/` and documented in
+  `.env.example`, but NOT defaulted on. A Unicode TTF switches fpdf2 to CID
+  text encoding, which `tests/api/pdf_helpers.py::pdf_text` cannot read, so
+  turning it on needs that helper rewritten first. Deployments that need
+  Russian PDFs set `APEXWMS_PDF_FONT_PATH`.
+- Task 9: audited; the frontend UI is fully on next-intl, only the page
+  metadata description needed a key.
+
+Remaining:
+
+- Finish Task 6 (the interpolated-error long tail), phased by feature area.
+- Month-End report PDF is still English-only (many literals + needs the font
+  work above).
+- Rewrite `pdf_text` for CID fonts, then default `APEXWMS_PDF_FONT_PATH` on
+  and add the Cyrillic round-trip PDF test.
+
 ## Global Constraints
 
 - `domain/` imports nothing outside itself. `Locale`, `MessageCatalog` live in `application/` / `infrastructure/`.
