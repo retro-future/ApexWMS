@@ -3,7 +3,11 @@
 All variables are prefixed APEXWMS_ (e.g. APEXWMS_MASTER_DB_URL).
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BUNDLED_FONT = Path(__file__).parent / "documents" / "fonts" / "DejaVuSans.ttf"
 
 
 class Settings(BaseSettings):
@@ -38,9 +42,8 @@ class Settings(BaseSettings):
     max_live_tenant_engines: int = 50
     tenant_pool_size: int = 5
 
-    # Document PDFs (FR-8.1). fpdf2's built-in Helvetica covers Latin-1
-    # only, which is enough for Uzbek Latin and "so'm" but not Cyrillic. A
-    # DejaVu Sans TTF ships at src/infrastructure/documents/fonts/; point
-    # this at it (see .env.example) to print Russian names properly. Unset,
-    # Cyrillic degrades to '?' rather than failing the download.
-    pdf_font_path: str | None = None
+    # Document PDFs (FR-8.1). Defaults to the bundled DejaVu Sans so Russian
+    # and Cyrillic text print properly; fpdf2's built-in Helvetica is
+    # Latin-1 only. Override with a path to another Unicode TTF, or set the
+    # variable empty to force the core font.
+    pdf_font_path: str | None = str(_BUNDLED_FONT) if _BUNDLED_FONT.is_file() else None

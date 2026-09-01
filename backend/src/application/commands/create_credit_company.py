@@ -45,7 +45,11 @@ class CreateCreditCompanyHandler(
         if await self._companies.exists(
             Specification(CreditCompanyModel).where(CreditCompanyModel.name == name)
         ):
-            raise DuplicateNameError(f"a credit company called {name!r} already exists")
+            raise DuplicateNameError(
+            f"a credit company called {name!r} already exists",
+            subject_key="credit_company",
+            name=name,
+        )
 
         company = CreditCompany(
             id=uuid4(),

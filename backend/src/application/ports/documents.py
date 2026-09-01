@@ -85,4 +85,6 @@ class MonthEndReportRenderer(Protocol):
     subject is not a ``Document``, and so the only one that takes no
     *descriptions* — a report has no lines somebody named."""
 
-    def render(self, report: MonthEndReport, letterhead: Letterhead) -> bytes: ...
+    def render(
+        self, report: MonthEndReport, letterhead: Letterhead, locale: Locale
+    ) -> bytes: ...

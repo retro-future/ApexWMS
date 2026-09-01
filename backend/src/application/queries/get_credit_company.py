@@ -27,7 +27,11 @@ class GetCreditCompanyHandler(
     ) -> ResultWithData[CreditCompanyData]:
         company = await self._companies.get(request.credit_company_id)
         if company is None:
-            raise NotFoundError("no such credit company in this store")
+            raise NotFoundError(
+                "no such credit company in this store",
+                key="not_found",
+                subject_key="credit_company",
+            )
         return ResultWithData[CreditCompanyData].succeed_with_data(
             CreditCompanyData.from_entity(company)
         )

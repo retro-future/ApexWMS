@@ -70,13 +70,15 @@ class SupplierReturn(Document):
         # a reader looks for the confirm rules.
         if self.supplier_id is None:
             raise ReceiptSourceError(
-                f"{self.number} sends goods back but names no supplier (FR-5.1)"
+                f"{self.number} sends goods back but names no supplier (FR-5.1)",
+                key="return_no_supplier",
+                number=self.number,
             )
 
     def _assert_has_lines(self) -> None:
         if not self.lines:
             raise EmptyDocumentError(
-                f"{self.number} has no lines — nothing is going back"
+                f"{self.number} has no lines — nothing is going back", number=self.number
             )
 
     def _assert_no_unit_twice(self) -> None:
@@ -86,6 +88,7 @@ class SupplierReturn(Document):
                 continue
             if line.device_unit_id in seen:
                 raise DuplicateScanError(
-                    f"{self.number} returns the same handset twice — one phone, one line"
+                    f"{self.number} returns the same handset twice — one phone, one line",
+                    number=self.number,
                 )
             seen.add(line.device_unit_id)

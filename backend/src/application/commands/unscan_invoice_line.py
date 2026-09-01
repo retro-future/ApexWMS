@@ -42,13 +42,18 @@ class UnscanInvoiceLineHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         invoice.assert_editable()
 
         line = next((one for one in invoice.lines if one.id == request.line_id), None)
         if line is None:
-            raise NotFoundError(f"{invoice.number} has no line {request.line_id}")
+            raise NotFoundError(
+                f"{invoice.number} has no line {request.line_id}",
+                key="not_found_line",
+            )
 
         invoice.lines.remove(line)
         await self._invoices.update(invoice, spec)

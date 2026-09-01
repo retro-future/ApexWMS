@@ -59,13 +59,18 @@ class CountStockCountLineHandler(
         count = await self._counts.find_one(spec)
         if count is None:
             raise NotFoundError(
-                f"stock count {request.stock_count_id} does not exist in this store"
+                f"stock count {request.stock_count_id} does not exist in this store",
+                key="not_found",
+                subject_key="stock_count",
             )
         count.assert_countable()
 
         line = next((ln for ln in count.lines if ln.id == request.line_id), None)
         if line is None:
-            raise NotFoundError(f"{count.number} has no line {request.line_id}")
+            raise NotFoundError(
+                f"{count.number} has no line {request.line_id}",
+                key="not_found_line",
+            )
 
         line.counted_quantity = request.counted_quantity
         # Re-run the entity's invariants over the new figure: a negative

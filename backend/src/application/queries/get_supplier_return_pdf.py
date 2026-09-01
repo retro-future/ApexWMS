@@ -65,12 +65,16 @@ class GetSupplierReturnPdfHandler(
         )
         if document is None:
             raise NotFoundError(
-                f"supplier return {request.supplier_return_id} does not exist in this store"
+                f"supplier return {request.supplier_return_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier_return",
             )
         if document.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{document.number} is still a draft and nothing has left the shelf — "
-                "confirm it before printing it"
+                "confirm it before printing it",
+                key="draft_cannot_print",
+                number=document.number,
             )
 
         supplier = await self._suppliers.get(document.supplier_id)

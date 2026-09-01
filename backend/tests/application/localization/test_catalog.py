@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -42,9 +43,22 @@ def test_packaged_catalog_loads_and_documents_keys_match_across_locales() -> Non
         assert cat.locale_keys(locale, "documents") >= en_docs
 
 
+def test_every_key_used_in_source_has_a_catalog_entry() -> None:
+    cat = MessageCatalog()
+    errors = cat.keys("errors")
+    nouns = cat.keys("nouns")
+    src = Path(__file__).parents[2] / "src"
+    for path in src.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for key in re.findall(r'key="([a-z_]+)"', text):
+            assert key in errors or key in nouns, f"{path.name}: {key}"
+        for subject in re.findall(r'subject_key="([a-z_]+)"', text):
+            assert subject in nouns, f"{path.name}: noun {subject}"
+
+
 def test_every_english_key_is_translated_in_ru_and_uz() -> None:
     cat = MessageCatalog()
-    for table in ("errors", "documents"):
+    for table in ("errors", "documents", "nouns"):
         english = cat.keys(table)
         for locale in (Locale.RU, Locale.UZ):
             missing = english - cat.locale_keys(locale, table)

@@ -16,6 +16,7 @@ from application.dtos import (
     Period,
 )
 from application.localization.catalog import MessageCatalog
+from application.localization.locale import Locale
 from domain.value_objects import Currency, CurrencyTotals, Money
 from infrastructure.documents.month_end_pdf import PdfMonthEndReportRenderer
 from infrastructure.documents.page import DocumentPageFactory
@@ -49,7 +50,7 @@ def _report(figures: AccrualFigures) -> MonthEndReport:
 
 def _render(figures: AccrualFigures) -> str:
     renderer = PdfMonthEndReportRenderer(DocumentPageFactory(MessageCatalog()))
-    return pdf_text(renderer.render(_report(figures), Letterhead()))
+    return pdf_text(renderer.render(_report(figures), Letterhead(), Locale.EN))
 
 
 def test_the_page_still_names_its_period_and_its_totals():

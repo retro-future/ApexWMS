@@ -45,14 +45,20 @@ class UnscanStockCountUnitHandler(IRequestHandler[Result, UnscanStockCountUnitCo
         count = await self._counts.find_one(spec)
         if count is None:
             raise NotFoundError(
-                f"stock count {request.stock_count_id} does not exist in this store"
+                f"stock count {request.stock_count_id} does not exist in this store",
+                key="not_found",
+                subject_key="stock_count",
             )
         count.assert_countable()
 
         wanted = IMEI.parse(request.imei)
         row = count.unit_for_imei(wanted)
         if row is None or not row.scanned:
-            raise NotFoundError(f"{count.number} has no scan of IMEI {wanted}")
+            raise NotFoundError(
+                f"{count.number} has no scan of IMEI {wanted}",
+                key="not_found_scan",
+                imei=str(wanted),
+            )
 
         if row.expected:
             row.scanned = False

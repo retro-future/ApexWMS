@@ -79,7 +79,9 @@ class ScanReceiptUnitHandler(
         receipt = await self._receipts.find_one(spec)
         if receipt is None:
             raise NotFoundError(
-                f"goods receipt {request.goods_receipt_id} does not exist in this store"
+                f"goods receipt {request.goods_receipt_id} does not exist in this store",
+                key="not_found",
+                subject_key="goods_receipt",
             )
         receipt.assert_editable()
 
@@ -95,7 +97,9 @@ class ScanReceiptUnitHandler(
                 raise DuplicateImeiError(
                     f"IMEI {imei} is already scanned onto this receipt against "
                     f"{other.product_id}, not {line.product_id} — a handset cannot "
-                    "be two different products"
+                    "be two different products",
+                    key="imei_scanned_other_product",
+                    imei=str(imei),
                 )
             # A double-fire of the same trigger pull. Nothing changes and
             # the running count is returned as if the first scan had just
@@ -107,13 +111,16 @@ class ScanReceiptUnitHandler(
             where = f" at location {existing.location_id}" if existing.location_id else ""
             raise DuplicateImeiError(
                 f"IMEI {imei} is already in this store: {existing.status.value}{where} "
-                "(FR-3.5)"
+                "(FR-3.5)",
+                imei=str(imei),
+                status=existing.status.value,
             )
 
         if len(line.units) >= line.quantity:
             raise ReceiptIncompleteError(
                 f"line already holds {line.quantity} of {line.quantity} scanned "
-                "handsets — raise the line quantity before scanning another"
+                "handsets — raise the line quantity before scanning another",
+                key="line_already_full",
             )
 
         unit = ReceivedUnit(
@@ -146,13 +153,15 @@ class ScanReceiptUnitHandler(
             found = next((line for line in serial_lines if line.id == line_id), None)
             if found is None:
                 raise NotFoundError(
-                    f"{receipt.number} has no serialized line {line_id}"
+                    f"{receipt.number} has no serialized line {line_id}",
+                    key="not_found_line",
                 )
             return found
         if len(serial_lines) != 1:
             raise NotFoundError(
                 f"{receipt.number} has {len(serial_lines)} serialized lines — "
-                "the scan must name which one it belongs to"
+                "the scan must name which one it belongs to",
+                key="ambiguous_serial_line",
             )
         return serial_lines[0]
 

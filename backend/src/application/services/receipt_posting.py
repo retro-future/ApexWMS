@@ -117,7 +117,9 @@ class ReceiptPoster:
             return
         raise DuplicateImeiError(
             f"IMEI {scanned.imei} is already in this store: {existing.status.value}"
-            + (f" at location {existing.location_id}" if existing.location_id else "")
+            + (f" at location {existing.location_id}" if existing.location_id else ""),
+            imei=str(scanned.imei),
+            status=existing.status.value,
         )
 
     @staticmethod

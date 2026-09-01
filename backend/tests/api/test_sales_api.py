@@ -396,12 +396,18 @@ class TestTheInvoicePrints:
         english = await client.get(
             f"/api/v1/invoices/{invoice['id']}/pdf", headers=owner.auth
         )
+        russian = await client.get(
+            f"/api/v1/invoices/{invoice['id']}/pdf",
+            headers={**owner.auth, "Accept-Language": "ru"},
+        )
         uzbek = await client.get(
             f"/api/v1/invoices/{invoice['id']}/pdf",
             headers={**owner.auth, "Accept-Language": "uz"},
         )
 
         assert "Invoice" in pdf_text(english.content)
+        # Cyrillic round-trips through the bundled font's ToUnicode CMap.
+        assert "Счёт" in pdf_text(russian.content)
         assert "Hisob-faktura" in pdf_text(uzbek.content)
 
     async def test_regenerating_it_produces_the_same_file(

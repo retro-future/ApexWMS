@@ -33,8 +33,14 @@ class DomainError(Exception):
         super().__init_subclass__(**kwargs)
         cls.code = _snake_case(cls.__name__.removesuffix("Error"))
 
-    def __init__(self, message: str = "", /, **params: object) -> None:
+    def __init__(
+        self, message: str = "", /, *, key: str | None = None, **params: object
+    ) -> None:
         super().__init__(message)
+        # One exception class can stand for several distinct messages (a
+        # document in the wrong state, terms that disagree); ``key`` picks
+        # the catalog entry, defaulting to the class ``code``.
+        self.message_key: str = key or type(self).code
         self.params: dict[str, object] = params
 
 

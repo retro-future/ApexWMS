@@ -64,12 +64,16 @@ class GetPurchaseOrderPdfHandler(
         )
         if order is None:
             raise NotFoundError(
-                f"purchase order {request.purchase_order_id} does not exist in this store"
+                f"purchase order {request.purchase_order_id} does not exist in this store",
+                key="not_found",
+                subject_key="purchase_order",
             )
         if order.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{order.number} is still a draft and its lines may hold no cost — "
-                "confirm it before printing it"
+                "confirm it before printing it",
+                key="draft_cannot_print",
+                number=order.number,
             )
 
         supplier = await self._suppliers.get(order.supplier_id)

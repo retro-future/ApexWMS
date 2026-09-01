@@ -51,7 +51,9 @@ class CreateWriteOffHandler(
     ) -> ResultWithData[WriteOffData]:
         if await self._locations.get(request.location_id) is None:
             raise NotFoundError(
-                f"location {request.location_id} does not exist in this store"
+                f"location {request.location_id} does not exist in this store",
+                key="not_found",
+                subject_key="location",
             )
 
         document = WriteOff(

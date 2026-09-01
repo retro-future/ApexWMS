@@ -71,7 +71,7 @@ class CreateTenantHandler(
         if await self._tenants.exists(
             Specification(TenantModel).where(TenantModel.slug == slug)
         ):
-            raise SlugAlreadyTakenError(slug)
+            raise SlugAlreadyTakenError(slug, slug=slug)
 
         owner_email = request.owner_email.strip().lower()
         # Email is unique platform-wide now, so an existing person cannot be
@@ -79,7 +79,7 @@ class CreateTenantHandler(
         if await self._users.exists(
             Specification(UserModel).where(UserModel.email == owner_email)
         ):
-            raise AlreadyMemberError(owner_email)
+            raise AlreadyMemberError(owner_email, email=owner_email)
 
         now = self._clock.now()
         tenant = Tenant(

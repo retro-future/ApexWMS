@@ -24,6 +24,7 @@ class SlugNormalizer:
         ):
             raise InvalidSlugError(
                 f"not a valid tenant slug: {slug!r} "
-                "(lowercase letters, digits and single hyphens)"
+                "(lowercase letters, digits and single hyphens)",
+                slug=str(slug),
             )
         return candidate

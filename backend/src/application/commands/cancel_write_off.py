@@ -60,7 +60,9 @@ class CancelWriteOffHandler(
         document = await self._write_offs.find_one(spec)
         if document is None:
             raise NotFoundError(
-                f"write-off {request.write_off_id} does not exist in this store"
+                f"write-off {request.write_off_id} does not exist in this store",
+                key="not_found",
+                subject_key="write_off",
             )
 
         document.cancel(self._clock.now(), self._current.user_id, request.reason)

@@ -54,7 +54,9 @@ class ConfirmPurchaseOrderHandler(
         order = await self._orders.find_one(spec)
         if order is None:
             raise NotFoundError(
-                f"purchase order {request.purchase_order_id} does not exist in this store"
+                f"purchase order {request.purchase_order_id} does not exist in this store",
+                key="not_found",
+                subject_key="purchase_order",
             )
 
         order.confirm(self._clock.now(), self._current.user_id)

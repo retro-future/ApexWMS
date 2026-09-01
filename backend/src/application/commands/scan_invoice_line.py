@@ -83,7 +83,9 @@ class ScanInvoiceLineHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         invoice.assert_editable()
 
@@ -145,7 +147,11 @@ class ScanInvoiceLineHandler(
         if product is None:
             product = await self._products.find_one(ProductBySku(code))
         if product is None:
-            raise NotFoundError(f"nothing in this store is identified by {code!r}")
+            raise NotFoundError(
+                f"nothing in this store is identified by {code!r}",
+                key="not_found_by_code",
+                code=code,
+            )
         return product
 
     @staticmethod

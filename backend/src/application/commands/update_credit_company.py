@@ -54,7 +54,11 @@ class UpdateCreditCompanyHandler(
             CreditCompanyForWrite(request.credit_company_id)
         )
         if company is None:
-            raise NotFoundError("no such credit company in this store")
+            raise NotFoundError(
+                "no such credit company in this store",
+                key="not_found",
+                subject_key="credit_company",
+            )
 
         sent = request.model_fields_set
         if request.name is not None:
@@ -64,7 +68,9 @@ class UpdateCreditCompanyHandler(
             )
             if await self._companies.exists(taken):
                 raise DuplicateNameError(
-                    f"a credit company called {name!r} already exists"
+                    f"a credit company called {name!r} already exists",
+                    subject_key="credit_company",
+                    name=name,
                 )
             company.name = name
         if request.is_active is not None:

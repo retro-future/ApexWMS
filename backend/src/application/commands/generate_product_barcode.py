@@ -43,14 +43,21 @@ class GenerateProductBarcodeHandler(
     ) -> ResultWithData[ProductData]:
         product = await self._products.find_one(ProductForWrite(request.product_id))
         if product is None:
-            raise NotFoundError("no such product in this store")
+            raise NotFoundError(
+                "no such product in this store",
+                key="not_found",
+                subject_key="product",
+            )
         if product.tracking_type is TrackingType.SERIAL:
             raise BarcodeNotAllowedError(
-                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)"
+                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)",
+                key="barcode_on_serial",
             )
         if product.barcode is not None:
             raise BarcodeAlreadySetError(
-                f"product {product.sku} already carries barcode {product.barcode}"
+                f"product {product.sku} already carries barcode {product.barcode}",
+                sku=str(product.sku),
+                barcode=str(product.barcode),
             )
 
         product.barcode = await self._codes.next_barcode()

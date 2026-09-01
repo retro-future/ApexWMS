@@ -119,10 +119,15 @@ _catalog = MessageCatalog()
 async def _handle(request: Request, exc: Exception) -> JSONResponse:
     status = _status_for(exc)
     locale = Locale.parse(request.headers.get("accept-language"))
-    code = getattr(exc, "code", None)
-    params = getattr(exc, "params", {})
+    key = getattr(exc, "message_key", None) or getattr(exc, "code", None)
+    params = dict(getattr(exc, "params", {}))
+    subject_key = params.pop("subject_key", None)
+    if isinstance(subject_key, str):
+        params["subject"] = (
+            _catalog.render(locale, "nouns", subject_key) or subject_key
+        )
     detail = (
-        _catalog.render(locale, "errors", code, **params) if isinstance(code, str) else None
+        _catalog.render(locale, "errors", key, **params) if isinstance(key, str) else None
     )
     detail = detail or str(exc) or exc.__class__.__name__
     headers = {"WWW-Authenticate": "Bearer"} if status == 401 else None

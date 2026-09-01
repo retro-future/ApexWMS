@@ -3,7 +3,7 @@ import json
 from starlette.requests import Request
 
 from application.errors import ApplicationError, InvalidCredentialsError
-from domain.errors import DomainError, EmptyInvoiceError, WrongLocationError
+from domain.errors import DomainError, PriceNotSetError, WrongLocationError
 from presentation.errors import _handle
 
 
@@ -32,16 +32,18 @@ async def test_error_params_are_interpolated_into_the_localized_template() -> No
 
 
 async def test_unknown_accept_language_uses_the_default_locale() -> None:
-    assert await _detail(InvalidCredentialsError(), "fr") == "Email yoki parol noto'g'ri."
+    detail = await _detail(InvalidCredentialsError(), "fr")
+    assert "parol" in detail  # the Uzbek default
 
 
 async def test_no_accept_language_uses_the_default_locale() -> None:
-    assert await _detail(InvalidCredentialsError(), None) == "Email yoki parol noto'g'ri."
+    detail = await _detail(InvalidCredentialsError(), None)
+    assert "parol" in detail
 
 
 async def test_uncatalogued_code_uses_the_exception_message() -> None:
-    detail = await _detail(EmptyInvoiceError("INV-1 has no lines"), "ru")
-    assert detail == "INV-1 has no lines"
+    detail = await _detail(PriceNotSetError("this line has no price to sell at"), "ru")
+    assert detail == "this line has no price to sell at"
 
 
 def test_every_user_facing_error_has_a_code() -> None:

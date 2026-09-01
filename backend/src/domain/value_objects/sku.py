@@ -27,10 +27,12 @@ class SKU:
         if not isinstance(self.value, str):
             raise InvalidSkuError(f"SKU must be a string, got {type(self.value).__name__}")
         if not self.value:
-            raise InvalidSkuError("SKU must not be empty")
+            raise InvalidSkuError("SKU must not be empty", key="sku_empty")
         if len(self.value) > self.MAX_LENGTH:
             raise InvalidSkuError(
-                f"SKU must be at most {self.MAX_LENGTH} characters, got {len(self.value)}"
+                f"SKU must be at most {self.MAX_LENGTH} characters, got {len(self.value)}",
+                key="sku_too_long",
+                limit=self.MAX_LENGTH,
             )
         # Upper-case ASCII only: the normalization in parse() is the single
         # entry point, so anything else here means it was bypassed.
@@ -44,7 +46,9 @@ class SKU:
         if illegal:
             raise InvalidSkuError(
                 f"SKU may contain only A-Z, 0-9 and {''.join(sorted(self._ALLOWED_EXTRA))}; "
-                f"found {''.join(dict.fromkeys(illegal))!r}"
+                f"found {''.join(dict.fromkeys(illegal))!r}",
+                key="sku_illegal_chars",
+                allowed="".join(sorted(self._ALLOWED_EXTRA)),
             )
 
     @classmethod

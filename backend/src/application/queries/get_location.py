@@ -21,7 +21,11 @@ class GetLocationHandler(IRequestHandler[ResultWithData[LocationData], GetLocati
     async def handle(self, request: GetLocationQuery) -> ResultWithData[LocationData]:
         location = await self._locations.get(request.location_id)
         if location is None:
-            raise NotFoundError("no such location in this store")
+            raise NotFoundError(
+                "no such location in this store",
+                key="not_found",
+                subject_key="location",
+            )
         return ResultWithData[LocationData].succeed_with_data(
             LocationData.from_entity(location)
         )

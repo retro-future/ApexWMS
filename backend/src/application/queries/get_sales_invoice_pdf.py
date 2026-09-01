@@ -68,12 +68,16 @@ class GetSalesInvoicePdfHandler(
         )
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         if invoice.status is DocumentStatus.DRAFT:
             raise DocumentNotConfirmedError(
                 f"{invoice.number} is still a draft and holds no prices — "
-                "confirm it before printing it"
+                "confirm it before printing it",
+                key="draft_cannot_print",
+                number=invoice.number,
             )
 
         letterhead = await self._settings.get_letterhead()

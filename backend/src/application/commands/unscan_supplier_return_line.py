@@ -45,7 +45,9 @@ class UnscanSupplierReturnLineHandler(
         document = await self._returns.find_one(spec)
         if document is None:
             raise NotFoundError(
-                f"supplier return {request.supplier_return_id} does not exist in this store"
+                f"supplier return {request.supplier_return_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier_return",
             )
         document.assert_editable()
 
@@ -53,7 +55,11 @@ class UnscanSupplierReturnLineHandler(
         unit = await self._units.find_one(DeviceUnitByImei(str(wanted)))
         line = None if unit is None else document.line_for_unit(unit.id)
         if line is None:
-            raise NotFoundError(f"{document.number} has no scan of IMEI {wanted}")
+            raise NotFoundError(
+                f"{document.number} has no scan of IMEI {wanted}",
+                key="not_found_scan",
+                imei=str(wanted),
+            )
 
         document.lines.remove(line)
         await self._returns.update(document, spec)

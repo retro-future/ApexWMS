@@ -65,7 +65,9 @@ class CancelSupplierReturnHandler(
         document = await self._returns.find_one(spec)
         if document is None:
             raise NotFoundError(
-                f"supplier return {request.supplier_return_id} does not exist in this store"
+                f"supplier return {request.supplier_return_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier_return",
             )
 
         document.cancel(self._clock.now(), self._current.user_id, request.reason)

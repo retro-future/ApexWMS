@@ -80,7 +80,9 @@ class CancelSalesInvoiceHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
 
         invoice.cancel(self._clock.now(), self._current.user_id, request.reason)

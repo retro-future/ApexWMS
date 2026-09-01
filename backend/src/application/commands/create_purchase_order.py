@@ -65,7 +65,9 @@ class CreatePurchaseOrderHandler(
     ) -> ResultWithData[PurchaseOrderData]:
         if await self._suppliers.get(request.supplier_id) is None:
             raise NotFoundError(
-                f"supplier {request.supplier_id} does not exist in this store"
+                f"supplier {request.supplier_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier",
             )
 
         order_id = uuid4()

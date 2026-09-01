@@ -32,7 +32,8 @@ class AccessoryLineWriter:
         if product.tracking_type is TrackingType.SERIAL:
             raise UnitNotSellableError(
                 f"{product.sku} is a serialized model, and a sale is of one named "
-                "handset — scan the phone's IMEI rather than the model's barcode"
+                "handset — scan the phone's IMEI rather than the model's barcode",
+                key="scan_wants_imei",
             )
         # Raises PriceNotSetError naming who can fix it: a QUANTITY product
         # with no catalog price has nowhere else a price could come from.

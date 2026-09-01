@@ -48,14 +48,20 @@ class ReversePaymentHandler(
     ) -> ResultWithData[SalesInvoiceData]:
         original = await self._payments.get(request.payment_id)
         if original is None:
-            raise NotFoundError(f"payment {request.payment_id} does not exist in this store")
+            raise NotFoundError(
+                f"payment {request.payment_id} does not exist in this store",
+                key="not_found",
+                subject_key="payment",
+            )
 
         invoice = await self._invoices.find_one(
             SalesInvoiceById(original.sales_invoice_id)
         )
         if invoice is None:
             raise NotFoundError(
-                f"invoice {original.sales_invoice_id} does not exist in this store"
+                f"invoice {original.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         await self._poster.reverse(original, invoice)
         await self._uow.commit()

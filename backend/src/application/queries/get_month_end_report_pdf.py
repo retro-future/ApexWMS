@@ -12,6 +12,7 @@ from pydantic import Field
 
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import RenderedDocument
+from application.localization.locale import Locale
 from application.ports import MonthEndReportRenderer, TenantSettingsRepository
 from application.services import MonthEndReporter
 
@@ -30,10 +31,12 @@ class GetMonthEndReportPdfHandler(
         reporter: MonthEndReporter,
         settings: TenantSettingsRepository,
         renderer: MonthEndReportRenderer,
+        locale: Locale,
     ) -> None:
         self._reporter = reporter
         self._settings = settings
         self._renderer = renderer
+        self._locale = locale
 
     async def handle(
         self, request: GetMonthEndReportPdfQuery
@@ -46,6 +49,6 @@ class GetMonthEndReportPdfHandler(
             RenderedDocument(
                 filename=f"month-end-{report.period.year}-{report.period.month:02d}.pdf",
                 content_type="application/pdf",
-                content=self._renderer.render(report, letterhead),
+                content=self._renderer.render(report, letterhead, self._locale),
             )
         )

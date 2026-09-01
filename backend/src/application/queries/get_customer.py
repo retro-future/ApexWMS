@@ -21,7 +21,11 @@ class GetCustomerHandler(IRequestHandler[ResultWithData[CustomerData], GetCustom
     async def handle(self, request: GetCustomerQuery) -> ResultWithData[CustomerData]:
         customer = await self._customers.get(request.customer_id)
         if customer is None:
-            raise NotFoundError("no such customer in this store")
+            raise NotFoundError(
+                "no such customer in this store",
+                key="not_found",
+                subject_key="customer",
+            )
         return ResultWithData[CustomerData].succeed_with_data(
             CustomerData.from_entity(customer)
         )

@@ -66,7 +66,11 @@ class UpdateProductHandler(
     async def handle(self, request: UpdateProductCommand) -> ResultWithData[ProductData]:
         product = await self._products.find_one(ProductForWrite(request.product_id))
         if product is None:
-            raise NotFoundError("no such product in this store")
+            raise NotFoundError(
+                "no such product in this store",
+                key="not_found",
+                subject_key="product",
+            )
 
         sent = request.model_fields_set
         if request.name is not None:
@@ -102,5 +106,7 @@ class UpdateProductHandler(
             return None
         barcode = Barcode.parse(raw)
         if await self._products.exists(ProductBarcodeTakenByAnother(str(barcode), product.id)):
-            raise DuplicateBarcodeError(f"a product with barcode {barcode} already exists")
+            raise DuplicateBarcodeError(
+                f"a product with barcode {barcode} already exists", barcode=str(barcode)
+            )
         return barcode

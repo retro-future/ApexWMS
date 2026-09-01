@@ -10,12 +10,11 @@ because fpdf2 otherwise stamps the wall clock into the PDF and FR-8.3 wants
 a regeneration to be byte-identical. A cancelled document keeps using the
 confirm time, so adding the CANCELLED mark does not move the date either.
 
-fpdf2's built-in Helvetica covers Latin-1, which is enough for Uzbek Latin
-and ``so'm`` but not for Cyrillic. ``APEXWMS_PDF_FONT_PATH`` points at a
-Unicode TTF when a store needs Russian names to print properly; without
-one, an unencodable character degrades to ``?`` rather than failing the
-download, because whoever is printing a receipt should get a slightly wrong
-receipt rather than a 500.
+The deployment default is the bundled DejaVu Sans (``APEXWMS_PDF_FONT_PATH``),
+which covers Cyrillic. With that variable set empty, fpdf2's built-in
+Helvetica is used instead: Latin-1 only, so an unencodable character
+degrades to ``?`` rather than failing the download, because whoever is
+printing a receipt should get a slightly wrong receipt rather than a 500.
 """
 
 from collections.abc import Iterable, Sequence

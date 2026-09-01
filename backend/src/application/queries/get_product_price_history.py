@@ -41,7 +41,11 @@ class GetProductPriceHistoryHandler(
         # An empty history and an unknown product are different answers,
         # and only the lookup can tell them apart.
         if await self._products.get(request.product_id) is None:
-            raise NotFoundError("no such product in this store")
+            raise NotFoundError(
+                "no such product in this store",
+                key="not_found",
+                subject_key="product",
+            )
 
         changes = await self._changes.find(PriceChangesForProduct(request.product_id))
         return ResultWithData[list[PriceChangeData]].succeed_with_data(

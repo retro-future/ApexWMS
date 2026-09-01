@@ -94,5 +94,9 @@ class DocumentLineBuilder:
     async def _product(self, product_id: UUID) -> Product:
         product = await self._products.get(product_id)
         if product is None:
-            raise NotFoundError(f"product {product_id} does not exist in this store")
+            raise NotFoundError(
+                f"product {product_id} does not exist in this store",
+                key="not_found",
+                subject_key="product",
+            )
         return product

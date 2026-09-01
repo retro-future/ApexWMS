@@ -59,13 +59,19 @@ class AddInvoiceAccessoryLineHandler(
         invoice = await self._invoices.find_one(spec)
         if invoice is None:
             raise NotFoundError(
-                f"invoice {request.sales_invoice_id} does not exist in this store"
+                f"invoice {request.sales_invoice_id} does not exist in this store",
+                key="not_found",
+                subject_key="invoice",
             )
         invoice.assert_editable()
 
         product = await self._products.get(request.product_id)
         if product is None:
-            raise NotFoundError("no such product in this store")
+            raise NotFoundError(
+                "no such product in this store",
+                key="not_found",
+                subject_key="product",
+            )
 
         line, resolved = await self._accessory.add(invoice, product, request.quantity)
         await self._invoices.update(invoice, spec)

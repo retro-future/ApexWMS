@@ -45,7 +45,11 @@ class GetDeviceUnitPriceHistoryHandler(
         # An unpriced handset and an unknown one are different answers, and
         # only the lookup can tell them apart.
         if not await self._units.exists(DeviceUnitById(request.device_unit_id)):
-            raise NotFoundError("no such device unit in this store")
+            raise NotFoundError(
+                "no such device unit in this store",
+                key="not_found",
+                subject_key="device_unit",
+            )
 
         changes = await self._changes.find(PriceChangesForUnit(request.device_unit_id))
         return ResultWithData[list[PriceChangeData]].succeed_with_data(

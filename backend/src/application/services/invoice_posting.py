@@ -142,13 +142,21 @@ class InvoicePoster:
         assert line.device_unit_id is not None
         unit = await self._units.find_one(DeviceUnitById(line.device_unit_id))
         if unit is None:
-            raise NotFoundError(f"handset {line.device_unit_id} does not exist in this store")
+            raise NotFoundError(
+                f"handset {line.device_unit_id} does not exist in this store",
+                key="not_found",
+                subject_key="device_unit",
+            )
         return unit
 
     async def _load_product(self, line: SalesInvoiceLine) -> Product:
         product = await self._products.get(line.product_id)
         if product is None:
-            raise NotFoundError(f"product {line.product_id} does not exist in this store")
+            raise NotFoundError(
+                f"product {line.product_id} does not exist in this store",
+                key="not_found",
+                subject_key="product",
+            )
         return product
 
     @staticmethod
@@ -156,12 +164,16 @@ class InvoicePoster:
         """Re-checked at confirm because a draft reserves nothing (§4.4)."""
         if unit.status is not DeviceStatus.IN_STOCK:
             raise UnitNotSellableError(
-                f"IMEI {unit.imei} is {unit.status.value} and can no longer be sold"
+                f"IMEI {unit.imei} is {unit.status.value} and can no longer be sold",
+                imei=str(unit.imei),
+                status=unit.status.value,
             )
         if unit.location_id != invoice.location_id:
             raise WrongLocationError(
                 f"IMEI {unit.imei} has moved and is no longer held at "
-                f"{invoice.number}'s location"
+                f"{invoice.number}'s location",
+                imei=str(unit.imei),
+                number=invoice.number,
             )
 
     async def _assert_in_stock(
@@ -172,5 +184,9 @@ class InvoicePoster:
         if on_hand < line.quantity:
             raise InsufficientStockError(
                 f"{invoice.number} sells {line.quantity} of {sku} but only {on_hand} "
-                "are here — there is no partial fulfilment (FR-4.7)"
+                "are here — there is no partial fulfilment (FR-4.7)",
+                on_hand=on_hand,
+                sku=sku,
+                wanted=line.quantity,
+                number=invoice.number,
             )

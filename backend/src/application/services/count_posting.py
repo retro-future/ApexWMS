@@ -133,7 +133,9 @@ class CountPoster:
         unit = await self._units.find_one(DeviceUnitById(counted.device_unit_id))
         if unit is None:
             raise NotFoundError(
-                f"handset {counted.device_unit_id} does not exist in this store"
+                f"handset {counted.device_unit_id} does not exist in this store",
+                key="not_found",
+                subject_key="device_unit",
             )
         if not unit.status.is_on_hand:
             return None
@@ -205,7 +207,9 @@ class CountPoster:
         unit = await self._units.find_one(DeviceUnitById(counted.device_unit_id))
         if unit is None:
             raise NotFoundError(
-                f"handset {counted.device_unit_id} does not exist in this store"
+                f"handset {counted.device_unit_id} does not exist in this store",
+                key="not_found",
+                subject_key="device_unit",
             )
         return unit
 
@@ -298,7 +302,11 @@ class CountPoster:
 
         pool = await self._pools.pool_for(line.product_id, count.location_id)
         if pool is None:
-            raise NotFoundError(f"product {line.product_id} does not exist in this store")
+            raise NotFoundError(
+                f"product {line.product_id} does not exist in this store",
+                key="not_found",
+                subject_key="product",
+            )
         unit_cost = pool.average_unit_cost
         if unit_cost is None:
             product = await self._products.get(line.product_id)

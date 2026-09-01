@@ -205,7 +205,9 @@ class SalesInvoice(Document):
 
     def _assert_has_lines(self) -> None:
         if not self.lines:
-            raise EmptyInvoiceError(f"{self.number} has no lines — nothing is being sold")
+            raise EmptyInvoiceError(
+                f"{self.number} has no lines — nothing is being sold", number=self.number
+            )
 
     def _assert_no_unit_twice(self) -> None:
         seen: set[UUID] = set()
@@ -214,7 +216,8 @@ class SalesInvoice(Document):
                 continue
             if line.device_unit_id in seen:
                 raise DuplicateScanError(
-                    f"{self.number} sells the same handset twice — one phone, one line"
+                    f"{self.number} sells the same handset twice — one phone, one line",
+                    number=self.number,
                 )
             seen.add(line.device_unit_id)
 
@@ -227,18 +230,24 @@ class SalesInvoice(Document):
         if self.debt is not None:
             raise CreditTermsError(
                 f"{self.number} is {self.payment_type.value} and is settled at "
-                "confirm, so it carries no debt (FR-11.4)"
+                "confirm, so it carries no debt (FR-11.4)",
+                key="terms_no_debt_allowed",
+                number=self.number,
             )
         if self.payment_type is PaymentType.CREDIT_COMPANY:
             if self.credit_company_id is None:
                 raise CreditTermsError(
-                    f"{self.number} is financed but names no credit company"
+                    f"{self.number} is financed but names no credit company",
+                    key="terms_financed_no_company",
+                    number=self.number,
                 )
             return
 
         if self.credit_company_id is not None or self.contract_ref is not None:
             raise CreditTermsError(
-                f"{self.number} is paid in full and names a credit company"
+                f"{self.number} is paid in full and names a credit company",
+                key="terms_paid_names_company",
+                number=self.number,
             )
 
     def _assert_store_credit(self) -> None:
@@ -251,20 +260,28 @@ class SalesInvoice(Document):
         if self.credit_company_id is not None:
             raise CreditTermsError(
                 f"{self.number} is on the store's own book, so no credit company "
-                "financed it"
+                "financed it",
+                key="terms_store_credit_no_company",
+                number=self.number,
             )
         if self.debt is None:
             raise CreditTermsError(
                 f"{self.number} is on store credit but states no debt — the seller "
-                "enters the total som the customer will pay (FR-11.5)"
+                "enters the total som the customer will pay (FR-11.5)",
+                key="terms_store_credit_no_debt",
+                number=self.number,
             )
         if self.debt.currency is not Currency.UZS:
             raise CurrencyMismatchError(
                 f"{self.number}'s debt is {self.debt.currency.value} but all "
-                "customer debt is written in som (§4.7)"
+                "customer debt is written in som (§4.7)",
+                key="debt_not_som",
+                number=self.number,
             )
         if self.debt.is_zero or self.debt.is_negative:
             raise CreditTermsError(
                 f"{self.number} owes {self.debt.format()} — a sale that opens no "
-                "debt is paid in full"
+                "debt is paid in full",
+                key="terms_debt_without_credit",
+                number=self.number,
             )

@@ -71,7 +71,7 @@ class InviteUserHandler(
         if await self._employees.exists(
             Specification(EmployeeModel).where(EmployeeModel.email == email)
         ):
-            raise AlreadyMemberError(email)
+            raise AlreadyMemberError(email, email=email)
 
         secret = self._tokens.new_opaque_secret()
         invitation = Invitation(

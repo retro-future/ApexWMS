@@ -43,7 +43,11 @@ class GetProductLabelPdfHandler(
     ) -> ResultWithData[RenderedDocument]:
         product = await self._products.get(request.product_id)
         if product is None:
-            raise NotFoundError("no such product in this store")
+            raise NotFoundError(
+                "no such product in this store",
+                key="not_found",
+                subject_key="product",
+            )
 
         if product.barcode is not None:
             label = ProductLabel(

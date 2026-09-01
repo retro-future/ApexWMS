@@ -31,7 +31,9 @@ class GetSupplierReturnHandler(
         )
         if document is None:
             raise NotFoundError(
-                f"supplier return {request.supplier_return_id} does not exist in this store"
+                f"supplier return {request.supplier_return_id} does not exist in this store",
+                key="not_found",
+                subject_key="supplier_return",
             )
         return ResultWithData[SupplierReturnData].succeed_with_data(
             SupplierReturnData.from_entity(document)

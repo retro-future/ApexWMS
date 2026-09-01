@@ -63,7 +63,10 @@ class ChangeDeviceUnitConditionHandler(
         # sold could only make its history disagree with what it fetched.
         if not unit.status.is_on_hand:
             raise UnitNotRepriceableError(
-                f"IMEI {unit.imei} is {unit.status.value} — its condition is settled"
+                f"IMEI {unit.imei} is {unit.status.value} — its condition is settled",
+                key="condition_settled",
+                imei=str(unit.imei),
+                status=unit.status.value,
             )
 
         unit.condition = request.condition

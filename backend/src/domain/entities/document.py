@@ -54,7 +54,8 @@ class Document(UuidEntity, TenantEntity):
         if not self.status.is_editable:
             raise DocumentNotDraftError(
                 f"{self.number} is {self.status.value} and can no longer be edited — "
-                "correct it by cancelling and re-entering (§4.4)"
+                "correct it by cancelling and re-entering (§4.4)",
+                number=self.number,
             )
 
     def confirm(self, now: datetime, user_id: UUID) -> None:
@@ -74,7 +75,9 @@ class Document(UuidEntity, TenantEntity):
         if self.status is not DocumentStatus.CONFIRMED:
             raise DocumentNotConfirmedError(
                 f"{self.number} is {self.status.value}; only a confirmed document "
-                "is cancelled, and only once"
+                "is cancelled, and only once",
+                key="cancel_needs_confirmed",
+                number=self.number,
             )
         self.status = DocumentStatus.CANCELLED
         self.cancelled_at = now

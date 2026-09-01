@@ -49,7 +49,8 @@ class Product(UuidEntity, TenantEntity):
     def __post_init__(self) -> None:
         if self.barcode is not None and self.tracking_type is TrackingType.SERIAL:
             raise BarcodeNotAllowedError(
-                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)"
+                "a SERIAL product is identified by IMEI, not by barcode (FR-2.3)",
+                key="barcode_on_serial",
             )
         if self.default_sale_price is None:
             return
