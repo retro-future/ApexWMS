@@ -5,13 +5,12 @@ Receipt, and that is what writes the ledgers. Confirming a PO writes
 nothing to either ledger — it only fixes the order's numbers, so the
 supplier and the store are looking at the same figures.
 
-The price on each line is not known when a line is first raised (an Owner
-may want to record what it intends to buy before a supplier has quoted a
-price). ``unit_cost`` is filled in afterward, while the order is still a
-draft, and ``confirm`` is the point that requires every line to have one —
-the same shape ``GoodsReceipt.confirm`` already enforces for its units. A
-Goods Receipt may only be raised against a ``CONFIRMED`` order, so an
-unpriced line can never reach one.
+A line's price is optional at every stage. The store may raise an order
+before a supplier has quoted, confirm it to lock the quantities, and only
+learn the cost when the goods arrive — pricing then happens on the Goods
+Receipt, which has its own price gate at confirm (FR-3.4b, FR-3.10).
+``unit_cost`` may be filled in while the order is a draft, through
+``price_purchase_order_line``, but confirm never requires it.
 
 Each line takes its currency from its product (FR-2.7), so one order may
 hold a USD phone line and a UZS accessory line at once. There is no
@@ -30,7 +29,6 @@ from domain.errors import (
     CurrencyMismatchError,
     InvalidLineError,
     InvalidMoneyError,
-    UnpricedOrderLineError,
 )
 from domain.services import SubtotalsCalculator
 from domain.value_objects import Currency, Money
@@ -74,9 +72,8 @@ class PurchaseOrder(Document):
     lines: list[PurchaseOrderLine] = field(default_factory=list)
 
     def confirm(self, now: datetime, user_id: UUID) -> None:
-        """FR-3.2: the deal is final, so every line must state its price."""
+        """FR-3.2: lock the order's quantities. Prices stay optional."""
         self.assert_editable()
-        self._assert_priced()
         super().confirm(now, user_id)
 
     def subtotals(self) -> dict[Currency, Money]:
@@ -88,12 +85,3 @@ class PurchaseOrder(Document):
         for line in self.lines:
             ordered[line.product_id] = ordered.get(line.product_id, 0) + line.quantity
         return ordered
-
-    def _assert_priced(self) -> None:
-        unpriced = sorted(str(line.product_id) for line in self.lines if line.unit_cost is None)
-        if unpriced:
-            raise UnpricedOrderLineError(
-                f"{self.number} cannot be confirmed — no unit cost on "
-                f"{', '.join(unpriced)}",
-                number=self.number,
-            )

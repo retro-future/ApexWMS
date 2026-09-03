@@ -124,8 +124,7 @@ export default function PurchaseOrderPage() {
               {tDoc("confirmAction")}
             </Button>
           )}
-          {/* A draft's lines may still hold no cost, and the server refuses
-              it. Cost.View because this page is a list of unit costs. */}
+          {/* Cost.View because this page is a list of unit costs. */}
           {!draft && can(Permission.Cost.View) && (
             <OpenPdfButton href={`/api/backend/purchase-orders/${order.id}/pdf`} />
           )}

@@ -52,7 +52,6 @@ imei_scanned_other_product = "IMEI {imei} bu qabulga boshqa tovarga allaqachon s
 unpriced_no_unit_cost = "{number} tasdiqlab bo’lmaydi: birlik narxi yo’q — {items}."
 unpriced_no_acquisition_cost = "{number} tasdiqlab bo’lmaydi: tan narxi yo’q — {items}."
 unpriced_no_asking_price = "{number} tasdiqlab bo’lmaydi: bular yangi emas va sotuv narxi yo’q: {items}."
-unpriced_order_line = "{number} tasdiqlab bo‘lmaydi: qatorda birlik narxi yo‘q."
 unit_not_sellable = "IMEI {imei}: holati «{status}», sotib bo‘lmaydi."
 wrong_location = "IMEI {imei} boshqa omborda, {number} esa o‘zinikidan ishlaydi."
 insufficient_stock = "Omborda {sku} {on_hand} dona, {number} esa {wanted} dona ko‘chiradi. Qisman yetkazish yo‘q."

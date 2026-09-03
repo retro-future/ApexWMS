@@ -327,7 +327,7 @@
     "priceLineTitle": "Qator narxi",
     "priceLineHint": "Qator o'z mahsulotining valyutasida baholanadi.",
     "unpriced": "Narxsiz",
-    "unpricedWarning": "Tasdiqlashdan oldin har bir qatorda narx bo'lishi kerak.",
+    "unpricedWarning": "Ba'zi qatorlarda narx yo'q. Buyurtmani baribir tasdiqlash mumkin; narxni qabul qilishda kiritish mumkin.",
     "receiveAgainst": "Shu buyurtma bo'yicha qabul qilish",
     "confirmTitle": "Buyurtma tasdiqlansinmi?",
     "confirmBody": "Qatorlar va summalar yakuniy bo'ladi. Qoldiq o'zgarmaydi — tovar kirim hujjati bilan keladi.",

@@ -87,7 +87,7 @@ describe("printing a purchase order", () => {
   });
 
   it("has no button while it is a draft", async () => {
-    // A draft's lines may still hold no cost, and the server refuses it.
+    // The PDF renders only from a confirmed order.
     render("draft");
 
     await screen.findByText("PO-2026-0001");

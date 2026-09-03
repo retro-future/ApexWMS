@@ -3,8 +3,8 @@
 A PO may be created as just products and quantities, price unknown. This is
 where that gap closes, one line at a time, while the order is still a
 draft — the same shape ``price_receipt_unit.py`` uses for a scanned
-handset. ``PurchaseOrder.confirm()`` is what refuses to let a line through
-still unpriced.
+handset. Pricing here is optional: an order confirms with or without it,
+and an unpriced line is priced later on the Goods Receipt.
 """
 
 from uuid import UUID
