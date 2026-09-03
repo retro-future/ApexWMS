@@ -3,9 +3,9 @@
 The receipt states where the goods came from. ``SUPPLIER`` names a
 supplier; ``TRADE_IN`` names none and may name the walk-in customer the
 handset was bought from. A receipt raised against a Purchase Order is
-always ``SUPPLIER`` and pre-fills its lines from the order — and the order
-must already be ``CONFIRMED``, which is what guarantees every line it
-hands over already has a price (FR-3.1, FR-3.2).
+always ``SUPPLIER`` and pre-fills its lines from the order, which must
+already be ``CONFIRMED``. A pre-filled line may still be unpriced; the
+price is set on the receipt before it confirms (FR-3.1, FR-3.4b).
 
 The source says nothing about the goods. Whether each handset is new,
 refurbished or used is stated per scan, and a supplier delivery of used
@@ -197,15 +197,10 @@ class CreateGoodsReceiptHandler(
         if order is not None and not request.lines:
             lines: list[LineInput] = []
             for line in order.lines:
-                # `_linked_order` has already refused anything but a
-                # CONFIRMED order, and `PurchaseOrder.confirm()` refuses to
-                # confirm while any line is unpriced.
-                assert line.unit_cost is not None
                 outstanding = line.quantity - received.get(line.product_id, 0)
                 if outstanding > 0:
-                    lines.append(
-                        LineInput(line.product_id, outstanding, line.unit_cost.as_major())
-                    )
+                    cost = None if line.unit_cost is None else line.unit_cost.as_major()
+                    lines.append(LineInput(line.product_id, outstanding, cost))
             return lines
         return [
             LineInput(line.product_id, line.quantity, line.unit_cost)

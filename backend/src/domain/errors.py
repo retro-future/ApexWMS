@@ -169,16 +169,6 @@ class UnpricedUnitError(DomainError):
     """
 
 
-class UnpricedOrderLineError(DomainError):
-    """A Purchase Order confirmed while a line still lacks a unit cost.
-
-    Confirming a PO is the moment the deal with the supplier is final, so
-    the price has to exist by then. A Goods Receipt can only be raised
-    against a ``CONFIRMED`` order, which is what keeps an unpriced line from
-    ever reaching a receipt.
-    """
-
-
 class OverReceiptError(DomainError):
     """A receipt would take a Purchase Order past what it ordered (FR-3.9).
 

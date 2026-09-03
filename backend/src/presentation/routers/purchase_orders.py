@@ -10,9 +10,9 @@ There is no route that edits a line's product or quantity. A draft order
 that is wrong there is cancelled and raised again — nothing has been
 scanned onto it, so nothing is lost. Price is the one exception: a line may
 be raised with none, since the store may not know it yet, so there is one
-route that fills it in (FR-3.1). That is completing a draft, not correcting
-a stated fact, and ``PurchaseOrder.confirm()`` still refuses to let an
-unpriced line through regardless.
+route that fills it in (FR-3.1). Price stays optional through confirm — an
+order may be confirmed with unpriced lines and the cost set later on the
+Goods Receipt.
 """
 
 from typing import Annotated

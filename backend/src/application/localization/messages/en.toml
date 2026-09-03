@@ -57,7 +57,6 @@ imei_scanned_other_product = "IMEI {imei} is already scanned onto this receipt a
 unpriced_no_unit_cost = "{number} cannot be confirmed: no unit cost on {items}."
 unpriced_no_acquisition_cost = "{number} cannot be confirmed: no acquisition cost on {items}."
 unpriced_no_asking_price = "{number} cannot be confirmed: these are not new and carry no asking price: {items}."
-unpriced_order_line = "{number} cannot be confirmed: a line has no unit cost."
 unit_not_sellable = "IMEI {imei} is {status} and cannot be sold."
 wrong_location = "IMEI {imei} is held at another location; {number} works from its own."
 insufficient_stock = "This location holds {on_hand} of {sku}; {number} would move {wanted}. There is no partial fulfilment."

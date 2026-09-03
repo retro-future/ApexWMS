@@ -1,9 +1,8 @@
 """``PurchaseOrder.confirm()`` — PRD §4.4, FR-3.1, FR-3.2.
 
-A line may be raised with no price at all: the store may not know it until
-it agrees one with the supplier. ``confirm`` is the point that requires
-every line to state one, the same shape ``GoodsReceipt.confirm()`` already
-enforces for its units.
+A line may be raised with no price at all, and it stays optional through
+confirm: the store may not know the cost until the goods arrive, and the
+Goods Receipt has its own price gate.
 """
 
 from datetime import UTC, datetime
@@ -17,7 +16,6 @@ from domain.errors import (
     CurrencyMismatchError,
     DocumentNotDraftError,
     InvalidMoneyError,
-    UnpricedOrderLineError,
 )
 from domain.value_objects import Currency, Money
 
@@ -73,27 +71,23 @@ class TestRaisingALine:
             line(doc, currency=Currency.UZS, unit_cost=usd("700"))
 
 
-class TestConfirmRequiresEveryLinePriced:
-    def test_an_unpriced_line_refuses_to_confirm(self):
+class TestConfirm:
+    def test_an_unpriced_line_still_confirms(self):
         doc = order()
         line(doc, quantity=3)
 
-        with pytest.raises(UnpricedOrderLineError):
-            doc.confirm(NOW, uuid4())
+        doc.confirm(NOW, uuid4())
 
-        assert doc.status is DocumentStatus.DRAFT
+        assert doc.status is DocumentStatus.CONFIRMED
 
-    def test_every_offending_product_is_named_in_one_message(self):
+    def test_a_partly_priced_order_confirms(self):
         doc = order()
-        a = line(doc)
-        b = line(doc)
+        line(doc)
         line(doc, unit_cost=usd("700"))
 
-        with pytest.raises(UnpricedOrderLineError) as excinfo:
-            doc.confirm(NOW, uuid4())
+        doc.confirm(NOW, uuid4())
 
-        assert str(a.product_id) in str(excinfo.value)
-        assert str(b.product_id) in str(excinfo.value)
+        assert doc.status is DocumentStatus.CONFIRMED
 
     def test_a_fully_priced_order_confirms(self):
         doc = order()

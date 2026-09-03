@@ -52,7 +52,6 @@ imei_scanned_other_product = "IMEI {imei} уже отсканирован в э�
 unpriced_no_unit_cost = "{number} нельзя подтвердить: нет цены за единицу — {items}."
 unpriced_no_acquisition_cost = "{number} нельзя подтвердить: нет себестоимости — {items}."
 unpriced_no_asking_price = "{number} нельзя подтвердить: это не новые аппараты и у них нет цены продажи: {items}."
-unpriced_order_line = "{number} нельзя подтвердить: в строке нет цены за единицу."
 unit_not_sellable = "IMEI {imei}: статус «{status}», продажа невозможна."
 wrong_location = "IMEI {imei} находится на другом складе, а {number} работает со своего."
 insufficient_stock = "На складе {on_hand} шт. {sku}, а {number} перемещает {wanted}. Частичная отгрузка невозможна."

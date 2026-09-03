@@ -327,7 +327,7 @@
     "priceLineTitle": "Price this line",
     "priceLineHint": "The line is priced in its product's currency.",
     "unpriced": "Not priced",
-    "unpricedWarning": "Every line needs a price before this order can be confirmed.",
+    "unpricedWarning": "Some lines have no cost. You can still confirm the order; the price can be set on the goods receipt.",
     "receiveAgainst": "Receive against this order",
     "confirmTitle": "Confirm this order?",
     "confirmBody": "Its lines and amounts become final. No stock moves — goods arrive on a receipt.",

@@ -1,10 +1,9 @@
 """FR-3.2, FR-8.1: the order as a file to send the supplier.
 
-A draft refuses to render, and for a sharper reason than the invoice's: a
-draft order may still hold lines with no unit cost at all (FR-3.1), so the
-page would be an order for goods at no stated price. ``_assert_priced`` is
-what closes that gap at confirm, and refusing to print before then is the
-same rule seen from the paperwork side.
+A draft refuses to render: a draft order is still being filled in, and the
+supplier should see it only once its quantities are locked. Lines may carry
+no unit cost even after confirm (FR-3.1); the page prints those with a
+blank cost.
 
 A **cancelled** order still renders, marked as cancelled — the supplier was
 sent something, and §4.3's rule that the history of a mistake is part of

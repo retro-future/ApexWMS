@@ -680,8 +680,8 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 
 ### 5.3 Inbound — Purchase Orders & Receiving
 
-- **FR-3.1** A Manager creates a Purchase Order: supplier and lines of `(product, quantity, unit_cost)` — each line's currency comes from its product (FR-2.7); the document has no currency of its own. It is a `DRAFT`.
-- **FR-3.2** Confirming a PO fixes its numbers and generates a PDF. **It does not change stock.**
+- **FR-3.1** A Manager creates a Purchase Order: supplier and lines of `(product, quantity, unit_cost)` — each line's currency comes from its product (FR-2.7); the document has no currency of its own. `unit_cost` is **optional** at every stage: a line may be raised, priced later while still a draft, or left unpriced through confirm, with the cost then set on the Goods Receipt (FR-3.4b). It is a `DRAFT`.
+- **FR-3.2** Confirming a PO fixes its quantities and generates a PDF. **It does not change stock**, and it does **not** require every line to be priced. *(Test: confirm a PO with one priced and one unpriced line — it confirms; the PDF prints the unpriced line with a blank cost.)*
 - **FR-3.3** A Storekeeper creates a Goods Receipt, optionally from a PO (which pre-fills its lines).
 - **FR-3.3b** A Goods Receipt states an `acquisition_source` of `SUPPLIER` (the default, requiring a supplier) or `TRADE_IN` (no supplier, optionally naming the `Customer` the handset was bought from) — §4.4. A receipt created from a PO is always `SUPPLIER`. *(Test: create a trade-in receipt with no supplier — it saves and confirms; attempt a `SUPPLIER` receipt with no supplier — rejected; attempt to link a PO to a `TRADE_IN` receipt — rejected.)*
 - **FR-3.4** For a `SERIAL` line, the Storekeeper scans one IMEI per unit. The system validates the Luhn check digit and rejects malformed IMEIs **at scan time**, not on submit.
