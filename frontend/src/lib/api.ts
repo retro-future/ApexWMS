@@ -12,6 +12,8 @@
  *     request validation.
  */
 
+import { CSRF_HEADERS } from "@/lib/csrf";
+
 const PROXY_PREFIX = "/api/backend";
 
 export class ApiError extends Error {
@@ -88,6 +90,7 @@ async function request(
   const res = await fetch(`${PROXY_PREFIX}${path}`, {
     ...init,
     headers: {
+      ...CSRF_HEADERS,
       ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...init.headers,
     },

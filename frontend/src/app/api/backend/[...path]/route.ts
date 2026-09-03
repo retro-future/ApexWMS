@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { callBackend } from "@/server/backend";
+import { rejectCrossSite } from "@/server/csrf";
 import { serverLocale } from "@/server/locale";
 import { refreshTokens } from "@/server/refresh";
 import {
@@ -26,10 +27,19 @@ function unauthorized(): NextResponse {
   return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
 }
 
+/** Every write through here is JSON; anything else is a cross-site form. */
+function unsupportedMedia(contentType: string | null): boolean {
+  if (contentType === null) return false;
+  return !contentType.split(";")[0].trim().toLowerCase().startsWith("application/json");
+}
+
 async function handle(
   request: NextRequest,
   context: Context,
 ): Promise<NextResponse> {
+  const blocked = rejectCrossSite(request);
+  if (blocked) return blocked;
+
   const { path } = await context.params;
   const target = `/${path.join("/")}${request.nextUrl.search}`;
   const method = request.method;
@@ -39,6 +49,9 @@ async function handle(
   const body =
     method === "GET" || method === "HEAD" ? undefined : await request.text();
   const contentType = request.headers.get("content-type");
+  if (unsupportedMedia(contentType)) {
+    return NextResponse.json({ detail: "Expected JSON" }, { status: 415 });
+  }
 
   const { accessToken, refreshToken } = await readTokens();
   if (!accessToken) return unauthorized();

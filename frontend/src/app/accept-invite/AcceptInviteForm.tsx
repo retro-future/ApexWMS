@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { messageFromDetail } from "@/lib/api";
+import { CSRF_HEADERS } from "@/lib/csrf";
 
 export function AcceptInviteForm({ token }: { token: string }) {
   const t = useTranslations("auth");
@@ -31,7 +32,7 @@ export function AcceptInviteForm({ token }: { token: string }) {
     try {
       const res = await fetch("/api/auth/accept-invite", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...CSRF_HEADERS, "Content-Type": "application/json" },
         body: JSON.stringify({
           token,
           password: values.password,

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { rejectCrossSiteNavigation } from "@/server/csrf";
 import { refreshTokens } from "@/server/refresh";
 import { clearTokensOn, readTokens, setTokensOn } from "@/server/session";
 
@@ -13,6 +14,9 @@ import { clearTokensOn, readTokens, setTokensOn } from "@/server/session";
  * Handler, so it can set cookies), and sends the user back into the app.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const blocked = rejectCrossSiteNavigation(request);
+  if (blocked) return blocked;
+
   const origin = request.nextUrl.origin;
   const target = safeNext(request.nextUrl.searchParams.get("next"));
 

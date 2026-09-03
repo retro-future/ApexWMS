@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET } from "@/app/api/backend/[...path]/route";
+import { GET, POST } from "@/app/api/backend/[...path]/route";
 
 const { callBackend, readTokens } = vi.hoisted(() => ({
   callBackend: vi.fn(),
@@ -118,6 +118,56 @@ describe("the BFF proxy", () => {
       expect.any(String),
       expect.objectContaining({ locale: "uz" }),
     );
+  });
+
+  it("refuses a write with no request header, which is all a cross-site form can send", async () => {
+    const res = await POST(
+      new NextRequest("http://localhost:3000/api/backend/write-offs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }),
+      context(["write-offs"]),
+    );
+
+    expect(res.status).toBe(403);
+    expect(callBackend).not.toHaveBeenCalled();
+  });
+
+  it("lets our own write through", async () => {
+    const res = await POST(
+      new NextRequest("http://localhost:3000/api/backend/write-offs", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-apex-request": "1",
+          "sec-fetch-site": "same-origin",
+        },
+        body: "{}",
+      }),
+      context(["write-offs"]),
+    );
+
+    expect(res.status).toBe(200);
+    expect(callBackend).toHaveBeenCalled();
+  });
+
+  it("refuses a body that is not JSON", async () => {
+    const res = await POST(
+      new NextRequest("http://localhost:3000/api/backend/write-offs", {
+        method: "POST",
+        headers: {
+          "content-type": "text/plain",
+          "x-apex-request": "1",
+          "sec-fetch-site": "same-origin",
+        },
+        body: "locale=ru",
+      }),
+      context(["write-offs"]),
+    );
+
+    expect(res.status).toBe(415);
+    expect(callBackend).not.toHaveBeenCalled();
   });
 
   it("refuses without a session rather than calling the backend", async () => {

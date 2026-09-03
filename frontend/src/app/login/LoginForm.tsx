@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { messageFromDetail } from "@/lib/api";
+import { CSRF_HEADERS } from "@/lib/csrf";
 
 export function LoginForm({ notice }: { notice?: string }) {
   const t = useTranslations("auth");
@@ -31,7 +32,7 @@ export function LoginForm({ notice }: { notice?: string }) {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...CSRF_HEADERS, "Content-Type": "application/json" },
         body: JSON.stringify({
           email: values.email.trim(),
           password: values.password,

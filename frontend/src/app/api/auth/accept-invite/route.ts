@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { callBackend } from "@/server/backend";
+import { rejectCrossSite } from "@/server/csrf";
 
 /**
  * Anonymous, so it cannot go through /api/backend/* (which requires a session
  * cookie). No tokens are issued here — the invitee signs in normally after.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const blocked = rejectCrossSite(request);
+  if (blocked) return blocked;
+
   const payload = await request.text();
 
   const upstream = await callBackend("/auth/accept-invite", {

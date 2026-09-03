@@ -1,8 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { LOCALE_COOKIE, isLocale } from "@/i18n/config";
+import { rejectCrossSite } from "@/server/csrf";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const blocked = rejectCrossSite(request);
+  if (blocked) return blocked;
+
   const { locale } = (await request.json()) as { locale?: string };
 
   if (!isLocale(locale)) {

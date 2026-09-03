@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import type { LoginResult } from "@/lib/types";
 import { callBackend } from "@/server/backend";
+import { rejectCrossSite } from "@/server/csrf";
 import { setTokensOn } from "@/server/session";
 
 type LoginData = {
@@ -14,6 +15,9 @@ type LoginData = {
 };
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const blocked = rejectCrossSite(request);
+  if (blocked) return blocked;
+
   const { email, password } = (await request.json()) as {
     email?: string;
     password?: string;

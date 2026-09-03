@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import { LOCALES, LOCALE_LABELS, type Locale } from "@/i18n/config";
+import { CSRF_HEADERS } from "@/lib/csrf";
 
 export function LanguageSwitcher() {
   const t = useTranslations("nav");
@@ -19,7 +20,7 @@ export function LanguageSwitcher() {
     startTransition(async () => {
       await fetch("/api/auth/locale", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...CSRF_HEADERS, "Content-Type": "application/json" },
         body: JSON.stringify({ locale }),
       });
       // Messages are resolved on the server, so the tree has to re-render.
