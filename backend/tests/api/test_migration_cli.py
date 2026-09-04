@@ -1,7 +1,7 @@
 """PRD §3.2: the migration fan-out is idempotent, resumable, and reports
 the fleet's version spread rather than crashing on a partial run."""
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -80,16 +80,21 @@ async def test_an_unreachable_tenant_is_reported_without_stopping_the_run(
 
 async def test_current_revision_is_none_before_migration(settings):
     """The version probe tolerates a database with no alembic_version table."""
+    # A unique name, and dropped afterwards: the test server outlives the run.
+    db_name = f"{settings.tenant_db_name_prefix}probe_{uuid4().hex[:8]}"
     engine = create_async_engine(settings.master_db_url)
     try:
         async with engine.connect() as conn:
             autocommit = await conn.execution_options(isolation_level="AUTOCOMMIT")
-            await autocommit.execute(text('CREATE DATABASE "apexwms_probe_test"'))
+            await autocommit.execute(text(f'CREATE DATABASE "{db_name}"'))
+
+        url = tenant_db_url(settings.master_db_url, db_name)
+        assert await migrations.current_revision(url) is None
+
+        await migrations.upgrade("tenant", url)
+        assert await migrations.current_revision(url) == migrations.head_revision("tenant")
     finally:
+        async with engine.connect() as conn:
+            autocommit = await conn.execution_options(isolation_level="AUTOCOMMIT")
+            await autocommit.execute(text(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)'))
         await engine.dispose()
-
-    url = tenant_db_url(settings.master_db_url, "apexwms_probe_test")
-    assert await migrations.current_revision(url) is None
-
-    await migrations.upgrade("tenant", url)
-    assert await migrations.current_revision(url) == migrations.head_revision("tenant")

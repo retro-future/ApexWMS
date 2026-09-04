@@ -29,6 +29,7 @@ apexwms = "infrastructure.cli:main"
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
+    "pytest-xdist>=3.6",
     "httpx>=0.28",
     "testcontainers[postgres]>=4.9",
     "faker>=33.1",
@@ -58,6 +59,11 @@ artifacts = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# 8 rather than one-per-core: the integration suite is Postgres-bound, and
+# more workers just add connection pressure. `loadfile` keeps a test file's
+# tenant churn on one worker, which halves the wall clock. `-n 0` runs
+# single-process for debugging.
+addopts = "-n 8 --dist loadfile"
 
 [tool.ruff]
 line-length = 100
