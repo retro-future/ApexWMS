@@ -95,6 +95,71 @@ async def _sold_on_credit(client, settings, owner) -> str:
     )
     return invoice_id
 
+async def _sold(client, owner, location_id: str) -> str:
+    """The delivered phone leaves at its catalog price. Returns the invoice id."""
+    created = await client.post(
+        "/api/v1/invoices", headers=owner.auth, json={"locationId": location_id}
+    )
+    assert created.status_code == 201, created.text
+    invoice_id = created.json()["data"]["id"]
+    scanned = await client.post(
+        f"/api/v1/invoices/{invoice_id}/scan",
+        headers=owner.auth,
+        json={"code": PHONE_IMEI},
+    )
+    assert scanned.status_code == 200, scanned.text
+    confirmed = await client.post(
+        f"/api/v1/invoices/{invoice_id}/confirm", headers=owner.auth, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return invoice_id
+
+
+async def _returned(
+    client,
+    owner,
+    invoice_id: str,
+    location_id: str,
+    *,
+    refund: str | None = None,
+    debt_relief: str | None = None,
+) -> str:
+    """The phone comes back. Returns the customer return's id."""
+    created = await client.post(
+        "/api/v1/customer-returns",
+        headers=owner.auth,
+        json={
+            "salesInvoiceId": invoice_id,
+            "locationId": location_id,
+            "reason": "defective",
+        },
+    )
+    assert created.status_code == 201, created.text
+    document_id = created.json()["data"]["id"]
+    scanned = await client.post(
+        f"/api/v1/customer-returns/{document_id}/scan",
+        headers=owner.auth,
+        json={"code": PHONE_IMEI},
+    )
+    assert scanned.status_code == 200, scanned.text
+    if refund is not None:
+        line_id = scanned.json()["data"]["lines"][0]["id"]
+        patched = await client.patch(
+            f"/api/v1/customer-returns/{document_id}/lines/{line_id}",
+            headers=owner.auth,
+            json={"refund": refund, "note": "opened box"},
+        )
+        assert patched.status_code == 200, patched.text
+    body = {} if debt_relief is None else {"debtRelief": debt_relief}
+    confirmed = await client.post(
+        f"/api/v1/customer-returns/{document_id}/confirm",
+        headers=owner.auth,
+        json=body,
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return document_id
+
+
 class TestACleanFleetPasses:
     async def test_a_freshly_provisioned_store_reconciles(
         self, settings, owner, capsys
@@ -592,3 +657,74 @@ class TestM6DocumentsReconcile:
         assert await _verify(settings, "verify-financials", None) == 0, (
             capsys.readouterr().out
         )
+
+
+class TestCustomerReturnsReconcile:
+    """The check that ``CustomerReturnPoster`` got §4.6's signs right.
+
+    A return books ``SALES_RETURN_REFUND`` negative and ``COGS`` **positive**,
+    and ``INVENTORY_SIGN`` reads the second as goods coming in. Book either
+    backwards and on-hand value stops matching the money ledger, which is
+    what ``verify-financials`` exists to catch. The debt case is the same
+    for ``verify-balances``: relief the balance reads and the audit does not
+    would report every returned credit sale as overpaid.
+    """
+
+    async def test_a_returned_handset_reconciles(self, client, settings, owner, capsys):
+        _, location_id = await _delivered_phone(client, owner)
+        invoice_id = await _sold(client, owner, location_id)
+        await _returned(client, owner, invoice_id, location_id)
+
+        assert await _verify(settings, "verify-projections", None) == 0
+        assert await _verify(settings, "verify-financials", None) == 0, (
+            capsys.readouterr().out
+        )
+
+    async def test_a_partly_refunded_return_reconciles(
+        self, client, settings, owner, capsys
+    ):
+        """The goods come back whole even when the money does not.
+
+        A restocking fee shrinks ``SALES_RETURN_REFUND`` and must leave
+        ``COGS`` alone — the shelf holds the phone either way.
+        """
+        _, location_id = await _delivered_phone(client, owner)
+        invoice_id = await _sold(client, owner, location_id)
+        await _returned(client, owner, invoice_id, location_id, refund="810.00")
+
+        assert await _verify(settings, "verify-projections", None) == 0
+        assert await _verify(settings, "verify-financials", None) == 0, (
+            capsys.readouterr().out
+        )
+
+    async def test_a_cancelled_return_reconciles(self, client, settings, owner, capsys):
+        _, location_id = await _delivered_phone(client, owner)
+        invoice_id = await _sold(client, owner, location_id)
+        document_id = await _returned(client, owner, invoice_id, location_id)
+
+        cancelled = await client.post(
+            f"/api/v1/customer-returns/{document_id}/cancel",
+            headers=owner.auth,
+            json={"reason": "wrong phone"},
+        )
+        assert cancelled.status_code == 200, cancelled.text
+
+        assert await _verify(settings, "verify-projections", None) == 0
+        assert await _verify(settings, "verify-financials", None) == 0, (
+            capsys.readouterr().out
+        )
+
+    async def test_relieving_debt_keeps_the_balances_reconciled(
+        self, client, settings, owner, capsys
+    ):
+        invoice_id = await _sold_on_credit(client, settings, owner)
+        read = await client.get(f"/api/v1/invoices/{invoice_id}", headers=owner.auth)
+        location_id = read.json()["data"]["locationId"]
+        await _returned(
+            client, owner, invoice_id, location_id, debt_relief="7000000"
+        )
+
+        assert await _verify(settings, "verify-balances", None) == 0, (
+            capsys.readouterr().out
+        )
+        assert await _verify(settings, "verify-financials", None) == 0

@@ -17,7 +17,7 @@ from application.commands.cancel_sales_invoice import CancelSalesInvoiceCommand
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceCommand
 from application.commands.record_payment import RecordPaymentCommand
 from domain.entities import FinancialTransaction, Location
-from domain.enums import DocumentType, PaymentType, TransactionType
+from domain.enums import DocumentType, PaymentType, TrackingType, TransactionType
 from domain.value_objects import Currency, Money
 from tests.application.builders import World, make_world
 from tests.application.test_credit_sales import (
@@ -29,6 +29,11 @@ from tests.application.test_credit_sales import (
     som,
     usd,
 )
+from tests.application.test_sales_invoice import (
+    CASE_BARCODE,
+    stocked_accessory,
+)
+from tests.application.test_sales_invoice import catalogued as catalogued_full
 
 # Tashkent is UTC+5, so January 2026 runs [2025-12-31 19:00Z, 2026-01-31 19:00Z).
 LAST_NIGHT_OF_JANUARY = datetime(2026, 1, 31, 18, 30, tzinfo=UTC)
@@ -188,6 +193,27 @@ class TestTheAccrualView:
             location.id
         ]
         assert january.closing_by_location[0].value.of(Currency.USD) == usd("380")
+
+    async def test_an_accessory_on_the_shelf_keeps_its_location_name(self):
+        """FR-10.6: a quantity accessory's closing value is attributed to a
+        named location, not left unattributed — moved_pairs carries no name."""
+        world = make_world()
+        location = a_place(world)
+        case = catalogued_full(
+            world,
+            sku="CASE-BLK",
+            price="50000",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            barcode=CASE_BARCODE,
+        )
+        world.clock.current = MID_JANUARY
+        await stocked_accessory(world, case, location, 3, som("90000"))
+
+        january = await world.month_end_reporter().report(2026, 1)
+
+        assert [e.location_id for e in january.closing_by_location] == [location.id]
+        assert january.closing_by_location[0].location_name == location.name
 
     async def test_a_phone_sold_before_period_end_is_off_the_shelf(self):
         world = make_world()

@@ -43,6 +43,7 @@ function figures(overrides: Partial<AccrualFigures> = {}): AccrualFigures {
     purchases: [],
     costOfGoods: [],
     revenue: [],
+    salesReturns: [],
     writeOffs: [],
     supplierReturnCredits: [],
     countAdjustments: [],
@@ -189,8 +190,13 @@ describe("the row lists", () => {
     ]);
   });
 
-  it("keeps the sales block to revenue, its cost, and the margin", () => {
-    expect(SALES_ROWS).toEqual(["revenue", "costOfGoods", "margin"]);
+  it("keeps the sales block to revenue, returns, its cost, and the margin", () => {
+    expect(SALES_ROWS).toEqual([
+      "revenue",
+      "salesReturns",
+      "costOfGoods",
+      "margin",
+    ]);
   });
 });
 

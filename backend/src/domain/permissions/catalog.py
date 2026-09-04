@@ -58,6 +58,8 @@ class Permission(StrEnum):
     # The full debtor list across all customers is a business-health
     # figure, not a serving-this-customer one (PRD §2.1 note 1).
     CUSTOMER_ACCOUNT_VIEW_ALL = "Permission.CustomerAccount.ViewAll"
+    CUSTOMER_RETURN_VIEW = "Permission.CustomerReturn.View"
+    CUSTOMER_RETURN_MANAGE = "Permission.CustomerReturn.Manage"
     SUPPLIER_RETURN_VIEW = "Permission.SupplierReturn.View"
     SUPPLIER_RETURN_MANAGE = "Permission.SupplierReturn.Manage"
     STOCK_COUNT_RUN = "Permission.StockCount.Run"

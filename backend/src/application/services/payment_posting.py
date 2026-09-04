@@ -20,13 +20,14 @@ Nothing here commits — the calling handler owns the transaction, like every
 other poster.
 """
 
-from application.common.repository import TenantAppendOnlyRepository
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.common.specification import Specification
 from application.dtos import CurrentUser, MoneyEffect
 from application.ports import Clock
+from application.services.customer_balance import remaining_on
 from application.services.ledger import LedgerPoster
-from application.specs import PaymentsForInvoice
-from domain.entities import Payment, SalesInvoice
+from application.specs import CustomerReturnsForInvoice, PaymentsForInvoice
+from domain.entities import CustomerReturn, Payment, SalesInvoice
 from domain.enums import DocumentStatus, DocumentType, PaymentMethod, TransactionType
 from domain.errors import (
     CurrencyMismatchError,
@@ -35,18 +36,20 @@ from domain.errors import (
     PaymentAlreadyReversedError,
 )
 from domain.value_objects import Currency, Money
-from infrastructure.persistence.tenant.models import PaymentModel
+from infrastructure.persistence.tenant.models import CustomerReturnModel, PaymentModel
 
 
 class PaymentPoster:
     def __init__(
         self,
         payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+        returns: TenantDbRepository[CustomerReturn, CustomerReturnModel],
         poster: LedgerPoster,
         clock: Clock,
         current: CurrentUser,
     ) -> None:
         self._payments = payments
+        self._returns = returns
         self._poster = poster
         self._clock = clock
         self._current = current
@@ -123,10 +126,14 @@ class PaymentPoster:
                 key="payment_not_som",
             )
 
-        paid = Money.zero(Currency.UZS)
-        for payment in await self._payments.find(PaymentsForInvoice(invoice.id)):
-            paid = paid + payment.amount
-        remaining = invoice.debt - paid
+        # Through ``remaining_on`` rather than a subtraction here, so the
+        # relief a customer return already wrote off cannot be paid twice
+        # (FR-4.9d).
+        remaining = remaining_on(
+            invoice,
+            await self._payments.find(PaymentsForInvoice(invoice.id)),
+            await self._returns.find(CustomerReturnsForInvoice(invoice.id)),
+        )
         if amount > remaining:
             raise OverpaymentError(
                 f"{amount.format()} is more than the {remaining.format()} still owed "

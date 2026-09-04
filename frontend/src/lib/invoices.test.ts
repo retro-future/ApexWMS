@@ -60,6 +60,7 @@ function invoice(lines: SalesInvoiceLine[]): SalesInvoice {
     debt: null,
     debtMinor: null,
     paidMinor: 0,
+    relievedMinor: 0,
     remainingMinor: 0,
     payments: [],
     belowCostAlerts: [],

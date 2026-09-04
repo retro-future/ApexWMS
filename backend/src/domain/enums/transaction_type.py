@@ -17,6 +17,12 @@ exceptional case.
 sale is confirmed, paid or not (accrual), while ``PAYMENT_RECEIVED``
 settles the debt that sale opened. A payment must never write revenue, or
 every store-credit instalment would inflate the books — see §4.6's box.
+
+``SALES_RETURN_REFUND`` carries only the money owed back to the customer.
+The *goods* side of a customer return rides on a positive ``COGS`` row,
+which is what puts the returned accessories back into the cost pool at the
+value they left it — see ``INVENTORY_SIGN`` in
+``application/services/cost_pools.py``.
 """
 
 from enum import StrEnum
@@ -28,6 +34,7 @@ class TransactionType(StrEnum):
     COGS = "cogs"
     WRITE_OFF_LOSS = "write_off_loss"
     SUPPLIER_RETURN_CREDIT = "supplier_return_credit"
+    SALES_RETURN_REFUND = "sales_return_refund"
     COUNT_ADJUSTMENT = "count_adjustment"
     PAYMENT_RECEIVED = "payment_received"
 
@@ -46,6 +53,7 @@ _ORDINARY_SIGN: dict[TransactionType, int] = {
     TransactionType.COGS: -1,
     TransactionType.WRITE_OFF_LOSS: -1,
     TransactionType.SUPPLIER_RETURN_CREDIT: +1,
+    TransactionType.SALES_RETURN_REFUND: -1,
     TransactionType.COUNT_ADJUSTMENT: 0,
     TransactionType.PAYMENT_RECEIVED: +1,
 }

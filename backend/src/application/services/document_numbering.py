@@ -19,6 +19,7 @@ _PREFIXES: dict[DocumentType, str] = {
     DocumentType.GOODS_RECEIPT: "GR",
     DocumentType.SALES_INVOICE: "INV",
     DocumentType.SUPPLIER_RETURN: "SR",
+    DocumentType.CUSTOMER_RETURN: "CR",
     DocumentType.STOCK_COUNT: "SC",
     DocumentType.WRITE_OFF: "WO",
 }

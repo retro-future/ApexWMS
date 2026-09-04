@@ -1,7 +1,8 @@
-# Documents (PRD §4.4, §5.3, §5.4, §5.5, §5.6)
+# Documents (PRD §4.4, §5.3, §5.4, §5.4b, §5.5, §5.6)
 
-All six document types exist: `PurchaseOrder`, `GoodsReceipt`,
-`SalesInvoice`, `SupplierReturn`, `WriteOff` and `StockCount`. All extend
+All seven document types exist: `PurchaseOrder`, `GoodsReceipt`,
+`SalesInvoice`, `CustomerReturn`, `SupplierReturn`, `WriteOff` and
+`StockCount`. All extend
 `Document` (`domain/entities/document.py`), which owns §4.4's one lifecycle
 — `DRAFT → CONFIRMED → CANCELLED`, terminal at both ends — and nothing else.
 **What makes a particular document confirmable is its own business**: a
@@ -170,6 +171,40 @@ because a quantity line names no handset. It is on the line rather than left
 to the caller because `DELETE /{id}/scan/{imei}` is keyed by IMEI, so a
 screen holding only `device_unit_id` could neither name what it is showing
 nor remove a mis-scanned phone.
+
+## The one that brings goods back
+
+`CustomerReturn` (`domain/entities/customer_return.py`) is the inbound
+mirror of the two above, and it deliberately does **not** share their line
+class. `RemovalLine`'s own docstring says why: nothing leaves under a
+supplier return or a write-off *at a price*, and a refund is a price. So
+`CustomerReturnLine` is shaped like a sales invoice line — an amount, an
+approver and a note — while `refund_price`'s ceiling, the invoice line's
+`charged_price`, is carried by the repository's join rather than copied.
+
+**It is not a partial `LedgerPoster.reverse` either**, which is the design
+this could most easily have collapsed into. `reverse` negates a whole
+document at its original figures; a return takes back some of it, possibly
+at less, and leaves the sale standing as a sale. The two are separate
+`MovementType` members for that reason (PRD §5.10 reports them in different
+columns), and `_STATUS_WHEN_GONE` in `domain/services/projection.py` gains
+`CUSTOMER_RETURN: SOLD` purely for the *cancelled* return — the same reason
+`RECEIPT` has an entry there, and why no new `DeviceStatus` was needed.
+
+`CustomerReturn.confirm()` is thin for the reason `SalesInvoice.confirm()`
+is: what may come back depends on the live invoice and on every other
+return against it, which needs repository reads.
+`CustomerReturnScanner` (`application/services/customer_return_scanning.py`)
+refuses goods this sale never sold, on the beep; `ConfirmCustomerReturnHandler`
+re-checks the double-return guard, because two drafts can be open against
+one sale and only the first to confirm may take the goods.
+
+`debt_relief` is a **column** and not a ledger row, exactly as the invoice's
+own `debt` is (see [ledgers.md](ledgers.md)). Every balance read counts
+confirmed returns only, so cancelling one gives the relief back with no
+compensating row to write. `application/services/customer_balance.py` is
+the single statement of `debt − Σ payments − Σ relief` on the Python side,
+and `SqlSalesInvoiceQueries._relieved()` is its SQL twin.
 
 ## The Stock Count has four steps and three statuses
 

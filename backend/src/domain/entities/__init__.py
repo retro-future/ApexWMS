@@ -8,6 +8,7 @@ M3 — and its ``Employee`` rows: what a person may do *there*.
 
 from domain.entities.credit_company import CreditCompany
 from domain.entities.customer import Customer
+from domain.entities.customer_return import CustomerReturn, CustomerReturnLine
 from domain.entities.device_unit import DeviceUnit
 from domain.entities.device_unit_price_change import DeviceUnitPriceChange
 from domain.entities.document import Document
@@ -37,6 +38,8 @@ from domain.entities.write_off import WriteOff, WriteOffLine
 __all__ = [
     "CreditCompany",
     "Customer",
+    "CustomerReturn",
+    "CustomerReturnLine",
     "DeviceUnit",
     "DeviceUnitPriceChange",
     "Document",

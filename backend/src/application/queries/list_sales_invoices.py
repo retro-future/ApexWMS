@@ -17,10 +17,14 @@ from application.common.repository import TenantAppendOnlyRepository, TenantDbRe
 from application.common.specification import Specification
 from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.models import SalesInvoiceData
-from application.specs import SalesInvoiceBrowse
-from domain.entities import Payment, SalesInvoice
+from application.specs import RETURN_WITH_LINES, SalesInvoiceBrowse
+from domain.entities import CustomerReturn, Payment, SalesInvoice
 from domain.enums import DocumentStatus, PaymentType
-from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
+from infrastructure.persistence.tenant.models import (
+    CustomerReturnModel,
+    PaymentModel,
+    SalesInvoiceModel,
+)
 
 
 class ListSalesInvoicesQuery(PagedQuery[PagedResult[SalesInvoiceData]]):
@@ -41,9 +45,11 @@ class ListSalesInvoicesHandler(
         self,
         invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+        returns: TenantDbRepository[CustomerReturn, CustomerReturnModel],
     ) -> None:
         self._invoices = invoices
         self._payments = payments
+        self._returns = returns
 
     async def handle(
         self, request: ListSalesInvoicesQuery
@@ -62,18 +68,32 @@ class ListSalesInvoicesHandler(
             spec.page(request.page, request.page_size)
         )
         ids = [invoice.id for invoice in invoices]
+        # Both batched over the whole page: a balance needs the payments and
+        # the confirmed returns, and one query each beats two per row.
         paid: defaultdict[UUID, list[Payment]] = defaultdict(list)
+        given_back: defaultdict[UUID, list[CustomerReturn]] = defaultdict(list)
         if ids:
-            spec = (
+            payment_spec = (
                 Specification(PaymentModel)
                 .where(PaymentModel.sales_invoice_id.in_(ids))
                 .order(PaymentModel.occurred_at, PaymentModel.id)
             )
-            for payment in await self._payments.find(spec):
+            for payment in await self._payments.find(payment_spec):
                 paid[payment.sales_invoice_id].append(payment)
+            return_spec = (
+                Specification(CustomerReturnModel)
+                .where(CustomerReturnModel.sales_invoice_id.in_(ids))
+                .include(*RETURN_WITH_LINES)
+            )
+            for document in await self._returns.find(return_spec):
+                given_back[document.sales_invoice_id].append(document)
         return PagedResult[SalesInvoiceData].succeed_with_data(
             data=[
-                SalesInvoiceData.from_entity(invoice, paid.get(invoice.id, []))
+                SalesInvoiceData.from_entity(
+                    invoice,
+                    paid.get(invoice.id, []),
+                    given_back.get(invoice.id, []),
+                )
                 for invoice in invoices
             ],
             page_index=request.page,

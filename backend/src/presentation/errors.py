@@ -34,20 +34,25 @@ from application.errors import (
 from application.localization.catalog import MessageCatalog
 from application.localization.locale import Locale
 from domain.errors import (
+    AlreadyReturnedError,
     CountAlreadyClosedError,
     CountNotClosedError,
+    DebtReliefError,
     DocumentNotConfirmedError,
     DocumentNotDraftError,
     DomainError,
     DuplicateScanError,
     InsufficientStockError,
+    InvoiceHasReturnsError,
     NotACreditSaleError,
     OverpaymentError,
     OverReceiptError,
     PaymentAlreadyReversedError,
     PriceNotSetError,
+    RefundExceedsChargeError,
     UnitNotFromSupplierError,
     UnitNotRemovableError,
+    UnitNotReturnableError,
     UnitNotSellableError,
     WrongLocationError,
 )
@@ -95,6 +100,17 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (OverpaymentError, 409),
     (NotACreditSaleError, 409),
     (PaymentAlreadyReversedError, 409),
+    # A customer return is the same shape of conflict throughout: goods
+    # somebody else already took back, a sale that is no longer confirmed,
+    # relief against a balance that has moved, or a refund the sale never
+    # charged. Every one of them would have succeeded a moment earlier
+    # (§5.4b). ``UnapprovedRefundError`` is deliberately not here — a
+    # reduction sent without a note is a malformed request, not a race.
+    (AlreadyReturnedError, 409),
+    (UnitNotReturnableError, 409),
+    (RefundExceedsChargeError, 409),
+    (DebtReliefError, 409),
+    (InvoiceHasReturnsError, 409),
     (MissingTenantError, 400),
     (InvitationError, 400),
     (InvalidTimezoneError, 422),

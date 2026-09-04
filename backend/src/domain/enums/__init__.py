@@ -10,6 +10,7 @@ from domain.enums.acquisition_source import AcquisitionSource
 from domain.enums.app_role import APP_PREFIX, AppRole
 from domain.enums.catalog_code_kind import CatalogCodeKind
 from domain.enums.count_outcome import CountOutcome
+from domain.enums.customer_return_reason import CustomerReturnReason
 from domain.enums.device_condition import DeviceCondition
 from domain.enums.device_status import DeviceStatus
 from domain.enums.document_status import DocumentStatus
@@ -32,6 +33,7 @@ __all__ = [
     "AppRole",
     "CatalogCodeKind",
     "CountOutcome",
+    "CustomerReturnReason",
     "DeviceCondition",
     "DeviceStatus",
     "DocumentStatus",

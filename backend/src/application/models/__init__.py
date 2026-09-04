@@ -26,6 +26,10 @@ from application.models.customer_account import (
     CreditInvoiceDebtData,
     CustomerAccountData,
 )
+from application.models.customer_return import (
+    CustomerReturnData,
+    CustomerReturnLineData,
+)
 from application.models.debtor import DebtorData
 from application.models.device_trace import (
     DeviceTraceData,
@@ -143,6 +147,8 @@ __all__ = [
     "StockCountUnitData",
     "StockOnHandData",
     "SupplierData",
+    "CustomerReturnData",
+    "CustomerReturnLineData",
     "SupplierReturnData",
     "SupplierReturnLineData",
     "TenantSettingsData",

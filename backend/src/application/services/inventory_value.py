@@ -14,16 +14,26 @@ report and the FR-10.7 audit cannot disagree about what an average cost was
 from datetime import datetime
 from uuid import UUID
 
+from application.common.repository import TenantDbRepository
 from application.dtos import LocationInventoryValue
 from application.ports import StockMovementQueries
 from application.services.cost_pools import CostPoolReader
+from application.specs import LocationBrowse
+from domain.entities import Location
 from domain.value_objects import CurrencyTotals
+from infrastructure.persistence.tenant.models import LocationModel
 
 
 class InventoryValuer:
-    def __init__(self, movements: StockMovementQueries, pools: CostPoolReader) -> None:
+    def __init__(
+        self,
+        movements: StockMovementQueries,
+        pools: CostPoolReader,
+        locations: TenantDbRepository[Location, LocationModel],
+    ) -> None:
         self._movements = movements
         self._pools = pools
+        self._locations = locations
 
     async def by_location(
         self, as_of: datetime, location_id: UUID | None = None
@@ -40,15 +50,25 @@ class InventoryValuer:
                 row.location_id, CurrencyTotals.empty()
             ).add(row.amount)
 
+        accessory_places: set[UUID] = set()
         for product_id, place in await self._movements.moved_pairs(as_of):
             if location_id is not None and place != location_id:
                 continue
             pool = await self._pools.pool_for(product_id, place, as_of)
             if pool is None or pool.value.is_zero:
                 continue
-            names.setdefault(place, None)
+            accessory_places.add(place)
             quantities[place] = quantities.get(place, 0) + pool.quantity
             values[place] = values.get(place, CurrencyTotals.empty()).add(pool.value)
+
+        # moved_pairs carries no names; a place seen only through accessories
+        # would otherwise read as "unattributed".
+        if accessory_places - names.keys():
+            for location in await self._locations.find(LocationBrowse()):
+                if location.id in accessory_places:
+                    names.setdefault(location.id, location.name)
+            for place in accessory_places:
+                names.setdefault(place, None)
 
         return [
             LocationInventoryValue(

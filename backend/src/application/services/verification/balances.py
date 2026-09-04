@@ -5,6 +5,10 @@ balances are *always* derived, so there is no cached projection to check
 them against — what this audits instead is that the two independent
 records of the same fact agree: the ``payments`` table and the money
 ledger's ``PAYMENT_RECEIVED`` rows.
+
+The negative-balance sweep counts customer-return relief alongside the
+payments (FR-4.9d). Without it a fully returned credit sale reads as
+overpaid, and the audit would report a discrepancy on every one of them.
 """
 
 from uuid import UUID
@@ -13,11 +17,16 @@ from application.common.repository import TenantAppendOnlyRepository, TenantDbRe
 from application.common.specification import Specification
 from application.dtos import Discrepancy
 from application.ports import FinancialTransactionQueries
-from application.specs import SalesInvoiceById
-from domain.entities import Payment, SalesInvoice
+from application.services.customer_balance import relieved_on
+from application.specs import CustomerReturnsForInvoice, SalesInvoiceById
+from domain.entities import CustomerReturn, Payment, SalesInvoice
 from domain.enums import TransactionType
 from domain.value_objects import Currency, Money
-from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
+from infrastructure.persistence.tenant.models import (
+    CustomerReturnModel,
+    PaymentModel,
+    SalesInvoiceModel,
+)
 
 
 class BalanceVerifier:
@@ -27,10 +36,12 @@ class BalanceVerifier:
         self,
         invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+        returns: TenantDbRepository[CustomerReturn, CustomerReturnModel],
         transactions: FinancialTransactionQueries,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
+        self._returns = returns
         self._transactions = transactions
 
     async def verify(self) -> list[Discrepancy]:
@@ -85,11 +96,17 @@ class BalanceVerifier:
                     )
                 )
                 continue
-            if paid > invoice.debt:
+            relieved = relieved_on(
+                await self._returns.find(CustomerReturnsForInvoice(invoice.id))
+            )
+            settled = paid + relieved
+            if settled > invoice.debt:
                 found.append(
                     Discrepancy(
                         subject=f"debt on {invoice.number}",
-                        expected=f"at least the {paid.format()} collected",
+                        expected=(
+                            f"at least the {settled.format()} collected and relieved"
+                        ),
                         found=invoice.debt.format(),
                     )
                 )

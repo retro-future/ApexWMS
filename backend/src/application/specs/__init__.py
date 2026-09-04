@@ -14,6 +14,13 @@ from application.specs.customer import (
     CustomerBrowse,
     CustomerForWrite,
 )
+from application.specs.customer_return import (
+    RETURN_WITH_LINES,
+    CustomerReturnBrowse,
+    CustomerReturnById,
+    CustomerReturnForWrite,
+    CustomerReturnsForInvoice,
+)
 from application.specs.device_unit import (
     DeviceUnitById,
     DeviceUnitByImei,
@@ -148,6 +155,11 @@ __all__ = [
     "StockLevelForPair",
     "SupplierBrowse",
     "SupplierForWrite",
+    "RETURN_WITH_LINES",
+    "CustomerReturnBrowse",
+    "CustomerReturnById",
+    "CustomerReturnForWrite",
+    "CustomerReturnsForInvoice",
     "SupplierReturnBrowse",
     "SupplierReturnById",
     "SupplierReturnForWrite",

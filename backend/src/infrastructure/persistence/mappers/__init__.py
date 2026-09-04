@@ -25,6 +25,7 @@ from domain.entities import (
     UserTenantAccess,
 )
 from infrastructure.persistence.mappers.auto import AutoMapper
+from infrastructure.persistence.mappers.customer_return import CustomerReturnMapper
 from infrastructure.persistence.mappers.device_unit import DeviceUnitMapper
 from infrastructure.persistence.mappers.device_unit_price_change import (
     DeviceUnitPriceChangeMapper,
@@ -74,6 +75,7 @@ COMMON_MAPPERS = (
     AutoMapper(RefreshTokenRecord, RefreshTokenModel),
     PurchaseOrderMapper(),
     SupplierReturnMapper(),
+    CustomerReturnMapper(),
     DeviceUnitMapper(),
     DeviceUnitPriceChangeMapper(),
     PaymentMapper(),
@@ -94,6 +96,7 @@ COMMON_MAPPERS = (
 __all__ = [
     "COMMON_MAPPERS",
     "AutoMapper",
+    "CustomerReturnMapper",
     "DeviceUnitMapper",
     "DeviceUnitPriceChangeMapper",
     "EmployeeMapper",

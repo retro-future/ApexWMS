@@ -48,6 +48,7 @@ function report(overrides: Partial<MonthEndReport> = {}): MonthEndReport {
       purchases: [usd(-76000)],
       costOfGoods: [usd(-38000)],
       revenue: [usd(60000)],
+      salesReturns: [],
       writeOffs: [],
       supplierReturnCredits: [],
       countAdjustments: [],
@@ -68,6 +69,7 @@ function report(overrides: Partial<MonthEndReport> = {}): MonthEndReport {
       bookedMinor: 7_800_000,
       collectedMinor: 800_000,
       voidedMinor: 0,
+      relievedMinor: 0,
       closingMinor: 7_000_000,
       currency: "UZS",
     },
@@ -200,6 +202,7 @@ describe("a month with nothing in it", () => {
         purchases: [],
         costOfGoods: [],
         revenue: [],
+        salesReturns: [],
         writeOffs: [],
         supplierReturnCredits: [],
         countAdjustments: [],
@@ -247,6 +250,36 @@ describe("the reconciliation banner", () => {
     // The mismatch is surfaced beside the month, never instead of it: revenue
     // still shows, in the grid and in the financing split.
     expect(screen.getAllByText("$600.00")).toHaveLength(2);
+  });
+});
+
+describe("customer returns", () => {
+  it("shows the refunded amount in the sales block and links it to the ledger", async () => {
+    const base = report();
+    renderScreen({
+      ...base,
+      figures: { ...base.figures, salesReturns: [usd(-15000)] },
+    });
+
+    const link = await screen.findByRole("link", { name: "Customer returns" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/reports/financial-ledger?txnType=sales_return_refund&from=2026-01-01&to=2026-01-31",
+    );
+    expect(screen.getByText("-$150.00")).toBeInTheDocument();
+  });
+
+  it("shows debt written off by returns as its own line", async () => {
+    const base = report();
+    renderScreen({
+      ...base,
+      debt: { ...base.debt, relievedMinor: 500_000 },
+    });
+
+    expect(
+      await screen.findByText("Debt written off by customer returns"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/500[\s ]000/)).toBeInTheDocument();
   });
 });
 

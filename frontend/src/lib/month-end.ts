@@ -50,9 +50,15 @@ export const STOCK_MOVE_ROWS = [
 
 export type StockMoveRow = (typeof STOCK_MOVE_ROWS)[number];
 
-/** The sales block: revenue, the cost against it, and their sum. */
+/**
+ * The sales block: gross revenue, what customers brought back, the cost
+ * against what stayed sold, and the margin that nets all three. `margin`
+ * already has the returns folded in — the backend nets revenue down before
+ * adding cost — so it stays a single figure, not a re-sum of the rows above.
+ */
 export const SALES_ROWS = [
   "revenue",
+  "salesReturns",
   "costOfGoods",
   "margin",
 ] as const satisfies readonly (keyof AccrualFigures)[];
@@ -61,6 +67,7 @@ export const SALES_ROWS = [
 const MONEY_ROWS = [
   ...STOCK_BRIDGE_ROWS,
   "revenue",
+  "salesReturns",
   "margin",
 ] as const satisfies readonly (keyof AccrualFigures)[];
 

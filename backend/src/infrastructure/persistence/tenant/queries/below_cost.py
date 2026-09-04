@@ -23,8 +23,7 @@ from sqlalchemy import ColumnElement, Numeric, Row, Select, and_, case, cast, fu
 from application.dtos import BelowCostRow
 from application.sorting import BelowCostSort
 from domain.enums import TrackingType, TransactionType
-from domain.value_objects import Currency, Money
-from domain.value_objects.cost_pool import _round_half_up
+from domain.value_objects import Currency, Money, round_half_up
 from infrastructure.persistence.tenant.models import (
     FinancialTransactionModel,
     LocationModel,
@@ -165,7 +164,7 @@ class SqlBelowCostQueries:
             value_minor,
         ) = row._tuple()
         currency = Currency(currency_code)
-        average_minor = _round_half_up(int(value_minor or 0), quantity)
+        average_minor = round_half_up(int(value_minor or 0), quantity)
         return BelowCostRow(
             product_id=product_id,
             sku=sku,

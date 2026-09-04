@@ -25,6 +25,13 @@ from application.services.catalog_code import CatalogCodeGenerator
 from application.services.claims import ClaimsFactory
 from application.services.cost_pools import CostPoolReader
 from application.services.count_posting import CountPoster
+from application.services.customer_balance import (
+    paid_on,
+    relieved_on,
+    remaining_on,
+)
+from application.services.customer_return_posting import CustomerReturnPoster
+from application.services.customer_return_scanning import CustomerReturnScanner
 from application.services.device_unit_loader import DeviceUnitLoader
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.document_lines import DocumentLineBuilder
@@ -74,9 +81,14 @@ __all__ = [
     "ProductRepricer",
     "ProjectionVerifier",
     "ReceiptPoster",
+    "CustomerReturnPoster",
+    "CustomerReturnScanner",
     "RemovalPoster",
     "RemovalScanner",
     "SalePriceParser",
+    "paid_on",
+    "relieved_on",
+    "remaining_on",
     "SlugNormalizer",
     "StockOnHandReader",
     "TimezoneValidator",

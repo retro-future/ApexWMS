@@ -11,6 +11,7 @@ from presentation.errors import register_error_handlers
 from presentation.routers import (
     auth,
     credit_companies,
+    customer_returns,
     customers,
     device_units,
     goods_receipts,
@@ -29,6 +30,7 @@ from presentation.routers import (
     write_offs,
 )
 from presentation.routers import settings as settings_router
+from version import __version__
 
 API_PREFIX = "/api/v1"
 
@@ -44,7 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version=__version__,
         debug=settings.debug,
         lifespan=lifespan,
     )
@@ -67,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(credit_companies.router, prefix=API_PREFIX)
     app.include_router(payments.router, prefix=API_PREFIX)
     app.include_router(supplier_returns.router, prefix=API_PREFIX)
+    app.include_router(customer_returns.router, prefix=API_PREFIX)
     app.include_router(write_offs.router, prefix=API_PREFIX)
     app.include_router(stock_counts.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)

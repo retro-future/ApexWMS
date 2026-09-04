@@ -73,17 +73,23 @@ class GetSalesSummaryHandler(
         appear as a row with a hole in it rather than vanish.
         """
         names: dict[UUID | None, str | None] = {}
-        revenue: dict[UUID | None, CurrencyTotals] = {}
-        cost: dict[UUID | None, CurrencyTotals] = {}
+        buckets: dict[TransactionType, dict[UUID | None, CurrencyTotals]] = {
+            TransactionType.SALE_REVENUE: {},
+            TransactionType.COGS: {},
+            TransactionType.SALES_RETURN_REFUND: {},
+        }
 
         for row in rows:
             names.setdefault(row.location_id, row.location_name)
-            into = revenue if row.txn_type is TransactionType.SALE_REVENUE else cost
+            into = buckets[row.txn_type]
             into[row.location_id] = into.get(
                 row.location_id, CurrencyTotals.empty()
             ).add(row.amount)
         for location_id in sold:
             names.setdefault(location_id, None)
+
+        def figure(txn_type: TransactionType, location_id: UUID | None) -> CurrencyTotals:
+            return buckets[txn_type].get(location_id, CurrencyTotals.empty())
 
         return [
             LocationSales(
@@ -91,8 +97,9 @@ class GetSalesSummaryHandler(
                 location_name=names[location_id],
                 figures=SalesFigures(
                     units_sold=sold.get(location_id, 0) if location_id else 0,
-                    revenue=revenue.get(location_id, CurrencyTotals.empty()),
-                    cost_of_goods=cost.get(location_id, CurrencyTotals.empty()),
+                    revenue=figure(TransactionType.SALE_REVENUE, location_id),
+                    cost_of_goods=figure(TransactionType.COGS, location_id),
+                    returns=figure(TransactionType.SALES_RETURN_REFUND, location_id),
                 ),
             )
             for location_id in sorted(names, key=lambda one: (names[one] or "", str(one)))
@@ -102,9 +109,16 @@ class GetSalesSummaryHandler(
     def _total(locations: list[LocationSales]) -> SalesFigures:
         revenue = CurrencyTotals.empty()
         cost = CurrencyTotals.empty()
+        returns = CurrencyTotals.empty()
         units = 0
         for entry in locations:
             revenue = revenue.merge(entry.figures.revenue)
             cost = cost.merge(entry.figures.cost_of_goods)
+            returns = returns.merge(entry.figures.returns)
             units += entry.figures.units_sold
-        return SalesFigures(units_sold=units, revenue=revenue, cost_of_goods=cost)
+        return SalesFigures(
+            units_sold=units,
+            revenue=revenue,
+            cost_of_goods=cost,
+            returns=returns,
+        )

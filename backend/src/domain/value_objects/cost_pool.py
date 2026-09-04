@@ -35,21 +35,7 @@ from dataclasses import dataclass
 
 from domain.errors import InvalidMovementError
 from domain.value_objects.currency import Currency
-from domain.value_objects.money import Money
-
-
-def _round_half_up(numerator: int, denominator: int) -> int:
-    """``round(numerator / denominator)``, halves away from zero, in ints.
-
-    Kept in integer arithmetic on purpose: a float here would reintroduce
-    the lost-fraction problem the whole money model exists to avoid
-    (§4.5).
-    """
-    if denominator < 0:
-        numerator, denominator = -numerator, -denominator
-    if numerator >= 0:
-        return (2 * numerator + denominator) // (2 * denominator)
-    return -((-2 * numerator + denominator) // (2 * denominator))
+from domain.value_objects.money import Money, round_half_up
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +77,7 @@ class CostPool:
         if self.quantity == 0:
             return None
         return Money(
-            _round_half_up(self.value.amount_minor, self.quantity), self.value.currency
+            round_half_up(self.value.amount_minor, self.quantity), self.value.currency
         )
 
     def receive(self, quantity: int, unit_cost: Money) -> CostPool:
@@ -136,8 +122,5 @@ class CostPool:
                 f"cannot issue {quantity} units from a pool of {self.quantity} "
                 "(FR-4.7: no partial fulfilment)"
             )
-        cost = Money(
-            _round_half_up(self.value.amount_minor * quantity, self.quantity),
-            self.value.currency,
-        )
+        cost = self.value.share(quantity, self.quantity)
         return CostPool(quantity=self.quantity - quantity, value=self.value - cost), cost

@@ -21,6 +21,7 @@ import type { Currency, CurrencySubtotal, MonthEndReport } from "@/lib/types";
 /** Which sales rows drill into a ledger category. Margin is a sum, so none. */
 const SALES_LEDGER_TYPE = {
   revenue: "sale_revenue",
+  salesReturns: "sales_return_refund",
   costOfGoods: "cogs",
 } as const;
 

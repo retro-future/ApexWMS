@@ -62,8 +62,13 @@ class SqlFinancialTransactionQueries:
         to_date: datetime | None = None,
         location_id: UUID | None = None,
     ) -> list[SalesTotalsRow]:
-        """FR-9.3's two categories (``SALE_REVENUE``, ``COGS``), grouped by
-        location and currency. Dates inclusive at both ends."""
+        """FR-9.3's three categories, grouped by location and currency.
+
+        ``SALES_RETURN_REFUND`` joins the original two so gross revenue and
+        what came back are both visible: a return nets ``COGS`` down on its
+        own, so leaving the refund out would report the margin too high.
+        Dates inclusive at both ends.
+        """
         stmt = (
             select(
                 _T.location_id,
@@ -75,7 +80,11 @@ class SqlFinancialTransactionQueries:
             .outerjoin(LocationModel, LocationModel.id == _T.location_id)
             .where(
                 _T.txn_type.in_(
-                    [TransactionType.SALE_REVENUE.value, TransactionType.COGS.value]
+                    [
+                        TransactionType.SALE_REVENUE.value,
+                        TransactionType.COGS.value,
+                        TransactionType.SALES_RETURN_REFUND.value,
+                    ]
                 )
             )
             .group_by(_T.location_id, LocationModel.name, _T.txn_type, _T.currency)

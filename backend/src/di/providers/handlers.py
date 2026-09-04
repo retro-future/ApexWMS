@@ -20,6 +20,7 @@ from application.commands.accept_invite import AcceptInviteHandler
 from application.commands.add_invoice_accessory_line import (
     AddInvoiceAccessoryLineHandler,
 )
+from application.commands.cancel_customer_return import CancelCustomerReturnHandler
 from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
 from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceHandler
@@ -32,6 +33,7 @@ from application.commands.change_device_unit_condition import (
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.close_stock_count import CloseStockCountHandler
+from application.commands.confirm_customer_return import ConfirmCustomerReturnHandler
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
 from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceHandler
@@ -41,6 +43,7 @@ from application.commands.confirm_write_off import ConfirmWriteOffHandler
 from application.commands.count_stock_count_line import CountStockCountLineHandler
 from application.commands.create_credit_company import CreateCreditCompanyHandler
 from application.commands.create_customer import CreateCustomerHandler
+from application.commands.create_customer_return import CreateCustomerReturnHandler
 from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
 from application.commands.create_location import CreateLocationHandler
 from application.commands.create_product import CreateProductHandler
@@ -65,12 +68,19 @@ from application.commands.refresh_tokens import RefreshTokensHandler
 from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
 from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
 from application.commands.reverse_payment import ReversePaymentHandler
+from application.commands.scan_customer_return_line import ScanCustomerReturnLineHandler
 from application.commands.scan_invoice_line import ScanInvoiceLineHandler
 from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
 from application.commands.scan_stock_count_unit import ScanStockCountUnitHandler
 from application.commands.scan_supplier_return_line import ScanSupplierReturnLineHandler
 from application.commands.scan_write_off_line import ScanWriteOffLineHandler
+from application.commands.set_customer_return_refund import (
+    SetCustomerReturnRefundHandler,
+)
 from application.commands.set_tenant_logo import SetTenantLogoHandler
+from application.commands.unscan_customer_return_line import (
+    UnscanCustomerReturnLineHandler,
+)
 from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
 from application.commands.unscan_stock_count_unit import UnscanStockCountUnitHandler
@@ -87,6 +97,7 @@ from application.commands.update_tenant_settings import UpdateTenantSettingsHand
 from application.queries.get_credit_company import GetCreditCompanyHandler
 from application.queries.get_customer import GetCustomerHandler
 from application.queries.get_customer_account import GetCustomerAccountHandler
+from application.queries.get_customer_return import GetCustomerReturnHandler
 from application.queries.get_device_trace import GetDeviceTraceHandler
 from application.queries.get_device_unit import GetDeviceUnitHandler
 from application.queries.get_device_unit_label_pdf import GetDeviceUnitLabelPdfHandler
@@ -117,6 +128,7 @@ from application.queries.get_write_off import GetWriteOffHandler
 from application.queries.list_ageing import ListAgeingHandler
 from application.queries.list_below_cost import ListBelowCostHandler
 from application.queries.list_credit_companies import ListCreditCompaniesHandler
+from application.queries.list_customer_returns import ListCustomerReturnsHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
 from application.queries.list_financial_ledger import ListFinancialLedgerHandler
@@ -213,6 +225,14 @@ class HandlersProvider(Provider):
         ReversePaymentHandler,
         GetCustomerAccountHandler,
         # --- M6 supplier returns ---
+        CreateCustomerReturnHandler,
+        ScanCustomerReturnLineHandler,
+        UnscanCustomerReturnLineHandler,
+        SetCustomerReturnRefundHandler,
+        ConfirmCustomerReturnHandler,
+        CancelCustomerReturnHandler,
+        GetCustomerReturnHandler,
+        ListCustomerReturnsHandler,
         CreateSupplierReturnHandler,
         ScanSupplierReturnLineHandler,
         UnscanSupplierReturnLineHandler,

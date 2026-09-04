@@ -117,6 +117,37 @@ nothing is being taken out. It uses `CostPool.average_unit_cost`, and where
 the pool is empty there is no average and no stand-in for one, so
 `CountPoster` refuses the confirm rather than booking zero.
 
+## A customer return books COGS positive, and no new inventory category
+
+`CustomerReturnPoster` writes two money rows per line:
+`SALES_RETURN_REFUND` for what the customer gets back, and a **positive**
+`COGS` for what the goods cost. The second is what makes the accessory pool
+work, and it needed no change to `INVENTORY_SIGN` at all: `CostPoolReader`
+pairs each positive movement with the money rows on the same `document_id`
+whose `INVENTORY_SIGN` contribution is positive, and `COGS` is already `+1`
+there. So returned accessories re-enter the pool at the value they left it,
+and `verify-financials` and the month-end rollforward fold the same figure
+without either learning a new category. `SALES_RETURN_REFUND` is absent from
+`INVENTORY_SIGN` for the reason `SALE_REVENUE` is: it is a figure about the
+customer.
+
+The value itself comes from the **sale**, not from today's pool — a
+serialized unit's own `acquisition_cost`, or `Money.share` of the `COGS`
+that invoice actually booked. The current average would let goods re-enter
+at a price nobody ever paid for them, and complementary shares of one
+amount sum back to it exactly, so two partial returns of a three-unit line
+give back the whole cost and no more. `Money.share` is the same integer
+half-up rule `CostPool.issue` splits a pool by; they live together in
+`money.py` so the two cannot drift.
+
+**Debt relief writes nothing to either ledger.** A store-credit debt is a
+column on the invoice rather than a ledger row (§4.7), so what a return
+writes off it is a column too, on `customer_returns`. Reading the balance
+counts confirmed returns only, which is what lets cancelling a return give
+the relief back with no compensating row.
+`tests/api/test_verify_cli.py`'s `TestCustomerReturnsReconcile` is what
+holds all of this honest against a real store.
+
 ## Reading them back (PRD §5.9, §5.10 — M8)
 
 The reports are reads over these two tables and nothing else, which is why

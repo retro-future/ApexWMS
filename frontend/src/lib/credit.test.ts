@@ -35,6 +35,7 @@ function invoice(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     debt: null,
     debtMinor: null,
     paidMinor: 0,
+    relievedMinor: 0,
     remainingMinor: 0,
     payments: [],
     belowCostAlerts: [],
@@ -238,6 +239,7 @@ describe("refundDueMinor", () => {
       status: "cancelled",
       paymentType: "store_credit",
       paidMinor: 1600000,
+      relievedMinor: 0,
       remainingMinor: 0,
     });
     expect(refundDueMinor(cancelled)).toBe(1600000);
