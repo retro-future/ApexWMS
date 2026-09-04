@@ -1,6 +1,22 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Local dev and test only. Durability is off on purpose: the suite creates
+    # a database per test, and crash safety is not worth the fsync cost here.
+    command:
+      - postgres
+      - -c
+      - max_connections=300
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - checkpoint_timeout=30min
     environment:
       POSTGRES_USER: apexwms
       POSTGRES_PASSWORD: apexwms
