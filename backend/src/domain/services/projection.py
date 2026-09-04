@@ -39,12 +39,17 @@ if TYPE_CHECKING:
 # own terminal state rather than borrowing ``WRITTEN_OFF``: the store lost
 # nothing, and a write-off report that counted these would be reporting
 # losses that never happened.
+#
+# ``CUSTOMER_RETURN`` is the same shape in reverse: it only goes negative
+# as the compensation for a cancelled return, which leaves the handset sold
+# again — so it needs no terminal status of its own.
 _STATUS_WHEN_GONE: dict[MovementType, DeviceStatus] = {
     MovementType.SALE: DeviceStatus.SOLD,
     MovementType.WRITE_OFF: DeviceStatus.WRITTEN_OFF,
     MovementType.SUPPLIER_RETURN: DeviceStatus.RETURNED_TO_SUPPLIER,
     MovementType.COUNT_ADJUSTMENT: DeviceStatus.WRITTEN_OFF,
     MovementType.RECEIPT: DeviceStatus.RECEIPT_CANCELLED,
+    MovementType.CUSTOMER_RETURN: DeviceStatus.SOLD,
 }
 
 

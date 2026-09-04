@@ -26,6 +26,7 @@ class DocumentType(StrEnum):
     GOODS_RECEIPT = "goods_receipt"
     SALES_INVOICE = "sales_invoice"
     SUPPLIER_RETURN = "supplier_return"
+    CUSTOMER_RETURN = "customer_return"
     STOCK_COUNT = "stock_count"
     WRITE_OFF = "write_off"
     PAYMENT = "payment"

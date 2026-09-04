@@ -15,9 +15,17 @@ from application.common.repository import TenantAppendOnlyRepository, TenantDbRe
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
 from application.models import SalesInvoiceData
-from application.specs import PaymentsForInvoice, SalesInvoiceById
-from domain.entities import Payment, SalesInvoice
-from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceModel
+from application.specs import (
+    CustomerReturnsForInvoice,
+    PaymentsForInvoice,
+    SalesInvoiceById,
+)
+from domain.entities import CustomerReturn, Payment, SalesInvoice
+from infrastructure.persistence.tenant.models import (
+    CustomerReturnModel,
+    PaymentModel,
+    SalesInvoiceModel,
+)
 
 
 class GetSalesInvoiceQuery(Query[ResultWithData[SalesInvoiceData]]):
@@ -31,9 +39,11 @@ class GetSalesInvoiceHandler(
         self,
         invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         payments: TenantAppendOnlyRepository[Payment, PaymentModel],
+        returns: TenantDbRepository[CustomerReturn, CustomerReturnModel],
     ) -> None:
         self._invoices = invoices
         self._payments = payments
+        self._returns = returns
 
     async def handle(
         self, request: GetSalesInvoiceQuery
@@ -49,6 +59,8 @@ class GetSalesInvoiceHandler(
             )
         return ResultWithData[SalesInvoiceData].succeed_with_data(
             SalesInvoiceData.from_entity(
-                invoice, await self._payments.find(PaymentsForInvoice(invoice.id))
+                invoice,
+                await self._payments.find(PaymentsForInvoice(invoice.id)),
+                await self._returns.find(CustomerReturnsForInvoice(invoice.id)),
             )
         )

@@ -295,8 +295,14 @@ class TestTheSalesSummary:
 
         figures = (await summary(client, owner.auth))["total"]
 
-        assert set(figures) == {"unitsSold", "revenue", "costOfGoods", "margin"}
-        for field in ("revenue", "costOfGoods", "margin"):
+        assert set(figures) == {
+            "unitsSold",
+            "revenue",
+            "costOfGoods",
+            "returns",
+            "margin",
+        }
+        for field in ("revenue", "costOfGoods", "returns", "margin"):
             assert isinstance(figures[field], list)
 
     async def test_a_seller_is_refused(self, client, settings, owner):

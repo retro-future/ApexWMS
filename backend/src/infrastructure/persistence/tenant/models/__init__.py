@@ -13,6 +13,7 @@ from .base import TenantBase
 from .catalog_code import CatalogCodeSequenceModel
 from .credit_company import CreditCompanyModel
 from .customer import CustomerModel
+from .customer_return import CustomerReturnLineModel, CustomerReturnModel
 from .device_unit import DeviceUnitModel
 from .device_unit_price_change import DeviceUnitPriceChangeModel
 from .employee import EmployeeModel
@@ -63,6 +64,8 @@ __all__ = [
     "StockLevelModel",
     "StockMovementModel",
     "SupplierModel",
+    "CustomerReturnLineModel",
+    "CustomerReturnModel",
     "SupplierReturnLineModel",
     "SupplierReturnModel",
     "TenantBase",

@@ -20,6 +20,7 @@ const TXN_TYPES: TransactionType[] = [
   "cogs",
   "write_off_loss",
   "supplier_return_credit",
+  "sales_return_refund",
   "count_adjustment",
   "payment_received",
 ];

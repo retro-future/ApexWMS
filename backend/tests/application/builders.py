@@ -15,6 +15,9 @@ from uuid import UUID, uuid4
 
 from application.commands.accept_invite import AcceptInviteHandler
 from application.commands.add_invoice_accessory_line import AddInvoiceAccessoryLineHandler
+from application.commands.cancel_customer_return import (
+    CancelCustomerReturnHandler,
+)
 from application.commands.cancel_goods_receipt import CancelGoodsReceiptHandler
 from application.commands.cancel_purchase_order import CancelPurchaseOrderHandler
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceHandler
@@ -27,6 +30,9 @@ from application.commands.change_device_unit_condition import (
 from application.commands.change_password import ChangePasswordHandler
 from application.commands.change_user_role import ChangeUserRoleHandler
 from application.commands.close_stock_count import CloseStockCountHandler
+from application.commands.confirm_customer_return import (
+    ConfirmCustomerReturnHandler,
+)
 from application.commands.confirm_goods_receipt import ConfirmGoodsReceiptHandler
 from application.commands.confirm_purchase_order import ConfirmPurchaseOrderHandler
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceHandler
@@ -36,6 +42,7 @@ from application.commands.confirm_write_off import ConfirmWriteOffHandler
 from application.commands.count_stock_count_line import CountStockCountLineHandler
 from application.commands.create_credit_company import CreateCreditCompanyHandler
 from application.commands.create_customer import CreateCustomerHandler
+from application.commands.create_customer_return import CreateCustomerReturnHandler
 from application.commands.create_goods_receipt import CreateGoodsReceiptHandler
 from application.commands.create_location import CreateLocationHandler
 from application.commands.create_product import CreateProductHandler
@@ -62,11 +69,20 @@ from application.commands.refresh_tokens import RefreshTokensHandler
 from application.commands.reprice_device_unit import RepriceDeviceUnitHandler
 from application.commands.reprice_device_units import RepriceDeviceUnitsHandler
 from application.commands.reverse_payment import ReversePaymentHandler
+from application.commands.scan_customer_return_line import (
+    ScanCustomerReturnLineHandler,
+)
 from application.commands.scan_invoice_line import ScanInvoiceLineHandler
 from application.commands.scan_receipt_unit import ScanReceiptUnitHandler
 from application.commands.scan_stock_count_unit import ScanStockCountUnitHandler
 from application.commands.scan_supplier_return_line import ScanSupplierReturnLineHandler
 from application.commands.scan_write_off_line import ScanWriteOffLineHandler
+from application.commands.set_customer_return_refund import (
+    SetCustomerReturnRefundHandler,
+)
+from application.commands.unscan_customer_return_line import (
+    UnscanCustomerReturnLineHandler,
+)
 from application.commands.unscan_invoice_line import UnscanInvoiceLineHandler
 from application.commands.unscan_receipt_unit import UnscanReceiptUnitHandler
 from application.commands.unscan_stock_count_unit import UnscanStockCountUnitHandler
@@ -83,6 +99,7 @@ from application.commands.update_tenant_settings import UpdateTenantSettingsHand
 from application.dtos import CurrentUser, RequestedTenant
 from application.queries.get_customer import GetCustomerHandler
 from application.queries.get_customer_account import GetCustomerAccountHandler
+from application.queries.get_customer_return import GetCustomerReturnHandler
 from application.queries.get_device_unit import GetDeviceUnitHandler
 from application.queries.get_device_unit_price_history import (
     GetDeviceUnitPriceHistoryHandler,
@@ -95,9 +112,11 @@ from application.queries.get_product import GetProductHandler
 from application.queries.get_product_price_history import GetProductPriceHistoryHandler
 from application.queries.get_purchase_order import GetPurchaseOrderHandler
 from application.queries.get_sales_invoice import GetSalesInvoiceHandler
+from application.queries.get_sales_summary import GetSalesSummaryHandler
 from application.queries.get_supplier import GetSupplierHandler
 from application.queries.get_tenant_settings import GetTenantSettingsHandler
 from application.queries.list_credit_companies import ListCreditCompaniesHandler
+from application.queries.list_customer_returns import ListCustomerReturnsHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
@@ -138,6 +157,8 @@ from application.services import (
     TokenIssuer,
     UnitOriginGuard,
 )
+from application.services.customer_return_posting import CustomerReturnPoster
+from application.services.customer_return_scanning import CustomerReturnScanner
 from domain.entities import Employee, Tenant, User, UserTenantAccess
 from domain.enums import TenantRole, TenantStatus
 from domain.permissions import Permission
@@ -147,6 +168,7 @@ from tests.application.fakes import (
     FakeClock,
     FakeCreditCompanyRepository,
     FakeCustomerRepository,
+    FakeCustomerReturnRepository,
     FakeDeviceUnitPriceChangeRepository,
     FakeDeviceUnitRepository,
     FakeDocumentNumberAllocator,
@@ -218,6 +240,7 @@ class World:
     credit_companies: FakeCreditCompanyRepository
     payments: FakePaymentRepository
     returns: FakeSupplierReturnRepository
+    customer_returns: FakeCustomerReturnRepository
     write_offs: FakeWriteOffRepository
     counts: FakeStockCountRepository
     document_numbers: FakeDocumentNumberAllocator
@@ -243,7 +266,7 @@ class World:
 
     @property
     def transaction_queries(self) -> FakeFinancialTransactionQueries:
-        return FakeFinancialTransactionQueries(self.transactions)
+        return FakeFinancialTransactionQueries(self.transactions, self.locations)
 
     @property
     def claims(self) -> ClaimsFactory:
@@ -468,7 +491,9 @@ class World:
 
     @property
     def invoice_queries(self) -> FakeSalesInvoiceQueries:
-        return FakeSalesInvoiceQueries(self.invoices, self.payments)
+        return FakeSalesInvoiceQueries(
+            self.invoices, self.payments, self.customer_returns
+        )
 
     def receipt_poster(self, actor: UUID | None = None) -> ReceiptPoster:
         return ReceiptPoster(
@@ -759,6 +784,7 @@ class World:
         return CancelSalesInvoiceHandler(
             self.invoices,
             self.payments,
+            self.customer_returns,
             self.poster(actor),
             self.clock,
             self.uow,
@@ -766,15 +792,23 @@ class World:
         )
 
     def get_sales_invoice(self) -> GetSalesInvoiceHandler:
-        return GetSalesInvoiceHandler(self.invoices, self.payments)
+        return GetSalesInvoiceHandler(self.invoices, self.payments, self.customer_returns)
 
     def list_sales_invoices(self) -> ListSalesInvoicesHandler:
-        return ListSalesInvoicesHandler(self.invoices, self.payments)
+        return ListSalesInvoicesHandler(
+            self.invoices, self.payments, self.customer_returns
+        )
 
     # --- M5b credit sales & customer debt ---
 
     def payment_poster(self, actor: UUID | None = None) -> PaymentPoster:
-        return PaymentPoster(self.payments, self.poster(actor), self.clock, self._as(actor))
+        return PaymentPoster(
+            self.payments,
+            self.customer_returns,
+            self.poster(actor),
+            self.clock,
+            self._as(actor),
+        )
 
     def create_credit_company(self) -> CreateCreditCompanyHandler:
         return CreateCreditCompanyHandler(self.credit_companies, self.clock, self.uow)
@@ -834,6 +868,78 @@ class World:
             self.poster(actor),
             self.clock,
         )
+
+    # --- customer returns ---
+
+    def customer_return_poster(self, actor: UUID | None = None) -> CustomerReturnPoster:
+        return CustomerReturnPoster(self.units, self.transactions, self.poster(actor))
+
+    def customer_return_scanner(self) -> CustomerReturnScanner:
+        return CustomerReturnScanner(self.device_unit_loader(), self.products)
+
+    def create_customer_return(
+        self, actor: UUID | None = None
+    ) -> CreateCustomerReturnHandler:
+        return CreateCustomerReturnHandler(
+            self.customer_returns,
+            self.invoices,
+            self.locations,
+            self.numberer(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def scan_customer_return_line(self) -> ScanCustomerReturnLineHandler:
+        return ScanCustomerReturnLineHandler(
+            self.customer_returns,
+            self.invoices,
+            self.customer_return_scanner(),
+            self.uow,
+        )
+
+    def unscan_customer_return_line(self) -> UnscanCustomerReturnLineHandler:
+        return UnscanCustomerReturnLineHandler(
+            self.customer_returns, self.units, self.uow
+        )
+
+    def set_customer_return_refund(
+        self, actor: UUID | None = None
+    ) -> SetCustomerReturnRefundHandler:
+        return SetCustomerReturnRefundHandler(
+            self.customer_returns, SalePriceParser(), self.uow, self._as(actor)
+        )
+
+    def confirm_customer_return(
+        self, actor: UUID | None = None
+    ) -> ConfirmCustomerReturnHandler:
+        return ConfirmCustomerReturnHandler(
+            self.customer_returns,
+            self.invoices,
+            self.payments,
+            self.customer_return_poster(actor),
+            SalePriceParser(),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def cancel_customer_return(
+        self, actor: UUID | None = None
+    ) -> CancelCustomerReturnHandler:
+        return CancelCustomerReturnHandler(
+            self.customer_returns,
+            self.poster(actor),
+            self.clock,
+            self.uow,
+            self._as(actor),
+        )
+
+    def get_customer_return(self) -> GetCustomerReturnHandler:
+        return GetCustomerReturnHandler(self.customer_returns)
+
+    def list_customer_returns(self) -> ListCustomerReturnsHandler:
+        return ListCustomerReturnsHandler(self.customer_returns)
 
     def create_supplier_return(
         self, actor: UUID | None = None
@@ -982,21 +1088,30 @@ class World:
         return ListStockCountsHandler(self.counts, self._as(actor, *permissions))
 
     def balance_verifier(self) -> BalanceVerifier:
-        return BalanceVerifier(self.invoices, self.payments, self.transaction_queries)
+        return BalanceVerifier(
+            self.invoices,
+            self.payments,
+            self.customer_returns,
+            self.transaction_queries,
+        )
 
     # --- M9 month-end close ---
 
     @property
     def month_end_queries(self) -> FakeMonthEndQueries:
         return FakeMonthEndQueries(
-            self.invoices, self.payments, self.credit_companies, self.transactions
+            self.invoices,
+            self.payments,
+            self.credit_companies,
+            self.transactions,
+            self.customer_returns,
         )
 
     def period_resolver(self) -> PeriodResolver:
         return PeriodResolver(self.tenant_settings)
 
     def inventory_valuer(self) -> InventoryValuer:
-        return InventoryValuer(self.movement_queries, self.cost_pools())
+        return InventoryValuer(self.movement_queries, self.cost_pools(), self.locations)
 
     def month_end_reporter(self) -> MonthEndReporter:
         return MonthEndReporter(
@@ -1009,6 +1124,9 @@ class World:
 
     def month_end_report(self) -> GetMonthEndReportHandler:
         return GetMonthEndReportHandler(self.month_end_reporter())
+
+    def get_sales_summary(self) -> GetSalesSummaryHandler:
+        return GetSalesSummaryHandler(self.transaction_queries, self.movement_queries)
 
 
 def make_world(provisioner_fails: bool = False) -> World:
@@ -1046,6 +1164,7 @@ def make_world(provisioner_fails: bool = False) -> World:
         credit_companies=FakeCreditCompanyRepository(),
         payments=payments,
         returns=FakeSupplierReturnRepository(),
+        customer_returns=FakeCustomerReturnRepository(),
         write_offs=FakeWriteOffRepository(),
         counts=FakeStockCountRepository(),
         document_numbers=FakeDocumentNumberAllocator(),

@@ -6,6 +6,8 @@ for MasterDB, ``FakeEmployeeRepository`` for one store's database, and
 ``FakeTenantScope`` for reaching a store the edge did not resolve.
 """
 
+from __future__ import annotations
+
 import hashlib
 import operator
 from collections.abc import AsyncIterator, Sequence
@@ -25,6 +27,7 @@ from application.dtos import (
     OwnerSeed,
     PriceDeviation,
     RefreshTokenParts,
+    SalesTotalsRow,
     TenantLogo,
     UnitOrigin,
     UnitSale,
@@ -36,6 +39,10 @@ from application.specs import (
     CreditCompanyBrowse,
     CustomerBrowse,
     CustomerForWrite,
+    CustomerReturnBrowse,
+    CustomerReturnById,
+    CustomerReturnForWrite,
+    CustomerReturnsForInvoice,
     DeviceUnitById,
     DeviceUnitByImei,
     DeviceUnitForWrite,
@@ -74,6 +81,7 @@ from domain.core import Entity
 from domain.entities import (
     CreditCompany,
     Customer,
+    CustomerReturn,
     DeviceUnit,
     DeviceUnitPriceChange,
     Employee,
@@ -514,8 +522,13 @@ def _txn_matches(txn: FinancialTransaction, spec: object) -> bool:
 class FakeFinancialTransactionQueries:
     """The money-ledger aggregates the fake repository holds."""
 
-    def __init__(self, transactions: FakeFinancialTransactionRepository) -> None:
+    def __init__(
+        self,
+        transactions: FakeFinancialTransactionRepository,
+        locations: FakeLocationRepository | None = None,
+    ) -> None:
         self._rows = transactions.rows
+        self._locations = locations
 
     async def totals_by_type(
         self,
@@ -536,6 +549,47 @@ class FakeFinancialTransactionQueries:
             running = totals.get(key)
             totals[key] = txn.amount if running is None else running + txn.amount
         return totals
+
+    async def sales_totals(
+        self,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> list[SalesTotalsRow]:
+        wanted = {
+            TransactionType.SALE_REVENUE,
+            TransactionType.COGS,
+            TransactionType.SALES_RETURN_REFUND,
+        }
+        buckets: dict[tuple[UUID | None, TransactionType, Currency], Money] = {}
+        for txn in self._rows:
+            if txn.txn_type not in wanted:
+                continue
+            if from_date is not None and txn.occurred_at < from_date:
+                continue
+            if to_date is not None and txn.occurred_at > to_date:
+                continue
+            if location_id is not None and txn.location_id != location_id:
+                continue
+            key = (txn.location_id, txn.txn_type, txn.currency)
+            running = buckets.get(key)
+            buckets[key] = txn.amount if running is None else running + txn.amount
+
+        def name_of(place: UUID | None) -> str | None:
+            if place is None or self._locations is None:
+                return None
+            found = self._locations.by_id.get(place)
+            return found.name if found is not None else None
+
+        return [
+            SalesTotalsRow(
+                location_id=place,
+                location_name=name_of(place),
+                txn_type=txn_type,
+                amount=amount,
+            )
+            for (place, txn_type, _currency), amount in buckets.items()
+        ]
 
 
 class FakeStockLevelRepository(FakeRepository[StockLevel]):
@@ -715,16 +769,19 @@ class FakeSalesInvoiceRepository(FakeRepository[SalesInvoice]):
 class FakeSalesInvoiceQueries:
     """Reads the invoice aggregates the fake repository holds, folded the
     way ``SqlSalesInvoiceQueries`` folds its joined rows. Needs the payment
-    fake too, since the debt reads join both tables; ``World`` wires it
-    after both are built."""
+    and customer-return fakes too, since a balance is
+    ``debt − payments − relief`` and the SQL reads join all three tables;
+    ``World`` wires it after they are built."""
 
     def __init__(
         self,
         invoices: FakeSalesInvoiceRepository,
         payments: FakePaymentRepository,
+        returns: FakeCustomerReturnRepository,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
+        self._returns = returns
 
     @property
     def _by_id(self) -> dict[UUID, SalesInvoice]:
@@ -850,7 +907,12 @@ class FakeSalesInvoiceQueries:
                 continue
             if not invoice.payment_type.opens_debt or invoice.debt is None:
                 continue
-            total = total + invoice.debt - self._paid(invoice.id)
+            total = (
+                total
+                + invoice.debt
+                - self._paid(invoice.id)
+                - self._relieved(invoice.id)
+            )
         return total
 
     def _to_debt(self, invoice: SalesInvoice) -> CreditInvoiceDebt:
@@ -862,6 +924,7 @@ class FakeSalesInvoiceQueries:
             confirmed_at=invoice.confirmed_at,
             debt=invoice.debt,
             paid=self._paid(invoice.id),
+            relieved=self._relieved(invoice.id),
             credit_company_id=invoice.credit_company_id,
             contract_ref=invoice.contract_ref,
         )
@@ -875,6 +938,18 @@ class FakeSalesInvoiceQueries:
                 total = total + payment.amount
         return total
 
+    def _relieved(self, invoice_id: UUID) -> Money:
+        """Som written off by confirmed customer returns (FR-4.9d)."""
+        total = Money.zero(Currency.UZS)
+        for document in self._returns.by_id.values():
+            if document.sales_invoice_id != invoice_id:
+                continue
+            if document.status is not DocumentStatus.CONFIRMED:
+                continue
+            if document.debt_relief is not None:
+                total = total + document.debt_relief
+        return total
+
 
 class FakeMonthEndQueries:
     """The period reads behind the close, folded from the same aggregates
@@ -886,18 +961,25 @@ class FakeMonthEndQueries:
         payments: FakePaymentRepository,
         companies: FakeCreditCompanyRepository,
         transactions: FakeFinancialTransactionRepository,
+        returns: FakeCustomerReturnRepository,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
         self._companies = companies
         self._transactions = transactions
+        self._returns = returns
 
     async def debt_at(self, as_of: datetime) -> Money:
         total = Money.zero(Currency.UZS)
         for invoice in self._invoices.by_id.values():
             if not self._open_debt_at(invoice, as_of) or invoice.debt is None:
                 continue
-            total = total + invoice.debt - self._paid(invoice.id, as_of)
+            total = (
+                total
+                + invoice.debt
+                - self._paid(invoice.id, as_of)
+                - self._relieved(invoice.id, as_of)
+            )
         return total
 
     async def debt_booked_between(self, since: datetime, until: datetime) -> Money:
@@ -917,7 +999,39 @@ class FakeMonthEndQueries:
                 continue
             if invoice.cancelled_at is None or not since <= invoice.cancelled_at < until:
                 continue
-            total = total + (invoice.debt or Money.zero(Currency.UZS)) - self._paid(invoice.id)
+            total = (
+                total
+                + (invoice.debt or Money.zero(Currency.UZS))
+                - self._paid(invoice.id)
+                - self._relieved(invoice.id)
+            )
+        return total
+
+    async def debt_relieved_between(self, since: datetime, until: datetime) -> Money:
+        total = Money.zero(Currency.UZS)
+        for document in self._returns.by_id.values():
+            if document.debt_relief is None or document.confirmed_at is None:
+                continue
+            if not since <= document.confirmed_at < until:
+                continue
+            invoice = self._invoices.by_id.get(document.sales_invoice_id)
+            if invoice is None or invoice.payment_type is not PaymentType.STORE_CREDIT:
+                continue
+            if invoice.cancelled_at is not None and invoice.cancelled_at < until:
+                continue
+            total = total + document.debt_relief
+        return total
+
+    def _relieved(self, invoice_id: UUID, as_of: datetime | None = None) -> Money:
+        total = Money.zero(Currency.UZS)
+        for document in self._returns.by_id.values():
+            if document.sales_invoice_id != invoice_id:
+                continue
+            if document.debt_relief is None or document.confirmed_at is None:
+                continue
+            if as_of is not None and document.confirmed_at >= as_of:
+                continue
+            total = total + document.debt_relief
         return total
 
     async def sales_by_financing(
@@ -1292,6 +1406,50 @@ class FakeSupplierReturnRepository(FakeRepository[SupplierReturn]):
             if _matches(spec.search, document.number)
             and (spec.status is None or document.status is spec.status)
             and (spec.supplier_id is None or document.supplier_id == spec.supplier_id)
+            and (spec.reason is None or document.reason is spec.reason)
+        ]
+
+
+class FakeCustomerReturnRepository(FakeRepository[CustomerReturn]):
+    """Spec-based, the same shape as the supplier return's.
+
+    ``CustomerReturnsForInvoice`` is the extra one: the double-return guard
+    and every balance read ask "what has come back against this sale".
+    """
+
+    async def find_one(
+        self, spec: CustomerReturnById | CustomerReturnForWrite
+    ) -> CustomerReturn | None:
+        return self.by_id.get(spec.customer_return_id)
+
+    async def find(
+        self, spec: CustomerReturnBrowse | CustomerReturnsForInvoice
+    ) -> list[CustomerReturn]:
+        if isinstance(spec, CustomerReturnsForInvoice):
+            return [
+                document
+                for document in self.by_id.values()
+                if document.sales_invoice_id == spec.sales_invoice_id
+            ]
+        found = self._filter(spec)
+        found.sort(key=lambda d: d.created_at, reverse=True)
+        if spec.offset is not None:
+            found = found[spec.offset :]
+        if spec.limit is not None:
+            found = found[: spec.limit]
+        return found
+
+    async def count(self, spec: CustomerReturnBrowse) -> int:
+        return len(self._filter(spec))
+
+    def _filter(self, spec: CustomerReturnBrowse) -> list[CustomerReturn]:
+        return [
+            document
+            for document in self.by_id.values()
+            if _matches(spec.search, document.number)
+            and (spec.status is None or document.status is spec.status)
+            and (spec.customer_id is None or document.customer_id == spec.customer_id)
+            and (spec.location_id is None or document.location_id == spec.location_id)
             and (spec.reason is None or document.reason is spec.reason)
         ]
 

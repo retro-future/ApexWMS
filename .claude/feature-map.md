@@ -145,6 +145,42 @@ postings and `DocumentType.PAYMENT`.
   `/invoices/{id}/payments`, `/customers/{id}/account` and
   `/reports/debtors` on their existing routers
 
+## Customer returns (M10)
+
+Goods coming back from a customer against one confirmed sale, and the money
+going back with them. Deep dive:
+[documents.md](../docs/architecture/documents.md)'s "The one that brings
+goods back", [ledgers.md](../docs/architecture/ledgers.md) for why the cost
+rides on a positive `COGS` and why the debt relief is a column.
+
+- Commands: `commands/create_customer_return.py`,
+  `scan_customer_return_line.py`, `unscan_customer_return_line.py`,
+  `set_customer_return_refund.py` (FR-4.9c's restocking fee),
+  `confirm_customer_return.py` (where the som debt relief arrives),
+  `cancel_customer_return.py`
+- Queries: `queries/get_customer_return.py`, `list_customer_returns.py`
+- Models: `models/customer_return.py`
+- Services: `services/customer_return_posting.py` (`CustomerReturnPoster` —
+  the only writer of `SALES_RETURN_REFUND`), `customer_return_scanning.py`
+  (`CustomerReturnScanner` — "did *this sale* sell it, and is any of it
+  still un-returned"), `customer_balance.py` (`remaining_on` — the one
+  Python statement of `debt − Σ payments − Σ relief`, whose SQL twin is
+  `SqlSalesInvoiceQueries._relieved()`)
+- Domain: `domain/entities/customer_return.py`,
+  `domain/enums/customer_return_reason.py`; `MovementType.CUSTOMER_RETURN`,
+  `TransactionType.SALES_RETURN_REFUND`, `DocumentType.CUSTOMER_RETURN`, and
+  the `_STATUS_WHEN_GONE` entry in `domain/services/projection.py` that only
+  a *cancelled* return reaches
+- Persistence: `mappers/customer_return.py`, `specs/customer_return.py`
+  (`CustomerReturnById` / `ForWrite` / `sForInvoice` / `Browse`), migration
+  `0011_tenant_customer_returns.py`
+- Router: `presentation/routers/customer_returns.py` (`/customer-returns`)
+- Screens: `frontend/src/app/(app)/customer-returns/` — list, form, detail,
+  plus `CustomerReturnLines.tsx` (the table that carries money, unlike
+  `RemovalLinesTable`), `RefundModal.tsx` and `ConfirmReturnModal.tsx` (the
+  som relief). `frontend/src/lib/customer-returns.ts` holds what is not JSX.
+  `components/scan/ScanConsole.tsx` is shared with both removal documents
+
 ## Returns, counts & write-offs (M6)
 
 The three remaining document types from §4.4. Deep dive:

@@ -82,6 +82,8 @@ class TenantRolePermissionProvider:
                     Permission.LOCATION_MANAGE,
                     Permission.PURCHASE_ORDER_VIEW,
                     Permission.PURCHASE_ORDER_MANAGE,
+                    Permission.CUSTOMER_RETURN_VIEW,
+                    Permission.CUSTOMER_RETURN_MANAGE,
                     Permission.SUPPLIER_RETURN_VIEW,
                     Permission.SUPPLIER_RETURN_MANAGE,
                     Permission.COST_VIEW,

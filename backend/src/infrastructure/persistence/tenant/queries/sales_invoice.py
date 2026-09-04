@@ -29,6 +29,7 @@ from domain.enums import DocumentStatus, PaymentType
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import (
     CustomerModel,
+    CustomerReturnModel,
     DeviceUnitModel,
     EmployeeModel,
     PaymentModel,
@@ -43,6 +44,25 @@ class SqlSalesInvoiceQueries:
     def __init__(self, session: TenantSession) -> None:
         self._session = session
 
+    @staticmethod
+    def _relieved() -> Any:
+        """Som debt written off by confirmed customer returns (FR-4.9d).
+
+        The third term of ``remaining = debt − payments − relief``, and the
+        SQL twin of ``application/services/customer_balance.py``. A
+        correlated subquery rather than a join, so an invoice with three
+        returns still comes back as one row — the same shape ``paid`` uses,
+        and for the same reason.
+        """
+        return (
+            select(func.coalesce(func.sum(CustomerReturnModel.debt_relief_minor), 0))
+            .where(
+                CustomerReturnModel.sales_invoice_id == SalesInvoiceModel.id,
+                CustomerReturnModel.status == DocumentStatus.CONFIRMED.value,
+            )
+            .scalar_subquery()
+        )
+
     async def credit_history_for(self, customer_id: UUID) -> list[CreditInvoiceDebt]:
         # A correlated subquery rather than a join, so an invoice with three
         # payments still comes back as one row.
@@ -52,7 +72,7 @@ class SqlSalesInvoiceQueries:
             .scalar_subquery()
         )
         stmt = (
-            select(SalesInvoiceModel, paid)
+            select(SalesInvoiceModel, paid, self._relieved())
             .where(
                 SalesInvoiceModel.customer_id == customer_id,
                 SalesInvoiceModel.payment_type != PaymentType.PAID_IN_FULL.value,
@@ -77,7 +97,18 @@ class SqlSalesInvoiceQueries:
             )
             .where(SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value)
         )
-        return self._som(owed) - self._som(collected)
+        relieved = await self._session.scalar(
+            select(func.coalesce(func.sum(CustomerReturnModel.debt_relief_minor), 0))
+            .join(
+                SalesInvoiceModel,
+                SalesInvoiceModel.id == CustomerReturnModel.sales_invoice_id,
+            )
+            .where(
+                SalesInvoiceModel.status == DocumentStatus.CONFIRMED.value,
+                CustomerReturnModel.status == DocumentStatus.CONFIRMED.value,
+            )
+        )
+        return self._som(owed) - self._som(collected) - self._som(relieved)
 
     async def list_deviations(
         self,
@@ -185,7 +216,7 @@ class SqlSalesInvoiceQueries:
             .where(PaymentModel.sales_invoice_id == SalesInvoiceModel.id)
             .scalar_subquery()
         )
-        remaining = SalesInvoiceModel.debt_minor - paid
+        remaining = SalesInvoiceModel.debt_minor - paid - self._relieved()
         stmt = (
             select(
                 CustomerModel.id,
@@ -233,9 +264,9 @@ class SqlSalesInvoiceQueries:
 
     @classmethod
     def _to_credit_debt(
-        cls, row: Row[tuple[SalesInvoiceModel, int]]
+        cls, row: Row[tuple[SalesInvoiceModel, int, int]]
     ) -> CreditInvoiceDebt:
-        invoice, paid = row._tuple()
+        invoice, paid, relieved = row._tuple()
         return CreditInvoiceDebt(
             invoice_id=invoice.id,
             invoice_number=invoice.number,
@@ -244,6 +275,7 @@ class SqlSalesInvoiceQueries:
             confirmed_at=invoice.confirmed_at,
             debt=cls._money(invoice.debt_minor, Currency.UZS),
             paid=cls._som(paid),
+            relieved=cls._som(relieved),
             credit_company_id=invoice.credit_company_id,
             contract_ref=invoice.contract_ref,
         )

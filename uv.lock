@@ -54,7 +54,6 @@ wheels = [
 
 [[package]]
 name = "apexwms"
-version = "0.1.0"
 source = { editable = "backend" }
 dependencies = [
     { name = "alembic" },

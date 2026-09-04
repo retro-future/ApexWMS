@@ -308,3 +308,59 @@ class CountAlreadyClosedError(DomainError):
     The whole value of the close is that the discrepancy report and the
     adjustments describe the same shelf. A late scan would make them differ.
     """
+
+
+class RefundExceedsChargeError(DomainError):
+    """A refund line paying back more than the sale charged (FR-4.9c).
+
+    The ceiling is the invoice line's own ``charged_price`` snapshot. Above
+    it the store is not returning money, it is giving money away, and the
+    returns report would read as if a phone had been sold at a loss it never
+    took.
+    """
+
+
+class UnapprovedRefundError(DomainError):
+    """A refund lowered below the charged price with nobody's name on it (FR-4.9c).
+
+    The twin of ``SalesInvoiceLine.override``: a concession is a human
+    decision, so a reduced refund carries both the approver and the note
+    that says why.
+    """
+
+
+class UnitNotReturnableError(DomainError):
+    """A handset on a return that the named invoice did not sell (FR-4.9a).
+
+    States what is actually true of it. A phone still on the shelf, or one
+    sold on a different invoice, would put goods into stock that the ledger
+    never took out of it.
+    """
+
+
+class AlreadyReturnedError(DomainError):
+    """Goods returned a second time against the same sale (FR-4.9b).
+
+    A serialized line is returnable once; a quantity line only up to what it
+    sold. Without this the store would restock and refund the same goods
+    repeatedly, and each pass would look correct on its own.
+    """
+
+
+class DebtReliefError(DomainError):
+    """Som debt relief that the invoice cannot carry (FR-4.9d).
+
+    Relief only means something on a store-credit sale, and only up to what
+    is still outstanding. Beyond that the balance would go negative, which
+    ``BalanceVerifier`` exists to catch and no read should be able to
+    produce.
+    """
+
+
+class InvoiceHasReturnsError(DomainError):
+    """An invoice cancelled while a confirmed return stands against it (FR-4.9g).
+
+    Cancelling reverses every line at its original price, so the returned
+    goods would come back a second time. Cancel the returns first, or leave
+    the sale standing.
+    """

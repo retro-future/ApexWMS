@@ -2,8 +2,9 @@
 
 Every money figure is a list of per-currency subtotals, never a number, so
 there is nowhere a USD total and a UZS total could be added together
-(FR-2.11). ``costOfGoods`` keeps §4.6's sign and is therefore **negative**:
-money left for the goods. ``margin`` is their plain sum, which is why no
+(FR-2.11). ``costOfGoods`` and ``returns`` keep §4.6's sign and are
+therefore **negative**: money left for the goods, money handed back on a
+return. ``margin`` is their plain sum with ``revenue``, which is why no
 sign is flipped anywhere in this report.
 """
 
@@ -21,6 +22,8 @@ class SalesFiguresData(CamelModel):
     units_sold: int
     revenue: list[CurrencySubtotalData]
     cost_of_goods: list[CurrencySubtotalData]
+    # Negative: money handed back on customer returns (FR-4.9).
+    returns: list[CurrencySubtotalData]
     margin: list[CurrencySubtotalData]
 
     @classmethod
@@ -31,6 +34,7 @@ class SalesFiguresData(CamelModel):
             cost_of_goods=CurrencySubtotalData.from_entity(
                 figures.cost_of_goods.as_dict()
             ),
+            returns=CurrencySubtotalData.from_entity(figures.returns.as_dict()),
             margin=CurrencySubtotalData.from_entity(figures.margin),
         )
 

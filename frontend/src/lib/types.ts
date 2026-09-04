@@ -369,10 +369,12 @@ export type SalesInvoice = {
   debt: string | null;
   debtMinor: number | null;
   paidMinor: number;
+  /** Som written off by confirmed customer returns against this sale (FR-4.9d). */
+  relievedMinor: number;
   /**
-   * `debt − Σ payments`, recomputed on every read and never stored. Zero on a
-   * cancelled sale, whose debt is void while its payments stand (FR-11.11) —
-   * which makes `paidMinor` the refund figure at that point.
+   * `debt − Σ payments − Σ return relief`, recomputed on every read and never
+   * stored. Zero on a cancelled sale, whose debt is void while its payments
+   * stand (FR-11.11) — which makes `paidMinor` the refund figure at that point.
    */
   remainingMinor: number;
   payments: Payment[];
@@ -488,6 +490,22 @@ export type Debtor = {
  * M6 — the three documents that correct what the shelf actually holds
  * ------------------------------------------------------------------ */
 
+/** Why goods came back from a customer (FR-4.9). */
+export type CustomerReturnReason =
+  | "defective"
+  | "not_as_expected"
+  | "wrong_item"
+  | "warranty"
+  | "other";
+
+export const CUSTOMER_RETURN_REASONS: CustomerReturnReason[] = [
+  "defective",
+  "not_as_expected",
+  "wrong_item",
+  "warranty",
+  "other",
+];
+
 /** Why goods are going back to the supplier (FR-5.1). */
 export type SupplierReturnReason = "defective" | "unsold" | "wrong_item" | "other";
 
@@ -547,6 +565,61 @@ export type SupplierReturn = {
   cancelledAt: string | null;
   cancellationReason: string | null;
   lines: RemovalLine[];
+  lineCount: number;
+};
+
+/**
+ * One line of a customer return: the goods, and what is being paid back.
+ *
+ * Carries money where a `RemovalLine` does not, and that is the difference
+ * between the documents: goods go back to a supplier at their book value,
+ * but a customer is paid back a price somebody agreed to.
+ */
+export type CustomerReturnLine = {
+  id: string;
+  salesInvoiceLineId: string;
+  productId: string;
+  /** Null on a quantity line — an accessory names no handset. */
+  deviceUnitId: string | null;
+  /** Null on a quantity line. Unscanning names the IMEI, not the unit id. */
+  imei: string | null;
+  quantity: number;
+  /** What the sale sold, so the screen can offer "return all". */
+  soldQuantity: number;
+  currency: Currency;
+  trackingType: TrackingType;
+  /** The ceiling: a refund never goes above what the sale charged. */
+  chargedPriceMinor: number;
+  refundPriceMinor: number;
+  refundPrice: string;
+  lineTotalMinor: number;
+  isReduced: boolean;
+  refundApprovedBy: string | null;
+  refundNote: string | null;
+};
+
+/** Goods coming back from a customer against one confirmed sale (§5.4b). */
+export type CustomerReturn = {
+  id: string;
+  number: string;
+  status: DocumentStatus;
+  salesInvoiceId: string;
+  customerId: string | null;
+  locationId: string;
+  reason: CustomerReturnReason;
+  /**
+   * Som, and never a conversion of the subtotals: a store-credit debt is
+   * written directly in som, so the relief against it is too (§4.7).
+   */
+  debtReliefMinor: number | null;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  lines: CustomerReturnLine[];
+  subtotals: CurrencySubtotal[];
   lineCount: number;
 };
 
@@ -698,6 +771,7 @@ export type TransactionType =
   | "cogs"
   | "write_off_loss"
   | "supplier_return_credit"
+  | "sales_return_refund"
   | "count_adjustment"
   | "payment_received";
 
@@ -833,11 +907,16 @@ export type FinancialLedgerRow = {
   note: string | null;
 };
 
-/** FR-9.3. `costOfGoods` keeps 4.6's sign and is negative; `margin` is their sum. */
+/**
+ * FR-9.3. `costOfGoods` and `returns` keep 4.6's sign and are negative;
+ * `margin` is revenue plus returns plus cost, with nothing flipped.
+ */
 export type SalesFigures = {
   unitsSold: number;
   revenue: CurrencySubtotal[];
   costOfGoods: CurrencySubtotal[];
+  /** Negative: money handed back to customers on returns (FR-4.9). */
+  returns: CurrencySubtotal[];
   margin: CurrencySubtotal[];
 };
 
@@ -876,14 +955,17 @@ export type MarginPercent = {
 
 /**
  * FR-10.5's accrual view. Every figure keeps 4.6's sign, which describes cash:
- * `purchases`, `costOfGoods` and `writeOffs` are negative because money left,
- * and `margin` is revenue plus cost with nothing flipped.
+ * `purchases`, `costOfGoods`, `writeOffs` and `salesReturns` are negative
+ * because money left. `margin` is net revenue (revenue plus the already
+ * negative `salesReturns`) plus cost, with nothing flipped.
  */
 export type AccrualFigures = {
   openingInventory: CurrencySubtotal[];
   purchases: CurrencySubtotal[];
   costOfGoods: CurrencySubtotal[];
   revenue: CurrencySubtotal[];
+  /** Negative: money refunded to customers for goods brought back (FR-4.9). */
+  salesReturns: CurrencySubtotal[];
   writeOffs: CurrencySubtotal[];
   supplierReturnCredits: CurrencySubtotal[];
   countAdjustments: CurrencySubtotal[];
@@ -911,6 +993,8 @@ export type DebtMovement = {
   bookedMinor: number;
   collectedMinor: number;
   voidedMinor: number;
+  /** Debt written off by confirmed customer returns against the sale (FR-4.9d). */
+  relievedMinor: number;
   closingMinor: number;
   currency: Currency;
 };

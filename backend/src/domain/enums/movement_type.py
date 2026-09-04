@@ -12,6 +12,10 @@ movement type: a sales figure that forgot it would count a cancelled sale
 as a sale. Carrying the reversal as a sign means summing the deltas is
 always the right answer, and the compensation is still plainly visible as
 its own row.
+
+``CUSTOMER_RETURN`` is likewise not a reversal of ``SALE``. A sale that
+happened and was later partly unwound is two facts, and §5.10 reports them
+in different columns.
 """
 
 from enum import StrEnum
@@ -21,5 +25,6 @@ class MovementType(StrEnum):
     RECEIPT = "receipt"
     SALE = "sale"
     SUPPLIER_RETURN = "supplier_return"
+    CUSTOMER_RETURN = "customer_return"
     COUNT_ADJUSTMENT = "count_adjustment"
     WRITE_OFF = "write_off"

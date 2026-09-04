@@ -23,7 +23,7 @@ import { useCan } from "@/components/MeProvider";
 import { OpenPdfButton } from "@/components/OpenPdfButton";
 import { ReasonModal } from "@/components/ReasonModal";
 import { RemovalLinesTable } from "@/components/RemovalLinesTable";
-import { RemovalScanConsole } from "@/components/scan/RemovalScanConsole";
+import { ScanConsole } from "@/components/scan/ScanConsole";
 import { useCancelDocument } from "@/hooks/use-cancel-document";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
@@ -177,7 +177,8 @@ export default function SupplierReturnPage() {
       )}
 
       {draft && canManage && (
-        <RemovalScanConsole
+        <ScanConsole
+          namespace="supplierReturns.scan"
           resource="supplier-returns"
           document={supplierReturn}
           onScanned={applyScan}

@@ -76,6 +76,15 @@ export const Permission = {
     View: "Permission.SupplierReturn.View",
     Manage: "Permission.SupplierReturn.Manage",
   },
+  /**
+   * Taking goods back from a customer. Owner/Manager only, like every other
+   * operation that gives value back — a Seller sells and takes payments,
+   * but does not hand money over (§2.1).
+   */
+  CustomerReturn: {
+    View: "Permission.CustomerReturn.View",
+    Manage: "Permission.CustomerReturn.Manage",
+  },
   StockCount: {
     /** Open, scan, count and close. A Storekeeper holds this and nothing else in M6. */
     Run: "Permission.StockCount.Run",

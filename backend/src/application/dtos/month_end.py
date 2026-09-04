@@ -1,8 +1,8 @@
 """The month-end close — FR-10.4 to FR-10.7b, PRD §5.10.
 
 Every figure keeps §4.6's stored sign, which describes cash: purchases,
-COGS and write-offs are **negative** because money left, revenue and
-return credits positive. Nothing here flips a sign, so ``margin`` is a
+COGS, write-offs and customer refunds are **negative** because money
+left, revenue and supplier return credits positive. Nothing here flips a sign, so ``margin`` is a
 plain sum and ``closing`` folds through ``INVENTORY_SIGN`` — the one table
 that knows cash signs and inventory signs are not the same.
 
@@ -29,17 +29,32 @@ class AccrualFigures:
     purchases: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
     cost_of_goods: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
     revenue: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
+    # Negative: money handed back to customers (FR-4.9). Its own line
+    # rather than a deduction from revenue, because a month wants both
+    # what it sold and what came back.
+    sales_returns: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
     write_offs: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
     supplier_return_credits: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
     count_adjustments: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
     closing_inventory: CurrencyTotals = field(default_factory=CurrencyTotals.empty)
 
     @property
+    def net_revenue(self) -> CurrencyTotals:
+        """Revenue less what came back — refunds are already negative."""
+        return self.revenue.merge(self.sales_returns)
+
+    @property
     def margin(self) -> dict[Currency, Money]:
-        """Revenue plus cost, per currency — cost is already negative."""
+        """Net revenue plus cost, per currency — both are already signed.
+
+        Refunds belong here rather than only on their own line: a return
+        nets ``COGS`` down when the goods come back, so a margin over gross
+        revenue would count the sale and not its undoing.
+        """
+        net = self.net_revenue
         return {
-            currency: self.revenue.of(currency) + self.cost_of_goods.of(currency)
-            for currency in self.revenue.currencies | self.cost_of_goods.currencies
+            currency: net.of(currency) + self.cost_of_goods.of(currency)
+            for currency in net.currencies | self.cost_of_goods.currencies
         }
 
     @property
@@ -50,8 +65,9 @@ class AccrualFigures:
         margin percentage, and 0.0 would read as one that broke even.
         """
         percentages: dict[Currency, Decimal | None] = {}
+        net = self.net_revenue
         for currency, margin in self.margin.items():
-            revenue = self.revenue.of(currency)
+            revenue = net.of(currency)
             percentages[currency] = (
                 None
                 if revenue.amount_minor == 0
@@ -66,16 +82,18 @@ class AccrualFigures:
 class DebtMovement:
     """FR-10.5's debt/cash view (§4.7). Always som, never a currency pair.
 
-    ``voided`` is not one of FR-10.5's three lines. It is here because
-    cancelling a store-credit sale voids its remaining debt (FR-11.11), and
-    without the line ``opening + booked - collected`` simply does not reach
-    ``closing`` in any month where that happened.
+    ``voided`` and ``relieved`` are not among FR-10.5's three lines. They
+    are here because cancelling a store-credit sale voids its remaining debt
+    (FR-11.11) and a customer return writes some of it off (FR-4.9d), and
+    without both lines ``opening + booked - collected`` simply does not
+    reach ``closing`` in any month where either happened.
     """
 
     opening: Money
     booked: Money
     collected: Money
     voided: Money
+    relieved: Money
     closing: Money
 
 

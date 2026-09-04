@@ -175,6 +175,10 @@ class PdfMonthEndReportRenderer:
                 *(figures.revenue.of(c).format() for c in currencies),
             ),
             (
+                page.t("me_sales_returns"),
+                *(figures.sales_returns.of(c).format() for c in currencies),
+            ),
+            (
                 page.t("me_cogs"),
                 *(figures.cost_of_goods.of(c).format() for c in currencies),
             ),
@@ -211,6 +215,7 @@ class PdfMonthEndReportRenderer:
             (page.t("me_booked"), debt.booked.format()),
             (page.t("me_collected"), debt.collected.format()),
             (page.t("me_voided"), debt.voided.format()),
+            (page.t("me_relieved"), debt.relieved.format()),
             (page.t("me_closing_debt"), debt.closing.format()),
         ]
 

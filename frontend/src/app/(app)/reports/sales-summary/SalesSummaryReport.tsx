@@ -29,9 +29,9 @@ import type { SalesFigures, SalesSummary } from "@/lib/types";
  * FR-9.3: what selling earned, by location, over a date range.
  *
  * Unpaged, because the store total is only meaningful with every location in
- * hand. Every money figure is one subtotal per currency: `costOfGoods` keeps
- * §4.6's sign and is negative, and `margin` is their plain sum, so nothing
- * on this screen flips a sign or adds so'm to dollars.
+ * hand. Every money figure is one subtotal per currency: `costOfGoods` and
+ * `returns` keep §4.6's sign and are negative, and `margin` is their plain
+ * sum, so nothing on this screen flips a sign or adds so'm to dollars.
  */
 export function SalesSummaryReport() {
   const t = useTranslations("reports");
@@ -106,7 +106,7 @@ export function SalesSummaryReport() {
         </Center>
       ) : (
         <>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
             <Card withBorder radius="md" padding="lg">
               <Stack gap="3xs">
                 <Text size="sm" c="dimmed">
@@ -118,6 +118,10 @@ export function SalesSummaryReport() {
               </Stack>
             </Card>
             <FigureCard label={t("revenue")} subtotals={summary.total.revenue} />
+            <FigureCard
+              label={t("salesReturns")}
+              subtotals={summary.total.returns}
+            />
             <FigureCard
               label={t("costOfGoods")}
               subtotals={summary.total.costOfGoods}
@@ -132,6 +136,7 @@ export function SalesSummaryReport() {
                   <Table.Th>{t("filterLocation")}</Table.Th>
                   <Table.Th>{t("unitsSold")}</Table.Th>
                   <Table.Th>{t("revenue")}</Table.Th>
+                  <Table.Th>{t("salesReturns")}</Table.Th>
                   <Table.Th>{t("costOfGoods")}</Table.Th>
                   <Table.Th>{t("margin")}</Table.Th>
                 </Table.Tr>
@@ -149,6 +154,9 @@ export function SalesSummaryReport() {
                     </Table.Td>
                     <Table.Td>
                       <Subtotals subtotals={entry.figures.revenue} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Subtotals subtotals={entry.figures.returns} />
                     </Table.Td>
                     <Table.Td>
                       <Subtotals subtotals={entry.figures.costOfGoods} />

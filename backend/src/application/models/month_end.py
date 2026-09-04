@@ -72,6 +72,8 @@ class AccrualFiguresData(CamelModel):
     purchases: list[CurrencySubtotalData]
     cost_of_goods: list[CurrencySubtotalData]
     revenue: list[CurrencySubtotalData]
+    # Negative: money handed back to customers (FR-4.9).
+    sales_returns: list[CurrencySubtotalData]
     write_offs: list[CurrencySubtotalData]
     supplier_return_credits: list[CurrencySubtotalData]
     count_adjustments: list[CurrencySubtotalData]
@@ -90,6 +92,9 @@ class AccrualFiguresData(CamelModel):
                 figures.cost_of_goods.as_dict()
             ),
             revenue=CurrencySubtotalData.from_entity(figures.revenue.as_dict()),
+            sales_returns=CurrencySubtotalData.from_entity(
+                figures.sales_returns.as_dict()
+            ),
             write_offs=CurrencySubtotalData.from_entity(figures.write_offs.as_dict()),
             supplier_return_credits=CurrencySubtotalData.from_entity(
                 figures.supplier_return_credits.as_dict()
@@ -129,6 +134,8 @@ class DebtMovementData(CamelModel):
     booked_minor: int
     collected_minor: int
     voided_minor: int
+    # Debt written off by confirmed customer returns (FR-4.9d).
+    relieved_minor: int
     closing_minor: int
     currency: Currency
 
@@ -139,6 +146,7 @@ class DebtMovementData(CamelModel):
             booked_minor=debt.booked.amount_minor,
             collected_minor=debt.collected.amount_minor,
             voided_minor=debt.voided.amount_minor,
+            relieved_minor=debt.relieved.amount_minor,
             closing_minor=debt.closing.amount_minor,
             currency=debt.closing.currency,
         )

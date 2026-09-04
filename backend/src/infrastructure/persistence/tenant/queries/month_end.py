@@ -19,6 +19,7 @@ from domain.enums import DocumentType, PaymentType, TransactionType
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import (
     CreditCompanyModel,
+    CustomerReturnModel,
     FinancialTransactionModel,
     PaymentModel,
     SalesInvoiceModel,
@@ -27,6 +28,7 @@ from infrastructure.types import TenantSession
 
 _I = SalesInvoiceModel
 _F = FinancialTransactionModel
+_R = CustomerReturnModel
 
 
 class SqlMonthEndQueries:
@@ -49,7 +51,14 @@ class SqlMonthEndQueries:
             .join(_I, _I.id == PaymentModel.sales_invoice_id)
             .where(PaymentModel.occurred_at < as_of, *open_then)
         )
-        return self._som(owed) - self._som(collected)
+        # Rewound the same way: a return confirmed in March relieved
+        # nothing that was owed at the end of January.
+        relieved = await self._session.scalar(
+            select(func.coalesce(func.sum(_R.debt_relief_minor), 0))
+            .join(_I, _I.id == _R.sales_invoice_id)
+            .where(_R.confirmed_at.is_not(None), _R.confirmed_at < as_of, *open_then)
+        )
+        return self._som(owed) - self._som(collected) - self._som(relieved)
 
     async def debt_booked_between(self, since: datetime, until: datetime) -> Money:
         booked = await self._session.scalar(
@@ -82,7 +91,34 @@ class SqlMonthEndQueries:
             .join(_I, _I.id == PaymentModel.sales_invoice_id)
             .where(*cancelled)
         )
-        return self._som(owed) - self._som(paid)
+        # Relief taken before the cancellation left the books under its own
+        # line; voiding the gross debt would remove it twice.
+        relieved = await self._session.scalar(
+            select(func.coalesce(func.sum(_R.debt_relief_minor), 0))
+            .join(_I, _I.id == _R.sales_invoice_id)
+            .where(_R.confirmed_at.is_not(None), *cancelled)
+        )
+        return self._som(owed) - self._som(paid) - self._som(relieved)
+
+    async def debt_relieved_between(self, since: datetime, until: datetime) -> Money:
+        """What customer returns wrote off the books in the window (FR-4.9d).
+
+        Scoped to returns *confirmed* in the window and to sales still
+        standing at the end of it: a cancelled sale's whole remaining debt
+        goes out through ``debt_voided_between`` instead, and counting the
+        relief here as well would take it off twice.
+        """
+        relieved = await self._session.scalar(
+            select(func.coalesce(func.sum(_R.debt_relief_minor), 0))
+            .join(_I, _I.id == _R.sales_invoice_id)
+            .where(
+                _I.payment_type == PaymentType.STORE_CREDIT.value,
+                _R.confirmed_at >= since,
+                _R.confirmed_at < until,
+                (_I.cancelled_at.is_(None)) | (_I.cancelled_at >= until),
+            )
+        )
+        return self._som(relieved)
 
     async def sales_by_financing(
         self,

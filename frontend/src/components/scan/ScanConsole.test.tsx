@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RemovalScanConsole } from "@/components/scan/RemovalScanConsole";
+import { ScanConsole } from "@/components/scan/ScanConsole";
 import { ApiError } from "@/lib/api";
 import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
@@ -97,14 +97,15 @@ beforeEach(() => {
   });
 });
 
-describe("RemovalScanConsole", () => {
+describe("ScanConsole", () => {
   it("sends the bare code and clears the input for the next handset", async () => {
     apiSend.mockResolvedValue(scanned(supplierReturn));
     const onScanned = vi.fn();
     const user = userEvent.setup();
 
     renderWithProviders(
-      <RemovalScanConsole
+      <ScanConsole
+        namespace="supplierReturns.scan"
         resource="supplier-returns"
         document={supplierReturn}
         onScanned={onScanned}
@@ -131,7 +132,8 @@ describe("RemovalScanConsole", () => {
     const user = userEvent.setup();
 
     renderWithProviders(
-      <RemovalScanConsole
+      <ScanConsole
+        namespace="supplierReturns.scan"
         resource="write-offs"
         document={writeOff}
         onScanned={vi.fn()}
@@ -155,7 +157,8 @@ describe("RemovalScanConsole", () => {
     const user = userEvent.setup();
 
     renderWithProviders(
-      <RemovalScanConsole
+      <ScanConsole
+        namespace="supplierReturns.scan"
         resource="supplier-returns"
         document={supplierReturn}
         onScanned={vi.fn()}
@@ -179,7 +182,8 @@ describe("RemovalScanConsole", () => {
     const user = userEvent.setup();
 
     renderWithProviders(
-      <RemovalScanConsole
+      <ScanConsole
+        namespace="supplierReturns.scan"
         resource="supplier-returns"
         document={supplierReturn}
         onScanned={vi.fn()}
@@ -199,7 +203,8 @@ describe("RemovalScanConsole", () => {
     const user = userEvent.setup();
 
     renderWithProviders(
-      <RemovalScanConsole
+      <ScanConsole
+        namespace="supplierReturns.scan"
         resource="supplier-returns"
         document={supplierReturn}
         onScanned={vi.fn()}

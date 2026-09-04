@@ -114,6 +114,12 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           icon: IconReceipt,
           permission: Permission.Sales.View,
         },
+        {
+          href: "/customer-returns",
+          label: t("customerReturns"),
+          icon: IconArrowBackUp,
+          permission: Permission.CustomerReturn.View,
+        },
       ],
     },
     {

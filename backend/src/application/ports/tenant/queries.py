@@ -252,7 +252,8 @@ class FinancialTransactionQueries(Protocol):
         to_date: datetime | None = None,
         location_id: UUID | None = None,
     ) -> list[SalesTotalsRow]:
-        """FR-9.3's ``SALE_REVENUE`` and ``COGS``, by location and currency."""
+        """FR-9.3's ``SALE_REVENUE``, ``COGS`` and ``SALES_RETURN_REFUND``,
+        by location and currency."""
         ...
 
     async def list_page(
@@ -290,6 +291,12 @@ class MonthEndQueries(Protocol):
     async def debt_voided_between(self, since: datetime, until: datetime) -> Money:
         """Remaining debt on store-credit sales cancelled in the window
         (FR-11.11) — the fourth line the debt movement needs to add up."""
+        ...
+
+    async def debt_relieved_between(self, since: datetime, until: datetime) -> Money:
+        """Debt written off by customer returns confirmed in the window
+        (FR-4.9d) — the fifth line, and the other way debt leaves without
+        anybody paying it."""
         ...
 
     async def sales_by_financing(

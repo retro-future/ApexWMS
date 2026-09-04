@@ -13,7 +13,7 @@ import { ErrorAlert } from "@/components/ErrorAlert";
 import { useCan } from "@/components/MeProvider";
 import { ReasonModal } from "@/components/ReasonModal";
 import { RemovalLinesTable } from "@/components/RemovalLinesTable";
-import { RemovalScanConsole } from "@/components/scan/RemovalScanConsole";
+import { ScanConsole } from "@/components/scan/ScanConsole";
 import { useCancelDocument } from "@/hooks/use-cancel-document";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
@@ -143,7 +143,8 @@ export default function WriteOffPage() {
       )}
 
       {draft && canManage && (
-        <RemovalScanConsole
+        <ScanConsole
+          namespace="writeOffs.scan"
           resource="write-offs"
           document={writeOff}
           onScanned={applyScan}

@@ -84,6 +84,7 @@ This table is not decoration: it is the source for the **permission catalog** in
 | Reverse a payment | ✅ | ✅ | ❌ | ❌ |
 | View customer balances & debtor list | ✅ | ✅ | ❌ | ✅¹ |
 | Return to supplier | ✅ | ✅ | ❌ | ❌ |
+| Accept a customer return / issue a refund | ✅ | ✅ | ❌ | ❌ |
 | Run stock count | ✅ | ✅ | ✅ | ❌ |
 | Confirm count adjustments | ✅ | ✅ | ❌ | ❌ |
 | Write off stock | ✅ | ✅ | ❌ | ❌ |
@@ -267,7 +268,7 @@ The rules, which are non-negotiable:
 
 ### 4.4 Documents
 
-Six document types, all sharing one lifecycle:
+Seven document types, all sharing one lifecycle:
 
 ```
 DRAFT  ──confirm──▶  CONFIRMED  ──cancel──▶  CANCELLED
@@ -283,6 +284,7 @@ DRAFT  ──confirm──▶  CONFIRMED  ──cancel──▶  CANCELLED
 | **`GoodsReceipt`** | ← supplier **or trade-in** | Creates `DeviceUnit`s (serial) / increments levels (qty). `+` movements. |
 | **`SalesInvoice`** | → customer | Marks units `SOLD` / decrements levels. `−` movements. |
 | **`SupplierReturn`** | → supplier | Marks units `RETURNED_TO_SUPPLIER` / decrements levels. `−` movements. |
+| **`CustomerReturn`** | ← customer | Marks units `IN_STOCK` again / increments levels, and books the refund. `+` movements. |
 | **`StockCount`** | internal | Writes adjustment movements for every discrepancy found. `±` movements. |
 | **`WriteOff`** | internal | Marks units `WRITTEN_OFF` / decrements levels. `−` movements. |
 
@@ -564,6 +566,7 @@ user_id, note
 | `COGS` | − | Sales Invoice confirmed | Cost of the specific goods sold (see valuation below). |
 | `WRITE_OFF_LOSS` | − | Write-Off confirmed | Book value of stock destroyed/lost. |
 | `SUPPLIER_RETURN_CREDIT` | + | Supplier Return confirmed | Value credited back for goods sent to the supplier. |
+| `SALES_RETURN_REFUND` | − | Customer Return confirmed | Money paid back to the customer. The **goods** side of a return rides on a positive `COGS` row, so a fully returned line nets its cost to zero. |
 | `COUNT_ADJUSTMENT` | ± | Stock Count confirmed | Value of surplus (+) or shortage (−) found in a physical count. |
 | `PAYMENT_RECEIVED` | + | A customer pays down a store-credit balance (§4.7) | **Cash collected**, always UZS, not revenue. Settles debt; does **not** re-book revenue. |
 
@@ -719,6 +722,20 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 - **FR-4.7** Confirming an invoice whose line quantity exceeds available stock is rejected atomically — no partial fulfilment.
 - **FR-4.8** Cancelling a confirmed invoice returns the units to `IN_STOCK` **by writing compensating `+` movements**. The original movements remain.
 
+### 5.4b Customer Returns
+
+A sale that stood and was later partly unwound is not a cancelled sale. Cancelling (FR-4.8) says the sale never should have happened and reverses every line at its original price; a return says the goods came back later, possibly at less than was charged, and the sale itself remains a sale. §5.10 reports the two in different columns.
+
+- **FR-4.9** A Manager opens a Customer Return against **one confirmed Sales Invoice**, states where the goods land and why they came back (defective, not as expected, wrong item, warranty, other), then scans the items. Goods with no sale behind them enter through a Stock Count (FR-6.4b), not through a return — a return with no invoice could name neither a price nor a cost.
+- **FR-4.9a** Only what that invoice actually sold may be added. A handset from another sale, or a model this invoice never carried, is refused **on the scan that named it**, while the customer is still at the counter.
+- **FR-4.9b** Nothing may come back twice. A serialized line is returnable once; a quantity line only up to what it sold, counting every other confirmed return against the same sale. *(Test: return all three of a three-case line, then scan a fourth — refused.)*
+- **FR-4.9c** A line's refund **defaults to the invoice line's `charged_price` snapshot** and may be lowered by an Owner/Manager with a **mandatory note**, stamped with their name — the same discipline FR-4.5f applies to a discount, in the other direction. It may go to zero and **never above what the sale charged**: money flowing the other way is a sale, not a return. *(Test: refund a $900 phone at $1000 — rejected.)*
+- **FR-4.9d** Where the sale was on **store credit**, the return relieves the customer's debt first and only the remainder is cash back. The relief is a **som figure the Manager states**, capped at what is still outstanding, and is **never converted** from the line refunds — those are in the products' own currencies and no exchange rate exists (§4.5 rule 1). Remaining balance therefore reads `debt − Σ payments − Σ return relief`. *(Test: return a phone on a 10 000 000 so'm open balance relieving the lot — the customer drops off the debtor list, and a further payment is refused.)*
+- **FR-4.9e** Relief on a sale that opened no debt (paid-in-full, credit-company) is rejected: there is nothing to relieve.
+- **FR-4.9f** Confirming returns each unit to `IN_STOCK` at the return's location, increments quantity levels, books `SALES_RETURN_REFUND` for the money and a **positive `COGS`** for the goods' original cost — which is what puts a returned accessory back into the weighted-average pool at the value it left, never at today's average.
+- **FR-4.9g** Cancelling a return writes compensating movements and sells the units again. Conversely, **an invoice with a confirmed return against it cannot be cancelled**: cancelling reverses every line at its original price, so the returned goods would arrive a second time.
+- **FR-4.9h** Accepting a return and issuing a refund is Owner/Manager only (§2.1), like every other operation that gives value back. Lowering a refund additionally takes the pricing-override permission.
+
 ### 5.5 Returns to Supplier
 
 - **FR-5.1** A Manager creates a Supplier Return, scans the IMEIs of units being sent back, and states a reason (defective, unsold, wrong item).
@@ -774,8 +791,9 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
   - **Sales revenue** and **gross margin** (revenue − COGS), with margin % — **accrual, i.e. all sales confirmed in the period, paid or not.**
   - **Write-offs** and **count adjustments** — value lost or corrected.
   - **Supplier-return credits**.
-  - **Closing inventory value** (= opening + purchases − COGS − write-offs − returns ± adjustments).
-  - **Customer debt movement** (UZS): opening debt, + store-credit sales booked, − payments collected, = **closing debt outstanding**.
+  - **Customer returns** — what was refunded in the period, shown beside gross revenue rather than netted into it.
+  - **Closing inventory value** (= opening + purchases − COGS + returned COGS − write-offs − supplier returns ± adjustments).
+  - **Customer debt movement** (UZS): opening debt, + store-credit sales booked, − payments collected, − debt voided by cancellation, − debt written off by customer returns, = **closing debt outstanding**.
   - **Cash collected on store credit** in the period (Σ `PAYMENT_RECEIVED`, UZS) — distinct from revenue, so the owner sees the gap between what was earned and what actually came in.
   - **Sales by financing type** — counts and revenue split across paid-in-full / credit-company (by company) / store-credit, so the owner sees how the store actually sells.
 - **FR-10.6** The report breaks the closing inventory figure down **by location** — the warehouse's stock value and each store's stock value shown separately, then totalled — so the owner sees where the value physically sits.
@@ -1127,13 +1145,13 @@ Each milestone is independently demoable.
 | **Accidentally summing across currencies** | **High** | With two currencies and no conversion, a `SUM()` missing its `GROUP BY currency` silently adds cents to som. Mitigated by the `Money` value object (cross-currency arithmetic raises), and by FR-2.11's test that every report returns per-currency totals. |
 | **Mixed-currency documents** | Medium | Supported in v1 (§4.5): one invoice, one subtotal per currency. Simplified by the debt model: all customer debt is UZS regardless of line currencies, so only *revenue* is per-currency. Mitigated by `Money` (cross-currency arithmetic raises) and `verify-balances`. |
 | **Double-counting revenue as cash** | **High** | The signature bug of naive credit systems. Mitigated structurally: revenue is booked once at sale (`SALE_REVENUE`), payments are a *separate* category (`PAYMENT_RECEIVED`) that never touches revenue (FR-11.7). A test asserts total revenue for a sale equals its price no matter how many payments landed. |
-| **Cancelling a sale that already took payments** | Medium | Ambiguous by nature — money changed hands. v1 refuses to silently zero it: the cancel flags the collected payments for explicit refund handling (FR-11.11) rather than deleting them. Full refund workflow is v2. |
+| **Cancelling a sale that already took payments** | Medium | Ambiguous by nature — money changed hands. v1 refuses to silently zero it: the cancel flags the collected payments for explicit refund handling (FR-11.11) rather than deleting them. A **partial** unwinding — some goods back, some money back, the sale still standing — is a Customer Return (§5.4b) rather than a cancellation, and a sale with one against it can no longer be cancelled at all (FR-4.9g). |
 | **Attributing a credit company's debt to the customer** | Medium | A financed customer owes the store *nothing* — the company already paid in full. Enforced by FR-11.4's test asserting a financed sale creates no debt anywhere. |
 | **Store-credit debt has no due date** | Low, by design | An open balance can sit forever without ever being "late." Accepted — it matches how these debts actually work. The debtor list orders by age of oldest open invoice (FR-11.10), so stale debts surface anyway. If owners ask for due dates, that's a v2 field, not a redesign. |
 | **Credit company fails to pay immediately** | Low | The model assumes payment at sale time, per the owner. If a company ever pays late or partially, v1 has no way to represent it — the sale would simply be settled. Accepted; revisit only if it happens in practice (sales are labelled by company, so history is recoverable). |
 
 ### Deferred to v2 (schema anticipates them)
-Inter-location transfers · customer returns/refunds · reservations · low-stock alerts · domain events · barcode label printing · **a single combined cross-currency bottom line (would require an FX rate — deliberately absent in v1)** · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **due dates / overdue tracking on store credit · customer credit limits · installment schedules · credit-company payout & commission tracking** · supplier accounts-payable (store's debts to suppliers).
+Inter-location transfers · reservations · low-stock alerts · domain events · barcode label printing · **a single combined cross-currency bottom line (would require an FX rate — deliberately absent in v1)** · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **due dates / overdue tracking on store credit · customer credit limits · installment schedules · credit-company payout & commission tracking** · supplier accounts-payable (store's debts to suppliers).
 
 **Pricing** (§4.5b decides where a price lives; these decide how one is *chosen*, which v1 leaves to the owner): **condition grades driving an automatic used price** (Grade A = 85% of new, …) · **depreciation curves or market price feeds** · **a floor/minimum price per unit** — only meaningful once Sellers can discount, which FR-4.5 does not allow · **scheduled or automatic markdowns** by age · **percentage- or formula-driven bulk markdowns** (FR-2.21 reprices many units in one call, but each unit's new price is stated — a single percentage across handsets in different conditions is the automated valuation §1.3 rejects, merely applied to several at once) · **lower-of-cost-or-market inventory write-downs** (v1 carries stock at cost, FR-2.17) · price lists per customer or channel · **any exchange rate, including one recorded on a som-paid trade-in** (§4.5b keeps the som figure inert precisely so that no rate is implied by dividing it into the booked cost).
 

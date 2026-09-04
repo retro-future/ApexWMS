@@ -58,6 +58,8 @@ TENANT_TABLES = {
     "credit_companies": entities.CreditCompany,
     "payments": entities.Payment,
     # --- M6 returns, counts & write-offs ---
+    "customer_returns": entities.CustomerReturn,
+    "customer_return_lines": entities.CustomerReturnLine,
     "supplier_returns": entities.SupplierReturn,
     "supplier_return_lines": entities.SupplierReturnLine,
     "write_offs": entities.WriteOff,

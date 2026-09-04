@@ -16,6 +16,20 @@ from domain.errors import CurrencyMismatchError, InvalidMoneyError
 from domain.value_objects.currency import Currency
 
 
+def round_half_up(numerator: int, denominator: int) -> int:
+    """``round(numerator / denominator)``, halves away from zero, in ints.
+
+    Kept in integer arithmetic on purpose: a float here would reintroduce
+    the lost-fraction problem the whole money model exists to avoid
+    (§4.5).
+    """
+    if denominator < 0:
+        numerator, denominator = -numerator, -denominator
+    if numerator >= 0:
+        return (2 * numerator + denominator) // (2 * denominator)
+    return -((-2 * numerator + denominator) // (2 * denominator))
+
+
 @dataclass(frozen=True, slots=True)
 class Money:
     """An exact amount in a currency's minor unit. Immutable.
@@ -94,6 +108,20 @@ class Money:
         return Money(self.amount_minor * factor, self.currency)
 
     __rmul__ = __mul__
+
+    def share(self, part: int, whole: int) -> Money:
+        """The *part*-in-*whole* slice of this amount, rounded once.
+
+        Two independently rounded slices can sum to one minor unit over the
+        whole, so a caller splitting an amount across several slices takes
+        each as ``share(taken) − share(taken before)``, which telescopes to
+        the exact whole. ``CustomerReturnPoster`` and ``CostPool.issue`` do.
+        """
+        if whole <= 0:
+            raise InvalidMoneyError(f"cannot take a share of {whole} units")
+        if not 0 <= part <= whole:
+            raise InvalidMoneyError(f"cannot take {part} of {whole} units")
+        return Money(round_half_up(self.amount_minor * part, whole), self.currency)
 
     def __lt__(self, other: Money) -> bool:
         return self.amount_minor < self._require_same_currency(other).amount_minor

@@ -19,14 +19,18 @@ import { useEffect, useRef, useState } from "react";
 import { CameraScanner } from "@/components/scan/CameraScanner";
 import { useDocumentAction } from "@/hooks/use-document";
 import { errorMessage } from "@/lib/notify";
-import type { Removal, RemovalResource } from "@/lib/removals";
+
+/** Everything this console reads off the document it is scanning onto. */
+export type Scannable = { id: string; lineCount: number };
 
 /**
- * One beep of the scanner onto a supplier return or a write-off (PRD §6).
+ * One beep of the scanner onto any document built by scanning (PRD §6).
  *
- * One console for both, because both endpoints take `{ code }` and answer
- * with the whole document — the two differ in what confirming them *means*,
- * not in what a scan says.
+ * One console for the supplier return, the write-off and the customer
+ * return, because all three endpoints take `{ code }` and answer with the
+ * whole document — they differ in what confirming them *means*, not in what
+ * a scan says. The caller passes its own message namespace, which is the
+ * only thing that varies.
  *
  * The scanner is a keyboard wedge: it types the code into whatever has focus
  * and presses Enter. So the input keeps focus at all times, clears itself
@@ -37,18 +41,19 @@ import type { Removal, RemovalResource } from "@/lib/removals";
  * when it is not on the shelf, and a phone held elsewhere says so — a
  * paraphrase would cost the operator the one fact they need.
  */
-export function RemovalScanConsole<T extends Removal>({
+export function ScanConsole<T extends Scannable>({
   resource,
+  namespace,
   document,
   onScanned,
 }: {
-  resource: RemovalResource;
+  resource: string;
+  /** The caller's `<x>.scan` message namespace. */
+  namespace: string;
   document: T;
   onScanned: (updated: T) => void;
 }) {
-  const t = useTranslations(
-    resource === "supplier-returns" ? "supplierReturns.scan" : "writeOffs.scan",
-  );
+  const t = useTranslations(namespace);
   const tCommon = useTranslations("common");
 
   const inputRef = useRef<HTMLInputElement>(null);

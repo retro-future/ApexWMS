@@ -20,7 +20,8 @@ while scanning comes from the scan response, which resolves a price to
 The debt fields are the one place a som figure sits beside dollar line
 prices, and they are unrelated to them by design (§4.7): the seller quotes
 the som total in their head, and no rate is recorded anywhere.
-``remainingMinor`` is computed on every read from ``debt − Σ payments``,
+``remainingMinor`` is computed on every read from
+``debt − Σ payments − Σ return relief``,
 which is also what makes it the refund figure once the invoice is
 cancelled (FR-11.11) — the debt is void but the payments are not.
 """
@@ -37,7 +38,11 @@ from application.dtos import BelowCostAlert
 from application.models.below_cost_alert import BelowCostAlertData
 from application.models.currency_subtotal import CurrencySubtotalData
 from application.models.payment import PaymentData
-from domain.entities import Payment, SalesInvoice, SalesInvoiceLine
+
+# Imported from the module rather than the package: ``application.services``
+# pulls in every poster, and several of those import this file.
+from application.services.customer_balance import relieved_on, remaining_on
+from domain.entities import CustomerReturn, Payment, SalesInvoice, SalesInvoiceLine
 from domain.enums import DocumentStatus, PaymentType, TrackingType
 from domain.value_objects import Currency, Money
 
@@ -121,6 +126,8 @@ class SalesInvoiceData(CamelModel):
     debt: Decimal | None = None
     debt_minor: int | None = None
     paid_minor: int = 0
+    # Som written off by confirmed customer returns (FR-4.9d).
+    relieved_minor: int = 0
     remaining_minor: int = 0
     payments: list[PaymentData] = []
     # Populated only by the confirm handler (see the below-cost design doc);
@@ -132,19 +139,17 @@ class SalesInvoiceData(CamelModel):
         cls,
         invoice: SalesInvoice,
         payments: Sequence[Payment] = (),
+        returns: Sequence[CustomerReturn] = (),
         *,
         below_cost_alerts: list[BelowCostAlert] | None = None,
     ) -> SalesInvoiceData:
         paid = sum(payment.amount.amount_minor for payment in payments)
         debt_minor = None if invoice.debt is None else invoice.debt.amount_minor
-        # A cancelled sale's debt is void (FR-11.11), so what is left to
-        # settle is nothing — and any payments taken are a refund, which is
-        # why they are still listed.
-        owing = (
-            debt_minor - paid
-            if debt_minor is not None and invoice.status is DocumentStatus.CONFIRMED
-            else 0
-        )
+        # Through ``remaining_on`` so the three-term balance is stated once
+        # (§4.7, FR-4.9d) — a cancelled sale's debt is void, and any
+        # payments taken are a refund, which is why they are still listed.
+        owing = remaining_on(invoice, payments, returns).amount_minor
+        relieved = relieved_on(returns).amount_minor
         return cls(
             id=invoice.id,
             number=invoice.number,
@@ -167,6 +172,7 @@ class SalesInvoiceData(CamelModel):
             debt=None if invoice.debt is None else invoice.debt.as_major(),
             debt_minor=debt_minor,
             paid_minor=paid,
+            relieved_minor=relieved,
             remaining_minor=owing,
             payments=[PaymentData.from_entity(payment) for payment in payments],
             below_cost_alerts=[

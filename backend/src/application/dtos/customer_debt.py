@@ -2,9 +2,9 @@
 
 Read rows, not entities. Both are stitched from ``sales_invoices`` and
 ``payments`` in a single grouped query, because a balance is
-``debt − Σ payments`` and computing that by loading every invoice
-aggregate and every payment row into Python would read the store's whole
-credit history to answer one question.
+``debt − Σ payments − Σ return relief`` and computing that by loading
+every invoice aggregate, every payment row and every return into Python
+would read the store's whole credit history to answer one question.
 
 Nothing here is stored. ``remaining`` and ``balance`` are recomputed on
 every read, which is what makes them impossible to drift: there is no
@@ -38,6 +38,9 @@ class CreditInvoiceDebt:
     # None for a financed sale: it opened no debt.
     debt: Money | None
     paid: Money
+    # Som written off by confirmed customer returns against this sale
+    # (FR-4.9d). Zero on all but a returned store-credit sale.
+    relieved: Money
     credit_company_id: UUID | None
     contract_ref: str | None
 
@@ -52,7 +55,8 @@ class CreditInvoiceDebt:
         """
         if self.debt is None or self.status is not DocumentStatus.CONFIRMED:
             return Money.zero(self.paid.currency)
-        return self.debt - self.paid
+        owing = self.debt - self.paid - self.relieved
+        return Money.zero(self.paid.currency) if owing.is_negative else owing
 
     @property
     def is_open(self) -> bool:

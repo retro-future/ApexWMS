@@ -56,6 +56,7 @@ function sale(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     debt: "7200000",
     debtMinor: 7200000,
     paidMinor: 200000,
+    relievedMinor: 0,
     remainingMinor: 7000000,
     payments: [payment("a", 200000)],
     belowCostAlerts: [],

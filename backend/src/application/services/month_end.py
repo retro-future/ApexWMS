@@ -89,6 +89,7 @@ class MonthEndReporter:
             purchases=category(TransactionType.PURCHASE),
             cost_of_goods=category(TransactionType.COGS),
             revenue=category(TransactionType.SALE_REVENUE),
+            sales_returns=category(TransactionType.SALES_RETURN_REFUND),
             write_offs=category(TransactionType.WRITE_OFF_LOSS),
             supplier_return_credits=category(TransactionType.SUPPLIER_RETURN_CREDIT),
             count_adjustments=category(TransactionType.COUNT_ADJUSTMENT),
@@ -107,6 +108,9 @@ class MonthEndReporter:
             booked=await self._debts.debt_booked_between(period.start, period.end),
             collected=collected,
             voided=await self._debts.debt_voided_between(period.start, period.end),
+            relieved=await self._debts.debt_relieved_between(
+                period.start, period.end
+            ),
             closing=await self._debts.debt_at(period.end),
         )
 
@@ -140,7 +144,9 @@ class MonthEndReporter:
     @staticmethod
     def _debt_discrepancies(debt: DebtMovement) -> list[Discrepancy]:
         """FR-10.7b: the movement has to land on the closing balance."""
-        rolled = debt.opening + debt.booked - debt.collected - debt.voided
+        rolled = (
+            debt.opening + debt.booked - debt.collected - debt.voided - debt.relieved
+        )
         if rolled == debt.closing:
             return []
         return [

@@ -383,6 +383,7 @@ async def _verify_one(url: str, command: str) -> list[str]:
     from domain.services import UnitProjector
     from infrastructure.persistence.mappers import (
         AutoMapper,
+        CustomerReturnMapper,
         DeviceUnitMapper,
         DeviceUnitPriceChangeMapper,
         FinancialTransactionMapper,
@@ -397,6 +398,7 @@ async def _verify_one(url: str, command: str) -> list[str]:
         TenantSqlRepository,
     )
     from infrastructure.persistence.tenant.models import (
+        CustomerReturnModel,
         DeviceUnitModel,
         DeviceUnitPriceChangeModel,
         FinancialTransactionModel,
@@ -435,6 +437,9 @@ async def _verify_one(url: str, command: str) -> list[str]:
                         session, SalesInvoiceModel, SalesInvoiceMapper()
                     ),
                     TenantSqlAppendOnlyRepository(session, PaymentModel, PaymentMapper()),
+                    TenantSqlRepository(
+                        session, CustomerReturnModel, CustomerReturnMapper()
+                    ),
                     transaction_queries,
                 )
                 return [str(finding) for finding in await balances.verify()]

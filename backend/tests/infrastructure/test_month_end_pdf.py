@@ -42,7 +42,7 @@ def _report(figures: AccrualFigures) -> MonthEndReport:
         location_id=None,
         figures=figures,
         closing_by_location=[],
-        debt=DebtMovement(zero, zero, zero, zero, zero),
+        debt=DebtMovement(zero, zero, zero, zero, zero, zero),
         financing=[],
         discrepancies=[],
     )

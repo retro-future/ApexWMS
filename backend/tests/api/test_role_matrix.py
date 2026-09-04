@@ -441,6 +441,48 @@ async def test_neither_can_print_an_order_full_of_costs(
 
 
 @pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
+async def test_neither_can_take_goods_back_from_a_customer(
+    client, tenant_with_roles, role
+):
+    """§2.1: a Seller sells, but handing money back is Owner/Manager.
+
+    Also asserts the 403 wrote nothing: a refused return must not leave a
+    draft behind for somebody else to confirm.
+    """
+    owner, tokens, _ = tenant_with_roles
+    location = await client.post(
+        "/api/v1/locations", headers=owner.auth, json={"name": "Shop"}
+    )
+    location_id = location.json()["data"]["id"]
+
+    assert (
+        await client.get("/api/v1/customer-returns", headers=tokens[role])
+    ).status_code == 403
+    assert (
+        await client.post(
+            "/api/v1/customer-returns",
+            headers=tokens[role],
+            json={
+                "salesInvoiceId": location_id,
+                "locationId": location_id,
+                "reason": "defective",
+            },
+        )
+    ).status_code == 403
+    assert (
+        await client.post(
+            f"/api/v1/customer-returns/{uuid4()}/confirm",
+            headers=tokens[role],
+            json={},
+        )
+    ).status_code == 403
+
+    listed = await client.get("/api/v1/customer-returns", headers=owner.auth)
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["data"] == []
+
+
+@pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
 async def test_neither_can_print_a_supplier_return(client, tenant_with_roles, role):
     _, tokens, _ = tenant_with_roles
 

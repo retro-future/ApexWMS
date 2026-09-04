@@ -125,6 +125,7 @@ const DEBT_LINES: readonly {
   { key: "debtBooked", field: "bookedMinor", strong: false },
   { key: "debtCollected", field: "collectedMinor", strong: false },
   { key: "debtVoided", field: "voidedMinor", strong: false },
+  { key: "debtRelieved", field: "relievedMinor", strong: false },
   { key: "debtClosing", field: "closingMinor", strong: true },
 ];
 
