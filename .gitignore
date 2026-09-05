@@ -7,6 +7,9 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 
+# Logs
+backend/logs/
+
 # Environment
 .env
 .env.prod

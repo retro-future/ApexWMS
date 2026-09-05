@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     app_name: str = "ApexWMS"
     debug: bool = False
 
+    # Logging (rotated daily, kept for 7 days; see infrastructure/logging_config.py)
+    log_level: str = "INFO"
+    log_dir: str = "logs"
+
     # Master database (the tenant registry). Tenant databases — which hold
     # each tenant's users and business data — are created next to it at
     # provisioning time (M1).

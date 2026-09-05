@@ -20,6 +20,7 @@ dependencies = [
     # Pango, which is a build problem on Windows and in a slim container.
     "fpdf2>=2.8",
     "python-barcode>=0.16.1",
+    "loguru>=0.7",
 ]
 
 [project.scripts]

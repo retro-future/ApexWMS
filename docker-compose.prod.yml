@@ -50,6 +50,8 @@ services:
       APEXWMS_JWT_SECRET: ${APEXWMS_JWT_SECRET}
       APEXWMS_DEBUG: ${APEXWMS_DEBUG:-false}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    volumes:
+      - backend_logs:/app/backend/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,3 +106,4 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  backend_logs:

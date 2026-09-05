@@ -7,7 +7,9 @@ from fastapi import FastAPI
 
 from di import create_container
 from infrastructure.config import Settings
+from infrastructure.logging_config import configure_logging
 from presentation.errors import register_error_handlers
+from presentation.middleware import register_request_logging
 from presentation.routers import (
     auth,
     credit_companies,
@@ -37,6 +39,7 @@ API_PREFIX = "/api/v1"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
+    configure_logging(settings)
     container = create_container(settings)
 
     @asynccontextmanager
@@ -52,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     setup_dishka(container, app)
     register_error_handlers(app)
+    register_request_logging(app)
 
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(auth.router, prefix=API_PREFIX)
