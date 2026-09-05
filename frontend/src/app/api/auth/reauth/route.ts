@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { rejectCrossSiteNavigation } from "@/server/csrf";
+import { publicOrigin, rejectCrossSiteNavigation } from "@/server/csrf";
 import { refreshTokens } from "@/server/refresh";
 import { clearTokensOn, readTokens, setTokensOn } from "@/server/session";
 
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const blocked = rejectCrossSiteNavigation(request);
   if (blocked) return blocked;
 
-  const origin = request.nextUrl.origin;
+  const origin = publicOrigin(request);
   const target = safeNext(request.nextUrl.searchParams.get("next"));
 
   const { refreshToken } = await readTokens();

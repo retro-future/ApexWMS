@@ -63,3 +63,15 @@ function publicHost(request: NextRequest): string {
     request.nextUrl.host
   );
 }
+
+/**
+ * `request.nextUrl.origin` is unreliable on the standalone server: when a
+ * request arrives without a usable `Host` header (a keep-alive connection
+ * reused after the client sat idle is the usual trigger), Next falls back to
+ * the server's own bind address, which is `0.0.0.0:3000` here (see
+ * `frontend/Dockerfile`'s `HOSTNAME=0.0.0.0`). Forwarded/Host headers, same
+ * as `publicHost`, are the trustworthy source.
+ */
+export function publicOrigin(request: NextRequest): string {
+  return `${request.nextUrl.protocol}//${publicHost(request)}`;
+}
