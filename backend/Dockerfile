@@ -34,6 +34,8 @@ WORKDIR /app/backend
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --from=builder --chown=app:app /app/backend /app/backend
 
+RUN mkdir -p /app/backend/logs && chown app:app /app/backend/logs
+
 USER app
 
 EXPOSE 8000
