@@ -31,6 +31,26 @@ const HINTS = new Map<DecodeHintType, unknown>([
 // row; ignore repeats within this window instead of submitting it twice.
 const DUPLICATE_WINDOW_MS = 1500;
 
+// zxing defaults to 500ms between decode attempts, i.e. two frames a second,
+// which is what made scanning a dense IMEI Code 128 feel slow.
+const READER_OPTIONS = {
+  delayBetweenScanAttempts: 100,
+  delayBetweenScanSuccess: 800,
+};
+
+// A 640x480 default resolution blurs the bars of a dense Code 128 together, and
+// without continuous focus the camera keeps hunting past the label. `focusMode`
+// is not in the standard MediaTrackConstraintSet type but Android Chrome honours
+// it, and a browser that doesn't just ignores the advanced entry.
+const VIDEO_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    facingMode: "environment",
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet],
+  },
+};
+
 function classifyError(error: unknown): ErrorState {
   if (error instanceof ScanEnvironmentError) return error.state;
   const name = error instanceof DOMException ? error.name : undefined;
@@ -111,9 +131,9 @@ export function CameraScanner({
           throw new ScanEnvironmentError("unsupported");
         }
         setState("starting");
-        const reader = new BrowserMultiFormatReader(HINTS);
+        const reader = new BrowserMultiFormatReader(HINTS, READER_OPTIONS);
         return reader.decodeFromConstraints(
-          { video: { facingMode: "environment" } },
+          VIDEO_CONSTRAINTS,
           videoEl,
           (result) => {
             if (!result) return;
