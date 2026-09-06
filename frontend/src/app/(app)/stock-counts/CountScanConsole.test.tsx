@@ -20,10 +20,10 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiGetPaged,
 }));
 
-vi.mock("@zxing/browser", () => ({
-  BrowserMultiFormatReader: vi.fn().mockImplementation(function Reader() {
-    return { decodeFromConstraints: vi.fn() };
-  }),
+vi.mock("@yudiel/react-qr-scanner", () => ({
+  Scanner: () => <div data-testid="scanner" />,
+  boundingBox: vi.fn(),
+  prepareZXingModule: vi.fn(),
 }));
 
 const IMEI = "490154203237518";

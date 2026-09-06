@@ -4,31 +4,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CameraScanner } from "@/components/scan/CameraScanner";
 import { renderWithProviders } from "@/test/render";
 
-type Callback = (result: { getText: () => string } | undefined) => void;
+type ScanHandler = (codes: { rawValue: string }[]) => void;
+type ErrorHandler = (error: { kind: string; message: string; cause: unknown }) => void;
 
-const { decodeFromConstraints, stop } = vi.hoisted(() => ({
-  decodeFromConstraints: vi.fn(),
-  stop: vi.fn(),
+const { scannerProps } = vi.hoisted(() => ({
+  scannerProps: { onScan: undefined as ScanHandler | undefined, onError: undefined as ErrorHandler | undefined },
 }));
 
-vi.mock("@zxing/browser", () => ({
-  BrowserMultiFormatReader: vi.fn().mockImplementation(function BrowserMultiFormatReaderMock() {
-    return { decodeFromConstraints };
-  }),
+vi.mock("@yudiel/react-qr-scanner", () => ({
+  Scanner: (props: { onScan: ScanHandler; onError: ErrorHandler }) => {
+    scannerProps.onScan = props.onScan;
+    scannerProps.onError = props.onError;
+    return <div data-testid="scanner" />;
+  },
+  boundingBox: vi.fn(),
+  prepareZXingModule: vi.fn(),
 }));
 
-/** The decode callback is captured synchronously, the moment the effect calls it. */
-function resolveWithControls() {
-  let callback: Callback = () => {};
-  decodeFromConstraints.mockImplementation(
-    (_constraints: unknown, _preview: unknown, cb: Callback) => {
-      callback = cb;
-      return Promise.resolve({ stop });
-    },
-  );
-  return {
-    fire: (code: string) => act(() => callback({ getText: () => code })),
-  };
+function fire(code: string) {
+  act(() => scannerProps.onScan?.([{ rawValue: code }]));
 }
 
 function setSecureContext(value: boolean) {
@@ -44,6 +38,8 @@ function setMediaDevices(getUserMedia: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  scannerProps.onScan = undefined;
+  scannerProps.onError = undefined;
   setSecureContext(true);
   setMediaDevices(vi.fn());
 });
@@ -58,13 +54,15 @@ describe("CameraScanner", () => {
         "Camera scanning needs a secure connection. Use the keyboard scanner instead.",
       ),
     ).toBeInTheDocument();
-    expect(decodeFromConstraints).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("scanner")).not.toBeInTheDocument();
   });
 
-  it("shows a permission-denied message when getUserMedia is rejected", async () => {
-    decodeFromConstraints.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
-
+  it("shows a permission-denied message when the scanner reports it", async () => {
     renderWithProviders(<CameraScanner opened onClose={vi.fn()} onDecode={vi.fn()} />);
+
+    act(() =>
+      scannerProps.onError?.({ kind: "permission-denied", message: "denied", cause: null }),
+    );
 
     expect(
       await screen.findByText(
@@ -74,12 +72,9 @@ describe("CameraScanner", () => {
   });
 
   it("suppresses a repeated decode within the cooldown window", async () => {
-    const { fire } = resolveWithControls();
     const onDecode = vi.fn();
 
     renderWithProviders(<CameraScanner opened onClose={vi.fn()} onDecode={onDecode} />);
-    // Let decodeFromConstraints's promise resolve (real timers) before faking
-    // the clock the duplicate-window check reads via Date.now().
     await act(async () => {});
     vi.useFakeTimers();
 
@@ -96,34 +91,15 @@ describe("CameraScanner", () => {
     vi.useRealTimers();
   });
 
-  it("stops the camera when closed", async () => {
-    resolveWithControls();
-
-    const { rerender } = renderWithProviders(
-      <CameraScanner opened onClose={vi.fn()} onDecode={vi.fn()} />,
-    );
-    // Let decodeFromConstraints's promise resolve so controls are captured.
-    await act(async () => {});
-
-    rerender(<CameraScanner opened={false} onClose={vi.fn()} onDecode={vi.fn()} />);
-
-    expect(stop).toHaveBeenCalled();
-  });
-
-  it("swallows a rejecting stop() from the torch teardown", async () => {
-    resolveWithControls();
-    // zxing's torch-capable stop() rejects on Android when turning the flash
-    // off on an already-stopped track; it must not bubble out as a crash.
-    stop.mockRejectedValue(new Error("setPhotoOptions failed"));
-
+  it("unmounts the scanner when closed, which stops the camera", async () => {
     const { rerender } = renderWithProviders(
       <CameraScanner opened onClose={vi.fn()} onDecode={vi.fn()} />,
     );
     await act(async () => {});
+    expect(screen.getByTestId("scanner")).toBeInTheDocument();
 
     rerender(<CameraScanner opened={false} onClose={vi.fn()} onDecode={vi.fn()} />);
-    await act(async () => {});
 
-    expect(stop).toHaveBeenCalled();
+    expect(screen.queryByTestId("scanner")).not.toBeInTheDocument();
   });
 });

@@ -42,3 +42,5 @@ yarn-error.log*
 next-env.d.ts
 
 certificates
+# self-hosted zxing wasm, copied from node_modules at install/build
+/public/wasm/
