@@ -11,7 +11,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "gen:api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/schema.d.ts"
+    "gen:api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/schema.d.ts",
+    "postinstall": "node scripts/copy-zxing-wasm.mjs",
+    "prebuild": "node scripts/copy-zxing-wasm.mjs"
   },
   "dependencies": {
     "@mantine/core": "^9.5.0",
@@ -20,8 +22,7 @@
     "@mantine/notifications": "^9.5.0",
     "@tabler/icons-react": "^3.46.0",
     "@tanstack/react-query": "^5.101.4",
-    "@zxing/browser": "^0.2.1",
-    "@zxing/library": "^0.23.0",
+    "@yudiel/react-qr-scanner": "^2.6.0",
     "next": "16.2.12",
     "next-intl": "^4.13.4",
     "react": "19.2.4",

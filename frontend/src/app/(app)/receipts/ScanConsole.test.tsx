@@ -8,10 +8,10 @@ import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
 import type { GoodsReceipt, ScanResult } from "@/lib/types";
 
-const { apiSend, apiGetPaged, decodeFromConstraints } = vi.hoisted(() => ({
+const { apiSend, apiGetPaged, scannerProps } = vi.hoisted(() => ({
   apiSend: vi.fn(),
   apiGetPaged: vi.fn(),
-  decodeFromConstraints: vi.fn(),
+  scannerProps: { onScan: undefined as ((codes: { rawValue: string }[]) => void) | undefined },
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -21,10 +21,13 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiGetPaged,
 }));
 
-vi.mock("@zxing/browser", () => ({
-  BrowserMultiFormatReader: vi.fn().mockImplementation(function BrowserMultiFormatReaderMock() {
-    return { decodeFromConstraints };
-  }),
+vi.mock("@yudiel/react-qr-scanner", () => ({
+  Scanner: (props: { onScan: (codes: { rawValue: string }[]) => void }) => {
+    scannerProps.onScan = props.onScan;
+    return <div data-testid="scanner" />;
+  },
+  boundingBox: vi.fn(),
+  prepareZXingModule: vi.fn(),
 }));
 
 const IMEI = "490154203237518";
@@ -324,13 +327,6 @@ describe("ScanConsole", () => {
 
   it("submits a camera-decoded code through the same scan path", async () => {
     apiSend.mockResolvedValue(scanResult(IMEI));
-    let callback: (result: { getText: () => string }) => void = () => {};
-    decodeFromConstraints.mockImplementation(
-      (_constraints: unknown, _preview: unknown, cb: typeof callback) => {
-        callback = cb;
-        return Promise.resolve({ stop: vi.fn() });
-      },
-    );
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -339,8 +335,8 @@ describe("ScanConsole", () => {
     );
 
     await user.click(screen.getByLabelText("Scan with camera"));
-    await waitFor(() => expect(decodeFromConstraints).toHaveBeenCalled());
-    act(() => callback({ getText: () => IMEI }));
+    await waitFor(() => expect(screen.getByTestId("scanner")).toBeInTheDocument());
+    act(() => scannerProps.onScan?.([{ rawValue: IMEI }]));
 
     await waitFor(() =>
       expect(apiSend).toHaveBeenCalledWith("POST", "/receipts/receipt-1/scan", {
