@@ -12,6 +12,7 @@ import {
   IconClipboardList,
   IconCoins,
   IconCreditCard,
+  IconDeviceMobile,
   IconHourglass,
   IconLayoutDashboard,
   IconMapPin,
@@ -51,6 +52,12 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     {
       items: [
         { href: "/", label: t("dashboard"), icon: IconLayoutDashboard },
+        {
+          href: "/device-units",
+          label: t("devices"),
+          icon: IconDeviceMobile,
+          permission: Permission.Reporting.View,
+        },
       ],
     },
     {

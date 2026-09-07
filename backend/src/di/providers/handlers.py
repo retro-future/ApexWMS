@@ -131,6 +131,7 @@ from application.queries.list_credit_companies import ListCreditCompaniesHandler
 from application.queries.list_customer_returns import ListCustomerReturnsHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
+from application.queries.list_device_inventory import ListDeviceInventoryHandler
 from application.queries.list_financial_ledger import ListFinancialLedgerHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
@@ -272,6 +273,7 @@ class HandlersProvider(Provider):
         ListBelowCostHandler,
         GetStockOnHandHandler,
         ListMovementsHandler,
+        ListDeviceInventoryHandler,
         ListFinancialLedgerHandler,
         GetSalesSummaryHandler,
         GetMonthEndReportHandler,

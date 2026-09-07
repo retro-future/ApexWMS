@@ -30,6 +30,7 @@ from application.models import (
     AgeingRowData,
     BelowCostRowData,
     DebtorData,
+    DeviceInventoryRowData,
     FinancialLedgerRowData,
     MonthEndReportData,
     MovementRowData,
@@ -60,6 +61,10 @@ from application.queries.list_below_cost import (
     ListBelowCostQuery,
 )
 from application.queries.list_debtors import ListDebtorsHandler, ListDebtorsQuery
+from application.queries.list_device_inventory import (
+    ListDeviceInventoryHandler,
+    ListDeviceInventoryQuery,
+)
 from application.queries.list_financial_ledger import (
     ListFinancialLedgerHandler,
     ListFinancialLedgerQuery,
@@ -161,6 +166,19 @@ async def get_stock_on_hand(
 ) -> PagedResult[StockOnHandData]:
     """FR-9.1: what is on the shelves, by location, product or brand, with
     its cost value per currency — never one merged figure."""
+    require(current, Permission.REPORTING_VIEW)
+    return await handler.handle(query)
+
+
+@router.get("/device-units", response_model_exclude_none=True)
+async def list_device_inventory(
+    query: Annotated[ListDeviceInventoryQuery, Query()],
+    current: FromDishka[CurrentUser],
+    handler: FromDishka[ListDeviceInventoryHandler],
+) -> PagedResult[DeviceInventoryRowData]:
+    """FR-9.1 at the unit level: every handset by IMEI, filterable by product,
+    location, status and condition. Cost and margin are omitted from the
+    payload without ``Cost.View``."""
     require(current, Permission.REPORTING_VIEW)
     return await handler.handle(query)
 

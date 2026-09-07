@@ -16,6 +16,8 @@ from application.dtos import (
     BelowCostRow,
     CreditInvoiceDebt,
     DebtorSummary,
+    DeviceInventoryRow,
+    DeviceInventoryStatusFilter,
     FinancialLedgerRow,
     FinancingSplitRow,
     InventoryValueRow,
@@ -28,8 +30,18 @@ from application.dtos import (
     UnitOrigin,
     UnitSale,
 )
-from application.sorting import AgeingSort, BelowCostSort, DeviationSort
-from domain.enums import DocumentType, MovementType, TransactionType
+from application.sorting import (
+    AgeingSort,
+    BelowCostSort,
+    DeviationSort,
+    DeviceInventorySort,
+)
+from domain.enums import (
+    DeviceCondition,
+    DocumentType,
+    MovementType,
+    TransactionType,
+)
 from domain.value_objects import Currency, Money
 
 
@@ -139,6 +151,22 @@ class DeviceUnitQueries(Protocol):
     ) -> tuple[list[NeedsPricingRow], int]:
         """FR-9.6: on-hand handsets ``PriceResolver`` would refuse, oldest
         first — FR-2.14 read backwards, stated once in SQL."""
+        ...
+
+    async def list_inventory(
+        self,
+        page: int,
+        page_size: int,
+        product_id: UUID | None = None,
+        product_search: str | None = None,
+        location_id: UUID | None = None,
+        condition: DeviceCondition | None = None,
+        status: DeviceInventoryStatusFilter | None = None,
+        sort: DeviceInventorySort = DeviceInventorySort.RECEIVED,
+    ) -> tuple[list[DeviceInventoryRow], int]:
+        """FR-9.1 at the unit level: every handset, filterable, one row each.
+        ``status`` accepts one derived value, ``CUSTOMER_RETURNED``, that is
+        not a ``DeviceStatus``."""
         ...
 
 

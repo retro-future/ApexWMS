@@ -72,7 +72,8 @@
     "belowCost": "Below cost",
     "financialLedger": "Financial ledger",
     "monthEnd": "Month end",
-    "customerReturns": "Customer returns"
+    "customerReturns": "Customer returns",
+    "devices": "Devices"
   },
   "auth": {
     "signInTitle": "Sign in",
@@ -280,7 +281,8 @@
       "sold": "Sold",
       "returned_to_supplier": "Returned to supplier",
       "written_off": "Written off",
-      "receipt_cancelled": "Receipt cancelled"
+      "receipt_cancelled": "Receipt cancelled",
+      "customer_returned": "Returned by customer"
     },
     "number": "Number",
     "created": "Created",
@@ -924,6 +926,25 @@
     "tradedInFrom": "Traded in from {name}",
     "walkIn": "Walk-in",
     "overridden": "Price overridden",
-    "resolvedWas": "System price was {price}"
+    "resolvedWas": "System price was {price}",
+    "deviceInventoryTitle": "Devices",
+    "deviceInventorySubtitle": "Every handset by IMEI, with where it is and what it sells at",
+    "noDeviceInventory": "No devices match these filters",
+    "filterStatus": "Status",
+    "filterCondition": "Condition",
+    "sourceDocument": "Source",
+    "deviceInventorySort": {
+      "received": "Newest first",
+      "imei": "IMEI",
+      "status": "Status"
+    },
+    "deviceStatusFilter": {
+      "in_stock": "In stock",
+      "sold": "Sold",
+      "customer_returned": "Returned by customer",
+      "returned_to_supplier": "Returned to supplier",
+      "written_off": "Written off",
+      "receipt_cancelled": "Receipt cancelled"
+    }
   }
 }

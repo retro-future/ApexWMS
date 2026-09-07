@@ -838,6 +838,52 @@ export type NeedsPricingRow = {
   reason: NeedsPricingReason;
 };
 
+export type DeviceInventorySort = "received" | "imei" | "status";
+
+/**
+ * The status a caller filters the device-inventory list by. Mostly
+ * `DeviceStatus`, plus `customer_returned` — a derived case, since a
+ * customer-returned handset is `in_stock` again and no status records it.
+ */
+export type DeviceInventoryStatusFilter =
+  | "in_stock"
+  | "sold"
+  | "customer_returned"
+  | "returned_to_supplier"
+  | "written_off"
+  | "receipt_cancelled";
+
+/** One row of the device-inventory list. Cost and margin are absent without `Cost.View`. */
+export type DeviceInventoryRow = {
+  deviceUnitId: string;
+  imei: string;
+  imei2: string | null;
+  serialNumber: string | null;
+  productId: string;
+  sku: string;
+  productName: string;
+  brand: string | null;
+  condition: DeviceCondition;
+  status: DeviceStatus;
+  wasCustomerReturned: boolean;
+  locationId: string | null;
+  locationName: string | null;
+  since: string;
+  daysInStock: number;
+  currency: Currency;
+  askingPrice: string | null;
+  askingPriceMinor: number | null;
+  resolvedPrice: string | null;
+  resolvedPriceMinor: number | null;
+  sourceDocumentType: DocumentType | null;
+  sourceDocumentId: string | null;
+  /** --- Permission.Cost.View only --- */
+  acquisitionCost?: string | null;
+  acquisitionCostMinor?: number | null;
+  impliedMargin?: string | null;
+  impliedMarginMinor?: number | null;
+};
+
 /**
  * One row of the below-cost report: an accessory whose average unit cost has
  * caught up with its catalog price. The decimal fields arrive pre-formatted
