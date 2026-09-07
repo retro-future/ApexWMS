@@ -19,6 +19,10 @@ from application.dtos.below_cost import BelowCostRow
 from application.dtos.below_cost_alert import BelowCostAlert
 from application.dtos.current_user import CurrentUser
 from application.dtos.customer_debt import CreditInvoiceDebt, DebtorSummary
+from application.dtos.device_inventory import (
+    DeviceInventoryRow,
+    DeviceInventoryStatusFilter,
+)
 from application.dtos.discrepancy import Discrepancy
 from application.dtos.financing_split import FinancingSplitRow
 from application.dtos.inventory_value import InventoryValueRow, LocationInventoryValue
@@ -72,6 +76,8 @@ __all__ = [
     "CurrentUser",
     "DebtMovement",
     "DebtorSummary",
+    "DeviceInventoryRow",
+    "DeviceInventoryStatusFilter",
     "Discrepancy",
     "FinancialLedgerRow",
     "FinancingSplitRow",

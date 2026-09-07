@@ -72,7 +72,8 @@
     "belowCost": "Tannarxidan past",
     "financialLedger": "Moliyaviy jurnal",
     "monthEnd": "Oy yakuni",
-    "customerReturns": "Mijozlardan qaytarishlar"
+    "customerReturns": "Mijozlardan qaytarishlar",
+    "devices": "Qurilmalar"
   },
   "auth": {
     "signInTitle": "Kirish",
@@ -280,7 +281,8 @@
       "sold": "Sotilgan",
       "returned_to_supplier": "Yetkazib beruvchiga qaytarilgan",
       "written_off": "Hisobdan chiqarilgan",
-      "receipt_cancelled": "Kirim bekor qilingan"
+      "receipt_cancelled": "Kirim bekor qilingan",
+      "customer_returned": "Mijoz qaytargan"
     },
     "number": "Raqam",
     "created": "Yaratilgan",
@@ -924,6 +926,25 @@
     "tradedInFrom": "{name} dan treyd-in orqali",
     "walkIn": "Mijozsiz",
     "overridden": "Narx qo'lda o'zgartirilgan",
-    "resolvedWas": "Tizim narxi: {price}"
+    "resolvedWas": "Tizim narxi: {price}",
+    "deviceInventoryTitle": "Qurilmalar",
+    "deviceInventorySubtitle": "Har bir telefon IMEI bo'yicha: qayerdaligi va qanday narxda sotilishi",
+    "noDeviceInventory": "Bu filtrlarga mos qurilma yo'q",
+    "filterStatus": "Holat",
+    "filterCondition": "Holati",
+    "sourceDocument": "Manba",
+    "deviceInventorySort": {
+      "received": "Avval yangi",
+      "imei": "IMEI",
+      "status": "Holat"
+    },
+    "deviceStatusFilter": {
+      "in_stock": "Omborda",
+      "sold": "Sotilgan",
+      "customer_returned": "Mijoz qaytargan",
+      "returned_to_supplier": "Yetkazib beruvchiga qaytarilgan",
+      "written_off": "Hisobdan chiqarilgan",
+      "receipt_cancelled": "Kirim bekor qilingan"
+    }
   }
 }

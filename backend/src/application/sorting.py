@@ -28,3 +28,9 @@ class AgeingSort(StrEnum):
 class BelowCostSort(StrEnum):
     SHORTFALL = "shortfall"
     SKU = "sku"
+
+
+class DeviceInventorySort(StrEnum):
+    RECEIVED = "received"
+    IMEI = "imei"
+    STATUS = "status"

@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from application.dtos import (
     AgeingRow,
+    DeviceInventoryRow,
     NeedsPricingRow,
     SalesFigures,
     StockGroupBy,
@@ -21,11 +22,12 @@ from application.dtos import (
 )
 from application.models import (
     AgeingRowData,
+    DeviceInventoryRowData,
     NeedsPricingRowData,
     SalesFiguresData,
     StockOnHandData,
 )
-from domain.enums import DeviceCondition
+from domain.enums import DeviceCondition, DeviceStatus
 from domain.value_objects import Currency, CurrencyTotals, Money
 
 NOW = datetime(2026, 3, 1, tzinfo=UTC)
@@ -56,6 +58,88 @@ def an_ageing_row(asking: Money | None = None) -> AgeingRow:
         asking_price=asking,
         markdown_count=2,
     )
+
+
+def a_device_inventory_row(
+    *,
+    asking: Money | None = None,
+    catalog: Money | None = None,
+    condition: DeviceCondition = DeviceCondition.USED,
+    status: DeviceStatus = DeviceStatus.IN_STOCK,
+    was_returned: bool = False,
+) -> DeviceInventoryRow:
+    return DeviceInventoryRow(
+        device_unit_id=uuid4(),
+        imei="490154203237518",
+        imei2=None,
+        serial_number=None,
+        product_id=uuid4(),
+        sku="IP15P-256",
+        product_name="iPhone 15 Pro",
+        brand="Apple",
+        condition=condition,
+        status=status,
+        was_customer_returned=was_returned,
+        location_id=uuid4(),
+        location_name="Chilonzor shop",
+        created_at=RECEIVED,
+        acquisition_cost=usd("380"),
+        asking_price=asking,
+        catalog_price=catalog,
+        source_document_type=None,
+        source_document_id=None,
+    )
+
+
+class TestTheDeviceInventoryRow:
+    def test_cost_and_margin_are_absent_without_the_permission(self):
+        row = DeviceInventoryRowData.from_entity(
+            a_device_inventory_row(asking=usd("500")), NOW, show_cost=False
+        )
+
+        assert row.acquisition_cost is None
+        assert row.implied_margin_minor is None
+        assert row.resolved_price_minor == 50000
+        assert row.days_in_stock == 59
+
+    def test_the_margin_is_the_difference_with_the_permission(self):
+        row = DeviceInventoryRowData.from_entity(
+            a_device_inventory_row(asking=usd("500")), NOW, show_cost=True
+        )
+
+        assert row.acquisition_cost_minor == 38000
+        assert row.implied_margin_minor == 12000
+
+    def test_a_new_unit_falls_back_to_the_catalog_price(self):
+        row = DeviceInventoryRowData.from_entity(
+            a_device_inventory_row(
+                asking=None, catalog=usd("900"), condition=DeviceCondition.NEW
+            ),
+            NOW,
+            show_cost=True,
+        )
+
+        assert row.asking_price is None
+        assert row.resolved_price_minor == 90000
+        assert row.implied_margin_minor == 52000
+
+    def test_a_used_unit_does_not_inherit_the_catalog_price(self):
+        row = DeviceInventoryRowData.from_entity(
+            a_device_inventory_row(asking=None, catalog=usd("900")),
+            NOW,
+            show_cost=True,
+        )
+
+        assert row.resolved_price is None
+        assert row.implied_margin is None
+
+    def test_a_returned_unit_carries_the_flag_while_its_status_is_in_stock(self):
+        row = DeviceInventoryRowData.from_entity(
+            a_device_inventory_row(was_returned=True), NOW, show_cost=False
+        )
+
+        assert row.status == "in_stock"
+        assert row.was_customer_returned is True
 
 
 class TestTheAgeingReportWithoutCostView:

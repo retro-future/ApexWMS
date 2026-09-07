@@ -21,6 +21,7 @@ import { ConditionModal } from "@/app/(app)/device-units/ConditionModal";
 import { RepriceModal } from "@/app/(app)/device-units/RepriceModal";
 import { SellUnitModal } from "@/app/(app)/device-units/SellUnitModal";
 import { DetailError, DetailLoading } from "@/components/DetailStates";
+import { DeviceStatusBadge } from "@/components/DeviceStatusBadge";
 import { DeviceTraceTimeline } from "@/components/DeviceTraceTimeline";
 import { useCan } from "@/components/MeProvider";
 import { useLocationLookup } from "@/hooks/use-lookup";
@@ -70,9 +71,7 @@ export default function DeviceUnitPage() {
             <Title order={2} ff="monospace">
               {unit.imei}
             </Title>
-            <Badge size="sm" variant="light" color={onHand ? "teal" : "gray"}>
-              {tDoc(`deviceStatus.${unit.status}`)}
-            </Badge>
+            <DeviceStatusBadge status={unit.status} />
             <Badge size="sm" variant="light">
               {tDoc(`condition.${unit.condition}`)}
             </Badge>

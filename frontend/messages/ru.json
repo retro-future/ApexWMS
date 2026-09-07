@@ -72,7 +72,8 @@
     "belowCost": "Ниже себестоимости",
     "financialLedger": "Финансовый журнал",
     "monthEnd": "Итоги месяца",
-    "customerReturns": "Возвраты от покупателей"
+    "customerReturns": "Возвраты от покупателей",
+    "devices": "Устройства"
   },
   "auth": {
     "signInTitle": "Вход",
@@ -280,7 +281,8 @@
       "sold": "Продан",
       "returned_to_supplier": "Возвращён поставщику",
       "written_off": "Списан",
-      "receipt_cancelled": "Приёмка отменена"
+      "receipt_cancelled": "Приёмка отменена",
+      "customer_returned": "Возврат от клиента"
     },
     "number": "Номер",
     "created": "Создан",
@@ -924,6 +926,25 @@
     "tradedInFrom": "Принят в трейд-ин от {name}",
     "walkIn": "Без покупателя",
     "overridden": "Цена изменена вручную",
-    "resolvedWas": "Системная цена: {price}"
+    "resolvedWas": "Системная цена: {price}",
+    "deviceInventoryTitle": "Устройства",
+    "deviceInventorySubtitle": "Каждый аппарат по IMEI: где находится и по какой цене продаётся",
+    "noDeviceInventory": "Нет устройств по этим фильтрам",
+    "filterStatus": "Статус",
+    "filterCondition": "Состояние",
+    "sourceDocument": "Источник",
+    "deviceInventorySort": {
+      "received": "Сначала новые",
+      "imei": "IMEI",
+      "status": "Статус"
+    },
+    "deviceStatusFilter": {
+      "in_stock": "На складе",
+      "sold": "Продан",
+      "customer_returned": "Возврат от клиента",
+      "returned_to_supplier": "Возврат поставщику",
+      "written_off": "Списан",
+      "receipt_cancelled": "Приёмка отменена"
+    }
   }
 }

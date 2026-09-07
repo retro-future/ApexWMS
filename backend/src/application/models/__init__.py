@@ -31,6 +31,7 @@ from application.models.customer_return import (
     CustomerReturnLineData,
 )
 from application.models.debtor import DebtorData
+from application.models.device_inventory import DeviceInventoryRowData
 from application.models.device_trace import (
     DeviceTraceData,
     TraceEventData,
@@ -107,6 +108,7 @@ __all__ = [
     "CustomerData",
     "DebtMovementData",
     "DebtorData",
+    "DeviceInventoryRowData",
     "DeviceTraceData",
     "DeviceUnitData",
     "DiscrepancyData",
