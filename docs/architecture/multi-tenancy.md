@@ -75,6 +75,21 @@ as a shortcut.
   from the request plus a MasterDB lookup. If a third way to name a tenant
   is ever needed, extend that one resolver — don't add a second path.
 
+## Migration fan-out
+
+Every schema change runs N times, once per tenant database. This is the permanent
+cost of db-per-tenant, not a problem to be solved, and `apexwms migrate` is shaped
+around it: it walks every tenant (or one, with `--tenant`), **continues past a
+failure instead of aborting the run**, prints each database's resulting revision,
+and ends with the version spread across the fleet plus a list of failures. Re-running
+is the recovery path — `upgrade` is idempotent, so a resumed run skips what already
+succeeded.
+
+The consequence to keep in mind when writing a migration: **tenants can sit at
+different revisions**, legitimately, for as long as it takes to fix whatever broke on
+one of them. Backend code must therefore never assume the whole fleet is at head.
+`migrate-master` is separate and runs once.
+
 ## Dishka DI scopes (PRD §7.5)
 
 - **`APP`** scope: `Settings`, `MasterEngine`, `TenantEngineRegistry`,
