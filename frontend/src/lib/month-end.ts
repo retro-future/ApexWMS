@@ -20,7 +20,7 @@
 import type {
   AccrualFigures,
   Currency,
-  CurrencySubtotal,
+  Money,
   DocumentStatus,
   MarginPercent,
   PaymentType,
@@ -188,7 +188,7 @@ export function fromMonthInput(
 export function currenciesIn(figures: AccrualFigures): Currency[] {
   const touched = new Set<Currency>();
   for (const row of MONEY_ROWS) {
-    for (const subtotal of figures[row] as CurrencySubtotal[]) {
+    for (const subtotal of figures[row] as Money[]) {
       touched.add(subtotal.currency);
     }
   }
@@ -199,14 +199,8 @@ export function currenciesIn(figures: AccrualFigures): Currency[] {
  * One figure's amount in one currency, or zero in it — never a figure borrowed
  * from the other column.
  */
-export function amountIn(
-  subtotals: CurrencySubtotal[],
-  currency: Currency,
-): number {
-  return (
-    subtotals.find((subtotal) => subtotal.currency === currency)?.amountMinor ??
-    0
-  );
+export function amountIn(subtotals: Money[], currency: Currency): number {
+  return subtotals.find((subtotal) => subtotal.currency === currency)?.minor ?? 0;
 }
 
 /** Null where revenue was zero, which is a month with no margin to state. */

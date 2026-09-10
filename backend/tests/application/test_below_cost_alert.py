@@ -211,8 +211,8 @@ async def test_confirm_goods_receipt_returns_below_cost_alert(world):
     alerts = result.data.below_cost_alerts
     assert len(alerts) == 1
     assert alerts[0].sku == "CASE-Z"
-    assert alerts[0].catalog_price_minor == 1000
-    assert alerts[0].average_unit_cost_minor == 1000
+    assert alerts[0].catalog_price.minor == 1000
+    assert alerts[0].average_unit_cost.minor == 1000
     assert result.data.status.value == "confirmed"
 
 
@@ -258,10 +258,10 @@ async def test_list_below_cost_handler_maps_rows():
     assert result.total_items == 1
     one = result.data[0]
     assert one.sku == "CASE-X"
-    assert one.catalog_price_minor == 1000
-    assert one.average_unit_cost_minor == 1100
-    assert one.currency == Currency.USD
-    assert one.shortfall_minor == 100
+    assert one.catalog_price.minor == 1000
+    assert one.average_unit_cost.minor == 1100
+    assert one.catalog_price.currency == Currency.USD
+    assert one.shortfall.minor == 100
 
 
 async def test_confirming_a_sale_below_cost_returns_an_alert(world):
@@ -295,8 +295,8 @@ async def test_confirming_a_sale_below_cost_returns_an_alert(world):
     alerts = result.data.below_cost_alerts
     assert len(alerts) == 1
     assert alerts[0].sku == "CASE-SALE"
-    assert alerts[0].catalog_price_minor == 10_000
-    assert alerts[0].average_unit_cost_minor == 15_000
+    assert alerts[0].catalog_price.minor == 10_000
+    assert alerts[0].average_unit_cost.minor == 15_000
 
 
 async def test_a_sale_at_or_above_cost_returns_no_alert(world):

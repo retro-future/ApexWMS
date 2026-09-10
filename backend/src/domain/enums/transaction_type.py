@@ -18,6 +18,16 @@ sale is confirmed, paid or not (accrual), while ``PAYMENT_RECEIVED``
 settles the debt that sale opened. A payment must never write revenue, or
 every store-credit instalment would inflate the books — see §4.6's box.
 
+``TENDER_RECEIVED`` and ``TENDER_PAID`` are the third thing money does:
+what physically crossed the counter, in the currency it crossed in. Taken
+on a sale that opened no debt, handed out for a handset bought from a
+walk-in. Both exist only for a store that balances a drawer (§4.5b);
+without one, the same facts stay the inert notes V1 made them. Separate from ``PAYMENT_RECEIVED``
+because the month-end debt movement means *debt collected* by that name,
+and a till figure that included tenders would say a debt was settled that
+never existed. All three together are what a shift's cash actually is, and
+none is ever converted — a till balances per currency (§4.5 rule 4).
+
 ``SALES_RETURN_REFUND`` carries only the money owed back to the customer.
 The *goods* side of a customer return rides on a positive ``COGS`` row,
 which is what puts the returned accessories back into the cost pool at the
@@ -37,6 +47,8 @@ class TransactionType(StrEnum):
     SALES_RETURN_REFUND = "sales_return_refund"
     COUNT_ADJUSTMENT = "count_adjustment"
     PAYMENT_RECEIVED = "payment_received"
+    TENDER_RECEIVED = "tender_received"
+    TENDER_PAID = "tender_paid"
 
     @property
     def ordinary_sign(self) -> int:
@@ -56,4 +68,6 @@ _ORDINARY_SIGN: dict[TransactionType, int] = {
     TransactionType.SALES_RETURN_REFUND: -1,
     TransactionType.COUNT_ADJUSTMENT: 0,
     TransactionType.PAYMENT_RECEIVED: +1,
+    TransactionType.TENDER_RECEIVED: +1,
+    TransactionType.TENDER_PAID: -1,
 }

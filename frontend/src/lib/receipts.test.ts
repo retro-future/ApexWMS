@@ -28,8 +28,10 @@ function unit(
     serialNumber: null,
     condition,
     currency: "USD",
-    askingPrice: askingPriceMinor === null ? null : String(askingPriceMinor / 100),
-    askingPriceMinor,
+    askingPrice:
+      askingPriceMinor === null
+        ? null
+        : { minor: askingPriceMinor, currency: "USD" },
     // The server derives this; a used handset with no price is what FR-3.10
     // refuses the confirm over.
     needsAskingPrice: condition !== "new" && askingPriceMinor === null,
@@ -157,10 +159,9 @@ function poLine(productId: string, unitCostMinor: number | null): PurchaseOrder[
     quantity: 1,
     trackingType: "serial",
     currency: "USD",
-    unitCost: unitCostMinor === null ? null : String(unitCostMinor / 100),
-    unitCostMinor,
+    unitCost:
+      unitCostMinor === null ? null : { minor: unitCostMinor, currency: "USD" },
     totalCost: null,
-    totalCostMinor: null,
     receivedQuantity: 0,
   };
 }

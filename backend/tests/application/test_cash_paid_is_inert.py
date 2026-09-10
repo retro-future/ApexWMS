@@ -273,13 +273,13 @@ class TestM8sReportsDoNotSumIt:
             show_cost=True,
         )
 
-        assert row.acquisition_cost_minor == 33000
-        assert row.implied_margin_minor == 9000
-        assert row.currency is Currency.USD
+        assert row.acquisition_cost.minor == 33000
+        assert row.implied_margin.minor == 9000
+        assert row.acquisition_cost.currency is Currency.USD
         assert CASH_PAID_SOM not in (
-            row.acquisition_cost_minor,
-            row.asking_price_minor,
-            row.implied_margin_minor,
+            row.acquisition_cost.minor,
+            row.asking_price.minor,
+            row.implied_margin.minor,
         )
 
 

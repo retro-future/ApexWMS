@@ -23,13 +23,9 @@ function line(
     currency,
     // A draft's money fields are all null; only an override is set.
     resolvedPrice: null,
-    resolvedPriceMinor: null,
     chargedPrice: null,
-    chargedPriceMinor: null,
     lineTotal: null,
-    lineTotalMinor: null,
     overridePrice: null,
-    overridePriceMinor: null,
     priceApprovedBy: null,
     priceNote: null,
     isDeviation: false,
@@ -58,10 +54,10 @@ function invoice(lines: SalesInvoiceLine[]): SalesInvoice {
     creditCompanyId: null,
     contractRef: null,
     debt: null,
-    debtMinor: null,
-    paidMinor: 0,
-    relievedMinor: 0,
-    remainingMinor: 0,
+    paid: { minor: 0, currency: "UZS" },
+    relieved: { minor: 0, currency: "UZS" },
+    remaining: { minor: 0, currency: "UZS" },
+    tendered: [],
     payments: [],
     belowCostAlerts: [],
   };
@@ -84,11 +80,11 @@ describe("chargedMinor", () => {
   it("prefers an explicit override, which survives re-resolution (FR-4.5b1)", () => {
     // The unit was marked down to $480 while the draft sat open; the
     // manager's $300 is still what the customer is charged.
-    expect(chargedMinor(line("a", { overridePriceMinor: 30000 }), 48000)).toBe(30000);
+    expect(chargedMinor(line("a", { overridePrice: { minor: 30000, currency: "USD" } }), 48000)).toBe(30000);
   });
 
   it("keeps a zero-priced giveaway rather than falling back (FR-4.5e)", () => {
-    expect(chargedMinor(line("a", { overridePriceMinor: 0 }), 52000)).toBe(0);
+    expect(chargedMinor(line("a", { overridePrice: { minor: 0, currency: "USD" } }), 52000)).toBe(0);
   });
 
   it("is null where nothing resolves and nothing was overridden", () => {
@@ -100,7 +96,7 @@ describe("quoteSubtotals", () => {
   it("multiplies by the quantity an accessory line carries", () => {
     const accessory = line("a", { quantity: 3 }, "quantity");
     expect(quoteSubtotals(invoice([accessory]), quotes([["a", 1200]]))).toEqual([
-      { currency: "USD", amountMinor: 3600 },
+      { currency: "USD", minor: 3600 },
     ]);
   });
 
@@ -113,14 +109,14 @@ describe("quoteSubtotals", () => {
     ]);
 
     expect(quoteSubtotals(invoice([dollars, som]), map)).toEqual([
-      { currency: "USD", amountMinor: 52000 },
-      { currency: "UZS", amountMinor: 900000 },
+      { currency: "USD", minor: 52000 },
+      { currency: "UZS", minor: 900000 },
     ]);
   });
 
   it("leaves a line that resolves to nothing out of the total, not at zero", () => {
     expect(quoteSubtotals(invoice([line("a"), line("b")]), quotes([["a", 52000], ["b", null]]))).toEqual([
-      { currency: "USD", amountMinor: 52000 },
+      { currency: "USD", minor: 52000 },
     ]);
   });
 });
@@ -142,7 +138,7 @@ describe("confirmBlockers", () => {
   });
 
   it("does not blame a line whose override covers the missing price", () => {
-    const overridden = line("a", { overridePriceMinor: 30000 });
+    const overridden = line("a", { overridePrice: { minor: 30000, currency: "USD" } });
     expect(confirmBlockers(invoice([overridden]), quotes([["a", null]])).isReady).toBe(true);
   });
 

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MonthEndReportScreen } from "@/app/(app)/reports/month-end/MonthEndReport";
 import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
-import type { CurrencySubtotal, MonthEndReport } from "@/lib/types";
+import type { Money, MonthEndReport } from "@/lib/types";
 
 /**
  * The accrual block is a grid of figures against currencies, and a grid is
@@ -21,17 +21,9 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiGet,
 }));
 
-const usd = (amountMinor: number): CurrencySubtotal => ({
-  currency: "USD",
-  amount: String(amountMinor / 100),
-  amountMinor,
-});
+const usd = (minor: number): Money => ({ currency: "USD", minor });
 
-const som = (amountMinor: number): CurrencySubtotal => ({
-  currency: "UZS",
-  amount: String(amountMinor),
-  amountMinor,
-});
+const som = (minor: number): Money => ({ currency: "UZS", minor });
 
 function report(overrides: Partial<MonthEndReport> = {}): MonthEndReport {
   return {
@@ -65,13 +57,12 @@ function report(overrides: Partial<MonthEndReport> = {}): MonthEndReport {
       },
     ],
     debt: {
-      openingMinor: 0,
-      bookedMinor: 7_800_000,
-      collectedMinor: 800_000,
-      voidedMinor: 0,
-      relievedMinor: 0,
-      closingMinor: 7_000_000,
-      currency: "UZS",
+      opening: { minor: 0, currency: "UZS" },
+      booked: { minor: 7800000, currency: "UZS" },
+      collected: { minor: 800000, currency: "UZS" },
+      voided: { minor: 0, currency: "UZS" },
+      relieved: { minor: 0, currency: "UZS" },
+      closing: { minor: 7000000, currency: "UZS" },
     },
     financing: [
       {
@@ -273,7 +264,7 @@ describe("customer returns", () => {
     const base = report();
     renderScreen({
       ...base,
-      debt: { ...base.debt, relievedMinor: 500_000 },
+      debt: { ...base.debt, relieved: { minor: 500000, currency: "UZS" } },
     });
 
     expect(

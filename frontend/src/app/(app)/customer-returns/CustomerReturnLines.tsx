@@ -94,13 +94,13 @@ export function CustomerReturnLines({
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm" c="dimmed">
-                    {formatMoney(line.chargedPriceMinor, line.currency)}
+                    {formatMoney(line.chargedPrice)}
                   </Text>
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
                     <Text size="sm" fw={line.isReduced ? 600 : 400}>
-                      {formatMoney(line.refundPriceMinor, line.currency)}
+                      {formatMoney(line.refundPrice)}
                     </Text>
                     {line.isReduced && line.refundNote && (
                       <Tooltip label={line.refundNote} withArrow>
@@ -118,7 +118,7 @@ export function CustomerReturnLines({
                     </Text>
                   ) : (
                     <Text size="sm" c="orange">
-                      {formatMoney(kept, line.currency)}
+                      {formatMoney({ minor: kept, currency: line.currency })}
                     </Text>
                   )}
                 </Table.Td>

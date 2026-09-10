@@ -184,18 +184,18 @@ export default function PurchaseOrderPage() {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      {line.unitCostMinor === null ? (
+                      {line.unitCost === null ? (
                         <Badge size="sm" variant="light" color="yellow">
                           {t("unpriced")}
                         </Badge>
                       ) : (
-                        formatMoney(line.unitCostMinor, line.currency)
+                        formatMoney(line.unitCost)
                       )}
                     </Table.Td>
                     <Table.Td>
-                      {line.totalCostMinor === null
+                      {line.totalCost === null
                         ? tCommon("none")
-                        : formatMoney(line.totalCostMinor, line.currency)}
+                        : formatMoney(line.totalCost)}
                     </Table.Td>
                     <Table.Td>
                       {draft && can(Permission.Pricing.Set) && (

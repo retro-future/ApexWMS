@@ -33,10 +33,10 @@ function invoice(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     creditCompanyId: null,
     contractRef: null,
     debt: null,
-    debtMinor: null,
-    paidMinor: 0,
-    relievedMinor: 0,
-    remainingMinor: 0,
+    paid: { minor: 0, currency: "UZS" },
+    relieved: { minor: 0, currency: "UZS" },
+    remaining: { minor: 0, currency: "UZS" },
+    tendered: [],
     payments: [],
     belowCostAlerts: [],
     ...overrides,
@@ -52,8 +52,7 @@ function payment(id: string, overrides: Partial<Payment> = {}): Payment {
     id,
     salesInvoiceId: "invoice-1",
     occurredAt: "2026-08-19T09:30:00Z",
-    amount: "800000",
-    amountMinor: 800000,
+    amount: { minor: 800000, currency: "USD" },
     method: "cash",
     userId: "user-1",
     note: null,
@@ -150,6 +149,22 @@ describe("confirmBody", () => {
     expect(confirmBody(terms())).toEqual({ paymentType: "paid_in_full" });
   });
 
+  it("sends what was tendered, with the currency it was taken in", () => {
+    const cash = terms({ tendered: "7620000", tenderedCurrency: "UZS" });
+
+    expect(confirmBody(cash)).toEqual({
+      paymentType: "paid_in_full",
+      tendered: "7620000",
+      tenderedCurrency: "UZS",
+    });
+  });
+
+  it("omits a blank tender, so a store with no till confirms as before", () => {
+    expect(confirmBody(terms({ tendered: "  " }))).toEqual({
+      paymentType: "paid_in_full",
+    });
+  });
+
   it("omits a blank contract reference rather than sending null", () => {
     const financed = terms({
       paymentType: "credit_company",
@@ -207,7 +222,7 @@ describe("isOpenDebt", () => {
     const open = invoice({
       status: "confirmed",
       paymentType: "store_credit",
-      remainingMinor: 7000000,
+      remaining: { minor: 7000000, currency: "UZS" },
     });
     expect(isOpenDebt(open)).toBe(true);
   });
@@ -228,7 +243,7 @@ describe("refundDueMinor", () => {
     const live = invoice({
       status: "confirmed",
       paymentType: "store_credit",
-      paidMinor: 800000,
+      paid: { minor: 800000, currency: "UZS" },
     });
     expect(refundDueMinor(live)).toBe(0);
   });
@@ -238,9 +253,9 @@ describe("refundDueMinor", () => {
     const cancelled = invoice({
       status: "cancelled",
       paymentType: "store_credit",
-      paidMinor: 1600000,
-      relievedMinor: 0,
-      remainingMinor: 0,
+      paid: { minor: 1600000, currency: "UZS" },
+      relieved: { minor: 0, currency: "UZS" },
+      remaining: { minor: 0, currency: "UZS" },
     });
     expect(refundDueMinor(cancelled)).toBe(1600000);
   });
@@ -257,7 +272,7 @@ describe("reversedPaymentIds", () => {
 
   it("names the row a reversal undoes, not the reversal itself", () => {
     const undo = payment("b", {
-      amountMinor: -800000,
+      amount: { minor: -800000, currency: "USD" },
       reversesPaymentId: "a",
       isReversal: true,
     });

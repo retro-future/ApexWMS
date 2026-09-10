@@ -17,11 +17,10 @@ that stays in the financial ledger, where M8's reporting reads it.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 from domain.entities import CustomerReturn, CustomerReturnLine
 from domain.enums import CustomerReturnReason, DocumentStatus, TrackingType
 from domain.value_objects import Currency
@@ -42,10 +41,9 @@ class CustomerReturnLineData(CamelModel):
     sold_quantity: int
     currency: Currency
     tracking_type: TrackingType
-    charged_price_minor: int
-    refund_price_minor: int
-    refund_price: Decimal
-    line_total_minor: int
+    charged_price: MoneyData
+    refund_price: MoneyData
+    line_total: MoneyData
     # Whether the store kept part of the price, and who signed for it.
     is_reduced: bool
     refund_approved_by: UUID | None
@@ -63,10 +61,9 @@ class CustomerReturnLineData(CamelModel):
             sold_quantity=line.sold_quantity,
             currency=line.currency,
             tracking_type=line.tracking_type,
-            charged_price_minor=line.charged_price.amount_minor,
-            refund_price_minor=line.refund_price.amount_minor,
-            refund_price=line.refund_price.as_major(),
-            line_total_minor=line.line_total.amount_minor,
+            charged_price=MoneyData.from_entity(line.charged_price),
+            refund_price=MoneyData.from_entity(line.refund_price),
+            line_total=MoneyData.from_entity(line.line_total),
             is_reduced=line.is_reduced,
             refund_approved_by=line.refund_approved_by,
             refund_note=line.refund_note,
@@ -82,7 +79,7 @@ class CustomerReturnData(CamelModel):
     location_id: UUID
     reason: CustomerReturnReason
     # Som, and never a conversion of the subtotals below it (§4.7).
-    debt_relief_minor: int | None
+    debt_relief: MoneyData | None
     note: str | None
     created_by: UUID
     created_at: datetime
@@ -90,7 +87,7 @@ class CustomerReturnData(CamelModel):
     cancelled_at: datetime | None
     cancellation_reason: str | None
     lines: list[CustomerReturnLineData]
-    subtotals: list[CurrencySubtotalData]
+    subtotals: list[MoneyData]
     # The running count §6 wants after every beep, so the operator never has
     # to count the list themselves.
     line_count: int
@@ -105,9 +102,7 @@ class CustomerReturnData(CamelModel):
             customer_id=document.customer_id,
             location_id=document.location_id,
             reason=document.reason,
-            debt_relief_minor=(
-                None if document.debt_relief is None else document.debt_relief.amount_minor
-            ),
+            debt_relief=MoneyData.from_entity(document.debt_relief),
             note=document.note,
             created_by=document.created_by,
             created_at=document.created_at,
@@ -115,6 +110,6 @@ class CustomerReturnData(CamelModel):
             cancelled_at=document.cancelled_at,
             cancellation_reason=document.cancellation_reason,
             lines=[CustomerReturnLineData.from_entity(line) for line in document.lines],
-            subtotals=CurrencySubtotalData.from_entity(document.subtotals()),
+            subtotals=MoneyData.from_entity(document.subtotals()),
             line_count=len(document.lines),
         )

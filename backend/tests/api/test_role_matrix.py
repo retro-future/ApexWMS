@@ -393,7 +393,7 @@ async def test_only_a_manager_can_price_an_order_line(
         json={"unitCost": "700.00"},
     )
     assert priced.status_code == 200, priced.text
-    assert priced.json()["data"]["lines"][0]["unitCost"] == "700.00"
+    assert priced.json()["data"]["lines"][0]["unitCost"] == {"minor": 70000, "currency": "USD"}
 
 
 @pytest.mark.parametrize("role", ["tenant.storekeeper", "tenant.seller"])
@@ -577,15 +577,15 @@ async def test_a_storekeeper_reads_the_asking_price_and_never_the_cost(
     )
     assert as_storekeeper.status_code == 200, as_storekeeper.text
     unit = as_storekeeper.json()["data"]["lines"][0]["units"][0]
-    assert unit["askingPrice"] == "520.00"
+    assert unit["askingPrice"] == {"minor": 52000, "currency": "USD"}
     assert unit["acquisitionCost"] is None
-    assert unit["acquisitionCostMinor"] is None
+    assert unit["acquisitionCost"] is None
     assert unit["cashPaid"] is None
     assert as_storekeeper.json()["data"]["subtotals"] == []
 
     as_owner = await client.get(f"/api/v1/receipts/{receipt_id}", headers=owner.auth)
     owned_unit = as_owner.json()["data"]["lines"][0]["units"][0]
-    assert owned_unit["acquisitionCost"] == "410.00"
+    assert owned_unit["acquisitionCost"] == {"minor": 41000, "currency": "USD"}
     assert "5 000 000" in owned_unit["cashPaid"]
 
 

@@ -15,7 +15,7 @@
  * exactly what this system refuses to represent money with.
  */
 
-import type { Currency } from "@/lib/types";
+import type { Currency, Money } from "@/lib/types";
 
 const EXPONENT: Record<Currency, number> = { USD: 2, UZS: 0 };
 
@@ -43,14 +43,19 @@ function split(minor: number, currency: Currency, separator: string) {
   };
 }
 
-/** `formatMoney(59900, "USD")` → `$599.00`; `formatMoney(12000, "UZS")` → `12 000 so'm`. */
-export function formatMoney(minor: number, currency: Currency): string {
+/** `$599.00` for USD 59900; `12 000 so'm` for UZS 12000. */
+export function formatMoney({ minor, currency }: Money): string {
   if (currency === "USD") {
     const { sign, major, fraction } = split(minor, currency, ",");
     return `${sign}$${major}.${fraction}`;
   }
   const { sign, major } = split(minor, currency, UZS_GROUP_SEPARATOR);
   return `${sign}${major}${UZS_GROUP_SEPARATOR}so'm`;
+}
+
+/** The same, but a nullish amount renders as a dash rather than crashing. */
+export function formatMoneyOrDash(money: Money | null | undefined): string {
+  return money ? formatMoney(money) : "—";
 }
 
 /**
@@ -76,4 +81,9 @@ export function minorToInput(
   if (minor === null || minor === undefined) return "";
   const { sign, major, fraction } = split(minor, currency, "");
   return fraction ? `${sign}${major}.${fraction}` : `${sign}${major}`;
+}
+
+/** `minorToInput` for a whole `Money`; empty string when there is none. */
+export function moneyToInput(money: Money | null | undefined): string {
+  return money ? minorToInput(money.minor, money.currency) : "";
 }

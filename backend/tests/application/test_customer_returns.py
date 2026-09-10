@@ -557,7 +557,7 @@ class TestAReturnOnStoreCreditRelievesTheDebtFirst:
     async def test_the_balance_drops_by_the_relief(self):
         world = make_world()
         location, _, invoice = await self._credit_sale(world)
-        assert invoice.remaining_minor == 7_000_000
+        assert invoice.remaining.minor == 7_000_000
 
         document = await opened_return(world, invoice, location)
         await world.scan_customer_return_line().handle(
@@ -575,8 +575,8 @@ class TestAReturnOnStoreCreditRelievesTheDebtFirst:
             GetSalesInvoiceQuery(sales_invoice_id=invoice.id)
         )
         assert after.data is not None
-        assert after.data.relieved_minor == 7_000_000
-        assert after.data.remaining_minor == 0
+        assert after.data.relieved.minor == 7_000_000
+        assert after.data.remaining.minor == 0
 
     async def test_relief_above_the_balance_is_refused(self):
         world = make_world()

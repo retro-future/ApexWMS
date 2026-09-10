@@ -19,24 +19,24 @@ const som = (grouped: string) => grouped.replaceAll(" ", NBSP);
 
 describe("formatMoney", () => {
   it("reads a USD minor amount as cents", () => {
-    expect(formatMoney(100000, "USD")).toBe("$1,000.00");
-    expect(formatMoney(59900, "USD")).toBe("$599.00");
-    expect(formatMoney(5, "USD")).toBe("$0.05");
+    expect(formatMoney({ minor: 100000, currency: "USD" })).toBe("$1,000.00");
+    expect(formatMoney({ minor: 59900, currency: "USD" })).toBe("$599.00");
+    expect(formatMoney({ minor: 5, currency: "USD" })).toBe("$0.05");
   });
 
   it("reads a UZS minor amount as whole so'm", () => {
     // The same integer, twelve thousand times apart in value.
-    expect(formatMoney(1000, "UZS")).toBe(som("1 000 so'm"));
-    expect(formatMoney(1000, "USD")).toBe("$10.00");
+    expect(formatMoney({ minor: 1000, currency: "UZS" })).toBe(som("1 000 so'm"));
+    expect(formatMoney({ minor: 1000, currency: "USD" })).toBe("$10.00");
   });
 
   it("groups the large amounts a so'm price actually reaches", () => {
-    expect(formatMoney(12000000, "UZS")).toBe(som("12 000 000 so'm"));
+    expect(formatMoney({ minor: 12000000, currency: "UZS" })).toBe(som("12 000 000 so'm"));
   });
 
   it("keeps a negative amount signed", () => {
-    expect(formatMoney(-33000, "USD")).toBe("-$330.00");
-    expect(formatMoney(-4200000, "UZS")).toBe(som("-4 200 000 so'm"));
+    expect(formatMoney({ minor: -33000, currency: "USD" })).toBe("-$330.00");
+    expect(formatMoney({ minor: -4200000, currency: "UZS" })).toBe(som("-4 200 000 so'm"));
   });
 
   it("knows the two exponents apart", () => {

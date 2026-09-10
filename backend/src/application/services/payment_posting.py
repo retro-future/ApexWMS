@@ -1,10 +1,22 @@
-"""Recording money received against store credit (PRD §4.7, FR-11.6).
+"""Recording money the store actually received (PRD §4.7, FR-11.6).
 
 Three handlers need this and they must all behave identically: the confirm
 that records a down payment (FR-11.5), the counter recording an
 instalment, and the manager compensating a mistake (FR-11.8). Two of them
 getting the overpayment rule slightly differently is exactly how a balance
 goes negative.
+
+Two kinds of money arrive here and the invoice decides which. Against a
+store-credit debt it is a **payment**: som, capped at what is still owed,
+booked as ``PAYMENT_RECEIVED``. On a sale the customer settled at the
+counter it is a **tender**: whatever they physically handed over, in
+whatever currency, booked as ``TENDER_RECEIVED``. A tender has nothing to
+be capped against — the sale owes nothing — and is never netted against the
+revenue beside it, which is in the product's own currency and stays there.
+
+A credit-company sale takes neither. The company settles with the store
+outside this system (§4.7), so nothing changes hands at the counter and
+there is no row to write.
 
 **A payment never books revenue.** Only ``PAYMENT_RECEIVED`` is written
 here, and ``SALE_REVENUE`` is booked once, at confirm, by ``InvoicePoster``
@@ -23,12 +35,18 @@ other poster.
 from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.common.specification import Specification
 from application.dtos import CurrentUser, MoneyEffect
-from application.ports import Clock
+from application.ports import Clock, TenantSettingsRepository
 from application.services.customer_balance import remaining_on
 from application.services.ledger import LedgerPoster
 from application.specs import CustomerReturnsForInvoice, PaymentsForInvoice
 from domain.entities import CustomerReturn, Payment, SalesInvoice
-from domain.enums import DocumentStatus, DocumentType, PaymentMethod, TransactionType
+from domain.enums import (
+    DocumentStatus,
+    DocumentType,
+    PaymentMethod,
+    PaymentType,
+    TransactionType,
+)
 from domain.errors import (
     CurrencyMismatchError,
     NotACreditSaleError,
@@ -47,12 +65,14 @@ class PaymentPoster:
         poster: LedgerPoster,
         clock: Clock,
         current: CurrentUser,
+        settings: TenantSettingsRepository,
     ) -> None:
         self._payments = payments
         self._returns = returns
         self._poster = poster
         self._clock = clock
         self._current = current
+        self._settings = settings
 
     async def receive(
         self,
@@ -61,8 +81,15 @@ class PaymentPoster:
         method: PaymentMethod = PaymentMethod.CASH,
         note: str | None = None,
     ) -> Payment:
-        """Take money off what *invoice* still owes (FR-11.6)."""
-        await self._assert_collectable(invoice, amount)
+        """Take money off what *invoice* still owes, or into the till.
+
+        A store-credit sale takes a payment against its debt; a sale settled
+        at the counter takes a tender, which only records what changed hands.
+        """
+        if invoice.payment_type.opens_debt:
+            await self._assert_collectable(invoice, amount)
+        else:
+            await self._assert_tenderable(invoice)
 
         payment = Payment(
             sales_invoice_id=invoice.id,
@@ -96,18 +123,47 @@ class PaymentPoster:
 
     async def _append(self, payment: Payment, invoice: SalesInvoice) -> None:
         await self._payments.add(payment)
+        category = (
+            TransactionType.PAYMENT_RECEIVED
+            if invoice.payment_type.opens_debt
+            else TransactionType.TENDER_RECEIVED
+        )
         await self._poster.post_money(
             DocumentType.PAYMENT,
             payment.id,
-            [MoneyEffect(TransactionType.PAYMENT_RECEIVED, payment.amount)],
+            [MoneyEffect(category, payment.amount)],
             location_id=invoice.location_id,
         )
 
-    async def _assert_collectable(self, invoice: SalesInvoice, amount: Money) -> None:
-        if not invoice.payment_type.opens_debt or invoice.debt is None:
+    async def _assert_tenderable(self, invoice: SalesInvoice) -> None:
+        """A tender records money over the counter, so there has to be one."""
+        if not await self._settings.runs_till():
             raise NotACreditSaleError(
-                f"{invoice.number} is {invoice.payment_type.value} and was settled "
-                "at confirm, so there is nothing to pay down (FR-11.4)",
+                f"{invoice.number} owes nothing, and this store does not run a "
+                "till — there is nowhere to record what changed hands",
+                key="till_not_kept",
+                number=invoice.number,
+            )
+        if invoice.payment_type is not PaymentType.PAID_IN_FULL:
+            raise NotACreditSaleError(
+                f"{invoice.number} is {invoice.payment_type.value}: the company "
+                "settles with the store, so nothing crosses the counter (FR-11.4)",
+                key="not_a_credit_sale",
+                number=invoice.number,
+            )
+        if invoice.status is not DocumentStatus.CONFIRMED:
+            raise NotACreditSaleError(
+                f"{invoice.number} is {invoice.status.value}; money changes hands "
+                "on a confirmed sale",
+                key="sale_not_confirmed",
+                number=invoice.number,
+            )
+
+    async def _assert_collectable(self, invoice: SalesInvoice, amount: Money) -> None:
+        if invoice.debt is None:
+            raise NotACreditSaleError(
+                f"{invoice.number} opened no debt, so there is nothing to pay "
+                "down (FR-11.4)",
                 key="not_a_credit_sale",
                 number=invoice.number,
             )

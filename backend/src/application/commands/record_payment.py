@@ -1,9 +1,14 @@
-"""FR-11.6: the customer pays some of what they owe.
+"""FR-11.6: the customer hands money over.
 
-Writes a ``PAYMENT_RECEIVED`` transaction and **never** a ``SALE_REVENUE``
-one (FR-11.7) — the revenue for this sale was booked in full the moment it
-confirmed, and re-booking it per instalment is the signature bug of naive
-credit systems. ``PaymentPoster`` is what makes that structural: it is the
+Against a store-credit sale that is a payment on the debt; on a sale
+settled at confirm it is a tender, which is what the till has to balance
+against. ``PaymentPoster`` decides which from the invoice, so this handler
+does not branch.
+
+Writes a ``PAYMENT_RECEIVED`` or ``TENDER_RECEIVED`` transaction and
+**never** a ``SALE_REVENUE`` one (FR-11.7): the revenue was booked in full
+the moment the sale confirmed, and re-booking it per instalment is the
+signature bug of naive credit systems. ``PaymentPoster`` is what makes that structural: it is the
 only thing that writes a payment, and it can only emit one category.
 
 The whole invoice comes back rather than the payment alone, so the counter
@@ -27,8 +32,11 @@ from infrastructure.persistence.tenant.models import PaymentModel, SalesInvoiceM
 
 
 class RecordPaymentCommandPayload(CamelModel):
-    # Som, as a major-unit string or int — never a JSON float (§4.5).
+    # A major-unit string or int — never a JSON float (§4.5).
     amount: str | int
+    # Som unless the counter says otherwise, which is what a debt is always
+    # written in; a tender may be either.
+    currency: Currency = Currency.UZS
     method: PaymentMethod = PaymentMethod.CASH
     note: str | None = None
 
@@ -69,7 +77,7 @@ class RecordPaymentHandler(
                 key="not_found",
                 subject_key="invoice",
             )
-        amount = self._prices.parse(request.amount, Currency.UZS)
+        amount = self._prices.parse(request.amount, request.currency)
         if amount is None:
             raise InvalidMoneyError("a payment states an amount")
 

@@ -190,11 +190,12 @@ class TestWhoSeesWhat:
         device = response.json()["data"]["device"]
         assert device["acquisitionCost"] is None
         assert device["cashPaid"] is None
-        assert device["resolvedPrice"] == "900.00"
+        assert device["resolvedPrice"] == {"minor": 90000, "currency": "USD"}
 
     async def test_the_owner_sees_the_cost(self, client, stocked):
         owner, _ = stocked
 
         response = await lookup(client, owner.auth, PHONE_IMEI)
 
-        assert response.json()["data"]["device"]["acquisitionCost"] == "700.00"
+        device = response.json()["data"]["device"]
+        assert device["acquisitionCost"] == {"minor": 70000, "currency": "USD"}

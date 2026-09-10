@@ -1,4 +1,4 @@
-"""Read tenant settings (TenantDB): the timezone and the letterhead."""
+"""Read tenant settings (TenantDB): the timezone, letterhead and till."""
 
 from application.core import IRequestHandler, Query, ResultWithData
 from application.models import TenantSettingsData
@@ -21,5 +21,7 @@ class GetTenantSettingsHandler(
         timezone = await self._settings.get_timezone()
         letterhead = await self._settings.get_letterhead()
         return ResultWithData[TenantSettingsData].succeed_with_data(
-            TenantSettingsData.from_entity(timezone, letterhead)
+            TenantSettingsData.from_entity(
+                timezone, letterhead, await self._settings.runs_till()
+            )
         )

@@ -32,7 +32,7 @@ from tests.application.test_sales_invoice import (
 
 def one(subtotals) -> int:
     assert len(subtotals) == 1, subtotals
-    return subtotals[0].amount_minor
+    return subtotals[0].minor
 
 
 async def a_cased_sale(world: World, *, units: int, cost: str):
@@ -134,7 +134,7 @@ class TestTwoCurrenciesStayApart:
         )
 
         total = (await summary(world)).total
-        returns = {s.currency: s.amount_minor for s in total.returns}
+        returns = {s.currency: s.minor for s in total.returns}
         assert returns == {Currency.UZS: -50_000}
 
 

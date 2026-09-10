@@ -8,9 +8,10 @@ import {
   Group,
   Image,
   Stack,
+  Switch,
   Text,
-  Textarea,
   TextInput,
+  Textarea,
   Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
@@ -28,7 +29,12 @@ import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
 import type { TenantSettings } from "@/lib/types";
 
-type Values = { timezone: string; businessName: string; address: string };
+type Values = {
+  timezone: string;
+  businessName: string;
+  address: string;
+  runsTill: boolean;
+};
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
@@ -48,7 +54,7 @@ export default function SettingsPage() {
   });
 
   const form = useForm<Values>({
-    initialValues: { timezone: "", businessName: "", address: "" },
+    initialValues: { timezone: "", businessName: "", address: "", runsTill: false },
     validate: {
       timezone: (value) => (value.trim() ? null : tCommon("required")),
     },
@@ -61,6 +67,7 @@ export default function SettingsPage() {
       timezone: query.data.timezone,
       businessName: query.data.businessName ?? "",
       address: query.data.address ?? "",
+      runsTill: query.data.runsTill,
     });
   }, [query.data, setValues]);
 
@@ -72,6 +79,7 @@ export default function SettingsPage() {
         timezone: values.timezone.trim(),
         businessName: values.businessName.trim() || null,
         address: values.address.trim() || null,
+        runsTill: values.runsTill,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
   });
@@ -182,6 +190,15 @@ export default function SettingsPage() {
                 {...form.getInputProps("address")}
               />
             </Stack>
+          </Card>
+
+          <Card withBorder radius="md" padding="lg">
+            <Switch
+              label={t("runsTill")}
+              description={t("runsTillHint")}
+              disabled={!manage}
+              {...form.getInputProps("runsTill", { type: "checkbox" })}
+            />
           </Card>
 
           {manage && (

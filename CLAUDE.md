@@ -8,7 +8,9 @@ ApexWMS is a multi-tenant (database-per-tenant) warehouse management system for 
 
 The project is a uv workspace with one member: `backend/` (FastAPI). Alongside it, `frontend/` is a Next.js app (App Router, Mantine, next-intl in en/ru/uz) that talks to the API only through its own BFF proxy at `/api/backend/*` — the browser never holds a token or learns the backend's address.
 
-> **Full spec:** [docs/prd.md](docs/prd.md) (~1140 lines) — read the relevant section before implementing a feature; this file only orients you, it doesn't replace the PRD.
+> **Building something? Start at [docs/prdv2.md](docs/prdv2.md).** V1 is delivered (M0–M9); all current work is V2. It owns the eight workstreams and their order, everything v1 deferred, what is deliberately not planned, and the open questions. Each workstream gets its own `docs/prd-v2-<slug>.md`, and that file is the spec for building it.
+>
+> **[docs/prd.md](docs/prd.md) is the v1 spec, and v1 is done.** Open it only to answer *why the shipped system behaves as it does* — a rule you're about to change, a decision you're about to reverse — not as a starting point for new work. Its §11 is the record of decisions already settled; nothing in it is still open.
 >
 > **Finding code by feature?** [.claude/feature-map.md](.claude/feature-map.md) maps every feature area (Auth, Catalog, Ledgers, Purchase Orders/Goods Receipts, ...) to its command/query/model/service files.
 >

@@ -16,10 +16,10 @@ reason (§2.1, FR-7.2):
 
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
+from application.models.money import MoneyData
 from domain.entities import GoodsReceiptLine, ReceivedUnit
 from domain.enums import DeviceCondition
 from domain.value_objects import Currency, Money
@@ -32,14 +32,12 @@ class ReceivedUnitData(CamelModel):
     serial_number: str | None
     condition: DeviceCondition
     currency: Currency
-    asking_price: Decimal | None
-    asking_price_minor: int | None
+    asking_price: MoneyData | None
     # True while this handset is not NEW and carries no asking price —
     # exactly what FR-3.10 will refuse the confirm over.
     needs_asking_price: bool
     # --- Permission.Cost.View only (FR-1.7) ---
-    acquisition_cost: Decimal | None = None
-    acquisition_cost_minor: int | None = None
+    acquisition_cost: MoneyData | None = None
     # "paid 4 200 000 so'm" — a string, never a number, so no caller can
     # add it to anything (§4.5b, FR-3.4d).
     cash_paid: str | None = None
@@ -55,10 +53,7 @@ class ReceivedUnitData(CamelModel):
             serial_number=unit.serial_number,
             condition=unit.condition,
             currency=line.currency,
-            asking_price=unit.asking_price.as_major() if unit.asking_price else None,
-            asking_price_minor=(
-                unit.asking_price.amount_minor if unit.asking_price else None
-            ),
+            asking_price=MoneyData.from_entity(unit.asking_price),
             needs_asking_price=unit.needs_asking_price,
         )
         if not show_cost:
@@ -69,12 +64,7 @@ class ReceivedUnitData(CamelModel):
             cash_paid = Money(unit.cash_paid_minor, unit.cash_paid_currency).format()
         return data.model_copy(
             update={
-                "acquisition_cost": (
-                    unit.acquisition_cost.as_major() if unit.acquisition_cost else None
-                ),
-                "acquisition_cost_minor": (
-                    unit.acquisition_cost.amount_minor if unit.acquisition_cost else None
-                ),
+                "acquisition_cost": MoneyData.from_entity(unit.acquisition_cost),
                 "cash_paid": cash_paid,
             }
         )

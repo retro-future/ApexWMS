@@ -3,6 +3,7 @@
 import {
   Alert,
   Divider,
+  Group,
   List,
   Select,
   SegmentedControl,
@@ -19,6 +20,7 @@ import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
 import { Subtotals } from "@/components/Subtotals";
 import { useResourceList } from "@/hooks/use-resource";
+import { useRunsTill } from "@/hooks/use-tenant-settings";
 import {
   confirmBody,
   EMPTY_TERMS,
@@ -31,9 +33,11 @@ import { Permission } from "@/lib/permissions";
 import type {
   CreditCompany,
   Currency,
+  Money,
   PaymentType,
   SalesInvoice,
 } from "@/lib/types";
+import { CURRENCIES } from "@/lib/types";
 
 /**
  * How this sale is being paid for, asked at the moment of confirm.
@@ -61,7 +65,7 @@ export function ConfirmSaleModal({
   onSubmit,
 }: {
   invoice: SalesInvoice;
-  quote: { currency: Currency; amountMinor: number }[];
+  quote: Money[];
   busy: boolean;
   error: string | null;
   onClose: () => void;
@@ -70,7 +74,9 @@ export function ConfirmSaleModal({
   const t = useTranslations("credit");
   const tInvoices = useTranslations("invoices");
   const tDoc = useTranslations("documents");
+  const tCommon = useTranslations("common");
   const can = useCan();
+  const runsTill = useRunsTill();
 
   const [terms, setTerms] = useState<CreditTerms>({
     ...EMPTY_TERMS,
@@ -164,6 +170,25 @@ export function ConfirmSaleModal({
         </>
       )}
 
+      {terms.paymentType === "paid_in_full" && runsTill && (
+        <Group grow align="flex-start">
+          <Select
+            label={t("currency")}
+            value={terms.tenderedCurrency}
+            onChange={(value) => set("tenderedCurrency", (value as Currency) ?? "UZS")}
+            allowDeselect={false}
+            data={[...CURRENCIES]}
+          />
+          <MoneyInput
+            label={`${t("tendered")} (${tCommon("optional")})`}
+            description={t("tenderAmountHint")}
+            value={terms.tendered}
+            onChange={(value) => set("tendered", value)}
+            currency={terms.tenderedCurrency}
+          />
+        </Group>
+      )}
+
       {terms.paymentType === "store_credit" && (
         <>
           <MoneyInput
@@ -189,7 +214,7 @@ export function ConfirmSaleModal({
           {debtMinor !== null && debtMinor > 0 && (
             <Text size="sm">
               {t("remainingAfter", {
-                amount: formatMoney(Math.max(debtMinor - downMinor, 0), "UZS"),
+                amount: formatMoney({ minor: Math.max(debtMinor - downMinor, 0), currency: "UZS" }),
               })}
             </Text>
           )}

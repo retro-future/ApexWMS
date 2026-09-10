@@ -68,7 +68,7 @@ export function DebtorsList() {
           </Table.Td>
           <Table.Td>
             <Text size="sm" fw={600}>
-              {formatMoney(row.balanceMinor, "UZS")}
+              {formatMoney(row.balance)}
             </Text>
           </Table.Td>
           <Table.Td>

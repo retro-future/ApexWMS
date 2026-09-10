@@ -10,7 +10,6 @@ test: hide a phone, count, watch the system find it missing and book the
 loss (§10, M6).
 """
 
-from decimal import Decimal
 
 import pytest
 
@@ -898,4 +897,4 @@ class TestCostIsShapedByPermission:
         ).handle(ListStockCountsQuery())
 
         assert result.data is not None
-        assert result.data[0].units[0].acquisition_cost == Decimal("300.00")
+        assert result.data[0].units[0].acquisition_cost.minor == 30_000

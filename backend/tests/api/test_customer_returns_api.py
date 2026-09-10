@@ -191,7 +191,7 @@ class TestSellAPhoneAndTakeItBack:
         assert data["status"] == "confirmed"
         assert data["number"].startswith("CR-")
         assert data["subtotals"] == [
-            {"currency": "USD", "amount": "900.00", "amountMinor": 90000}
+            {"currency": "USD", "minor": 90000}
         ]
 
         movements, totals = await ledger_rows(settings, owner, unit["id"])
@@ -224,8 +224,8 @@ class TestSellAPhoneAndTakeItBack:
         scanned = await scan_back(client, owner.auth, document, IMEIS[0])
 
         line = scanned["lines"][0]
-        assert line["chargedPriceMinor"] == 90000
-        assert line["refundPriceMinor"] == 90000
+        assert line["chargedPrice"]["minor"] == 90000
+        assert line["refundPrice"]["minor"] == 90000
         assert line["soldQuantity"] == 1
         assert line["imei"] == IMEIS[0]
         assert line["isReduced"] is False
@@ -303,7 +303,7 @@ class TestKeepingPartOfThePrice:
 
         assert patched.status_code == 200, patched.text
         line = patched.json()["data"]["lines"][0]
-        assert line["refundPriceMinor"] == 81000
+        assert line["refundPrice"]["minor"] == 81000
         assert line["isReduced"] is True
         assert line["refundNote"] == "opened box, 10% restocking"
 
@@ -408,7 +408,7 @@ class TestAReturnOnStoreCredit:
     async def test_the_remaining_balance_drops_by_the_relief(self, client, store):
         owner, ids = store
         invoice = await sell(client, owner, ids, terms=self.CREDIT_TERMS)
-        assert invoice["remainingMinor"] == 10_000_000
+        assert invoice["remaining"]["minor"] == 10_000_000
         document = await open_return(client, owner, ids, invoice)
         await scan_back(client, owner.auth, document, IMEIS[0])
 
@@ -419,10 +419,10 @@ class TestAReturnOnStoreCredit:
         )
 
         assert confirmed.status_code == 200, confirmed.text
-        assert confirmed.json()["data"]["debtReliefMinor"] == 10_000_000
+        assert confirmed.json()["data"]["debtRelief"]["minor"] == 10_000_000
         read = await client.get(f"{API}/invoices/{invoice['id']}", headers=owner.auth)
-        assert read.json()["data"]["relievedMinor"] == 10_000_000
-        assert read.json()["data"]["remainingMinor"] == 0
+        assert read.json()["data"]["relieved"]["minor"] == 10_000_000
+        assert read.json()["data"]["remaining"]["minor"] == 0
 
     async def test_the_customer_drops_off_the_debtor_list(self, client, store):
         owner, ids = store
@@ -582,3 +582,38 @@ class TestBrowsingReturns:
         assert found.status_code == 200, found.text
         rows = found.json()["data"]
         assert [row["reason"] for row in rows] == ["warranty"]
+
+
+class TestTheTraceSurvivesAReturn:
+    """FR-9.2 over a handset that came back.
+
+    Regression: the trace mapped five of the six movement types, and M6
+    added the sixth. Every handset a customer ever returned made its own
+    timeline a 500 — the one screen whose whole job is explaining what
+    happened to that handset.
+    """
+
+    async def test_a_returned_handset_still_has_a_timeline(
+        self, client, settings, store
+    ):
+        owner, ids = store
+        invoice = await sell(client, owner, ids)
+        unit = await unit_by_imei(client, owner.auth, IMEIS[0])
+        document = await open_return(client, owner, ids, invoice)
+        await scan_back(client, owner.auth, document, IMEIS[0])
+        await client.post(
+            f"{API}/customer-returns/{document['id']}/confirm",
+            headers=owner.auth,
+            json={},
+        )
+
+        trace = await client.get(
+            f"{API}/device-units/{unit['id']}/trace", headers=owner.auth
+        )
+
+        assert trace.status_code == 200, trace.text
+        kinds = [event["kind"] for event in trace.json()["data"]["events"]]
+        assert "returned_by_customer" in kinds
+        # The sale stays on the timeline beside it: a sale that was later
+        # unwound is two facts, not zero (see ``MovementType``'s docstring).
+        assert "sold" in kinds

@@ -228,11 +228,11 @@ class TestTheDemo:
 
         # One subtotal, in the product's currency. The som appears only as a
         # formatted string on the handset, in no total anywhere (FR-3.4d).
-        assert [(s["currency"], s["amountMinor"]) for s in body["subtotals"]] == [
+        assert [(s["currency"], s["minor"]) for s in body["subtotals"]] == [
             ("USD", 33_000)
         ]
         unit = body["lines"][0]["units"][0]
-        assert unit["acquisitionCostMinor"] == 33_000
+        assert unit["acquisitionCost"]["minor"] == 33_000
         assert "4 200 000" in unit["cashPaid"]
         assert "4200000" not in found.text.replace('"cashPaid"', "")
 
@@ -733,7 +733,7 @@ class TestTheOrderRepository:
         lines = fetched.json()["data"]["lines"]
         assert len(lines) == 2
         by_product = {line["productId"]: line for line in lines}
-        assert by_product[ids["phone"]]["unitCost"] == "699.00"
+        assert by_product[ids["phone"]]["unitCost"] == {"minor": 69900, "currency": "USD"}
         assert by_product[ids["case"]]["unitCost"] is None
 
     async def test_the_browse_filters_by_status_supplier_and_number(

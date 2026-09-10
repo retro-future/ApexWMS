@@ -83,10 +83,8 @@ describe("confirming a goods receipt below cost", () => {
         {
           productId: "product-1",
           sku: "USB-C-CABLE",
-          catalogPrice: "5.00",
-          catalogPriceMinor: 500,
-          averageUnitCost: "5.40",
-          averageUnitCostMinor: 540,
+          catalogPrice: { minor: 500, currency: "USD" },
+          averageUnitCost: { minor: 540, currency: "USD" },
         },
       ],
     });
@@ -105,7 +103,7 @@ describe("confirming a goods receipt below cost", () => {
     );
     const block = alert.closest("[role='alert']") ?? alert.parentElement!;
     expect(within(block as HTMLElement).getByText(/USB-C-CABLE/)).toHaveTextContent(
-      "USB-C-CABLE: sells at 5.00, now costs 5.40",
+      "USB-C-CABLE: sells at $5.00, now costs $5.40",
     );
     expect(
       within(block as HTMLElement).getByRole("link", { name: /USB-C-CABLE/ }),

@@ -1,4 +1,4 @@
-from sqlalchemy import LargeBinary, String
+from sqlalchemy import Boolean, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import TenantBase
@@ -16,3 +16,6 @@ class TenantSettingsModel(TenantBase):
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     logo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     logo_content_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Whether money that physically changed hands is recorded (§4.5b). Off
+    # until a store says it balances a drawer; see 0013's docstring.
+    runs_till: Mapped[bool] = mapped_column(Boolean, server_default="false")

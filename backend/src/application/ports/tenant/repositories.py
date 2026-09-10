@@ -31,6 +31,12 @@ class TenantSettingsRepository(Protocol):
         """``None`` clears it."""
         ...
 
+    async def runs_till(self) -> bool:
+        """Whether this store records the money that physically moved (§4.5b)."""
+        ...
+
+    async def set_runs_till(self, runs_till: bool) -> None: ...
+
 
 class DocumentNumberAllocator(Protocol):
     """The per-tenant sequence behind ``PO-2026-0001`` (§4.4).

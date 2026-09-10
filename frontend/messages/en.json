@@ -230,7 +230,9 @@
     "logoRemove": "Remove",
     "logoTooLarge": "That image is over 512 KB. Choose a smaller one.",
     "logoWrongType": "The logo must be a PNG or a JPEG.",
-    "readOnly": "Only the store owner can change these."
+    "readOnly": "Only the store owner can change these.",
+    "runsTill": "Keep a cash drawer",
+    "runsTillHint": "Record what physically changed hands: money taken at the counter on a sale, money handed out for a handset bought from a walk-in. Each figure stays in the currency it was in and enters no other report."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -478,7 +480,8 @@
       "companyRequired": "Pick the credit company financing this sale.",
       "debtRequired": "Enter the som debt the customer agreed to.",
       "downPaymentTooLarge": "The down payment is larger than the debt.",
-      "overpayment": "That is more than the customer still owes."
+      "overpayment": "That is more than the customer still owes.",
+      "tenderMalformed": "State the amount in the currency you picked."
     },
     "panelTitle": "Payments",
     "panelHint": "The debt is what was agreed. Paid and remaining are counted from the payments below.",
@@ -513,7 +516,14 @@
     "openDebtsHint": "Every store-credit sale to this customer, and what is still owed on each.",
     "noOpenDebts": "Nothing was sold to this customer on store credit.",
     "financedSales": "Financed sales",
-    "financedSalesHint": "Sold through a credit company. The company paid the store in full — the customer owes the store nothing on these."
+    "financedSalesHint": "Sold through a credit company. The company paid the store in full — the customer owes the store nothing on these.",
+    "tenderTitle": "Money taken at the counter",
+    "tenderHint": "What the customer handed over, in the currency they paid in. Recorded beside the sale total, never converted into it.",
+    "recordTender": "Record what was taken",
+    "tendered": "Taken",
+    "tenderAmountHint": "The amount that actually changed hands.",
+    "tenderRecorded": "Recorded",
+    "currency": "Currency"
   },
   "supplierReturns": {
     "title": "Supplier returns",
@@ -859,7 +869,9 @@
       "supplier_return_credit": "Supplier return credit",
       "sales_return_refund": "Customer refund",
       "count_adjustment": "Count adjustment",
-      "payment_received": "Payment received"
+      "payment_received": "Payment received",
+      "tender_received": "Taken at the counter",
+      "tender_paid": "Paid out at the counter"
     },
     "salesSummaryTitle": "Sales summary",
     "salesSummarySubtitle": "Units sold, revenue, customer returns, cost of goods and margin per location over a date range. Every location is included, because a store total of one page is not a store total.",
@@ -920,7 +932,8 @@
       "sold": "Sold",
       "returned_to_supplier": "Returned to supplier",
       "written_off": "Written off",
-      "count_adjustment": "Found by a count"
+      "count_adjustment": "Found by a count",
+      "returned_by_customer": "Returned by the customer"
     },
     "receivedFrom": "From {name}",
     "tradedInFrom": "Traded in from {name}",

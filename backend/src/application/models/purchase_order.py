@@ -16,12 +16,11 @@ recorded.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
 from application.core import CamelModel
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 from domain.entities import PurchaseOrder, PurchaseOrderLine
 from domain.enums import DocumentStatus, TrackingType
 from domain.value_objects import Currency
@@ -41,27 +40,22 @@ class PurchaseOrderLineData(CamelModel):
     currency: Currency
     # Null until an Owner or Manager prices the line (FR-3.1); the order
     # cannot be confirmed while either is still null.
-    unit_cost: Decimal | None
-    unit_cost_minor: int | None
-    total_cost: Decimal | None
-    total_cost_minor: int | None
+    unit_cost: MoneyData | None
+    total_cost: MoneyData | None
     received_quantity: int
 
     @classmethod
     def from_entity(
         cls, line: PurchaseOrderLine, received: int
     ) -> PurchaseOrderLineData:
-        total = line.total_cost
         return cls(
             id=line.id,
             product_id=line.product_id,
             quantity=line.quantity,
             tracking_type=line.tracking_type,
             currency=line.currency,
-            unit_cost=line.unit_cost.as_major() if line.unit_cost else None,
-            unit_cost_minor=line.unit_cost.amount_minor if line.unit_cost else None,
-            total_cost=total.as_major() if total else None,
-            total_cost_minor=total.amount_minor if total else None,
+            unit_cost=MoneyData.from_entity(line.unit_cost),
+            total_cost=MoneyData.from_entity(line.total_cost),
             received_quantity=received,
         )
 
@@ -78,7 +72,7 @@ class PurchaseOrderData(CamelModel):
     cancelled_at: datetime | None
     lines: list[PurchaseOrderLineData]
     # One figure per currency present, never their sum (FR-2.7).
-    subtotals: list[CurrencySubtotalData]
+    subtotals: list[MoneyData]
     fulfilment: Fulfilment
 
     @classmethod
@@ -99,7 +93,7 @@ class PurchaseOrderData(CamelModel):
                 PurchaseOrderLineData.from_entity(line, received.get(line.product_id, 0))
                 for line in order.lines
             ],
-            subtotals=CurrencySubtotalData.from_entity(order.subtotals()),
+            subtotals=MoneyData.from_entity(order.subtotals()),
             fulfilment=cls._fulfilment(order.ordered_quantities(), received),
         )
 

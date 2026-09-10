@@ -233,8 +233,8 @@ export default function ReceiptPage() {
                   <Anchor component={Link} href={`/products/${alert.productId}`}>
                     {t("belowCostWarningRow", {
                       sku: alert.sku,
-                      price: alert.catalogPrice,
-                      cost: alert.averageUnitCost,
+                      price: formatMoney(alert.catalogPrice),
+                      cost: formatMoney(alert.averageUnitCost),
                     })}
                   </Anchor>
                 </List.Item>
@@ -316,10 +316,10 @@ export default function ReceiptPage() {
                     </Table.Td>
                     <Table.Td>
                       {/* Absent, not zero, without Cost.View (FR-1.7). */}
-                      {line.unitCostMinor === null ||
-                      line.unitCostMinor === undefined
+                      {line.unitCost === null ||
+                      line.unitCost === undefined
                         ? tCommon("none")
-                        : formatMoney(line.unitCostMinor, line.currency)}
+                        : formatMoney(line.unitCost)}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -383,15 +383,15 @@ export default function ReceiptPage() {
                         </Group>
                       </Table.Td>
                       <Table.Td>
-                        {unit.askingPriceMinor === null
+                        {unit.askingPrice === null
                           ? tCommon("none")
-                          : formatMoney(unit.askingPriceMinor, unit.currency)}
+                          : formatMoney(unit.askingPrice)}
                       </Table.Td>
                       <Table.Td>
-                        {unit.acquisitionCostMinor === null ||
-                        unit.acquisitionCostMinor === undefined
+                        {unit.acquisitionCost === null ||
+                        unit.acquisitionCost === undefined
                           ? tCommon("none")
-                          : formatMoney(unit.acquisitionCostMinor, unit.currency)}
+                          : formatMoney(unit.acquisitionCost)}
                         {unit.cashPaid && (
                           <Text size="xs" c="dimmed">
                             {tScan("cashPaid")}: {unit.cashPaid}

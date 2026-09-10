@@ -47,13 +47,9 @@ const invoice: SalesInvoice = {
       trackingType: "serial",
       currency: "USD",
       resolvedPrice: null,
-      resolvedPriceMinor: null,
       chargedPrice: null,
-      chargedPriceMinor: null,
       lineTotal: null,
-      lineTotalMinor: null,
       overridePrice: null,
-      overridePriceMinor: null,
       priceApprovedBy: null,
       priceNote: null,
       isDeviation: false,
@@ -64,10 +60,10 @@ const invoice: SalesInvoice = {
   creditCompanyId: null,
   contractRef: null,
   debt: null,
-  debtMinor: null,
-  paidMinor: 0,
-  relievedMinor: 0,
-  remainingMinor: 0,
+  paid: { minor: 0, currency: "UZS" },
+  relieved: { minor: 0, currency: "UZS" },
+  remaining: { minor: 0, currency: "UZS" },
+  tendered: [],
   payments: [],
   belowCostAlerts: [],
 };
@@ -98,7 +94,7 @@ beforeEach(() => {
     if (path === "/invoices/invoice-1") return Promise.resolve(invoice);
     if (path === "/device-units/unit-1") {
       // The quote a draft's own payload does not carry (FR-4.5b1).
-      return Promise.resolve({ id: "unit-1", currency: "USD", resolvedPriceMinor: 52000 });
+      return Promise.resolve({ id: "unit-1", currency: "USD", resolvedPrice: { minor: 52000, currency: "USD" } });
     }
     return Promise.resolve([]);
   });
@@ -160,7 +156,7 @@ describe("the invoice detail page", () => {
         : Promise.resolve([]),
     );
     apiGetPaged.mockResolvedValue({
-      items: [{ id: "product-1", defaultSalePriceMinor: 1200, currency: "USD" }],
+      items: [{ id: "product-1", defaultSalePrice: { minor: 1200, currency: "USD" }, currency: "USD" }],
       pageIndex: 1,
       pageSize: 200,
       pagesCount: 1,

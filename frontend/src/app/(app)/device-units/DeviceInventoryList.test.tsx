@@ -30,17 +30,12 @@ const base: DeviceInventoryRow = {
   locationName: "Chilonzor shop",
   since: "2026-01-01T00:00:00Z",
   daysInStock: 40,
-  currency: "USD",
-  askingPrice: "500.00",
-  askingPriceMinor: 50000,
-  resolvedPrice: "500.00",
-  resolvedPriceMinor: 50000,
+  askingPrice: { minor: 50000, currency: "USD" },
+  resolvedPrice: { minor: 50000, currency: "USD" },
   sourceDocumentType: "goods_receipt",
   sourceDocumentId: "receipt-1",
-  acquisitionCost: "380.00",
-  acquisitionCostMinor: 38000,
-  impliedMargin: "120.00",
-  impliedMarginMinor: 12000,
+  acquisitionCost: { minor: 38000, currency: "USD" },
+  impliedMargin: { minor: 12000, currency: "USD" },
 };
 
 function render(
@@ -89,9 +84,7 @@ describe("the device inventory list", () => {
     const trimmed: DeviceInventoryRow = {
       ...base,
       acquisitionCost: undefined,
-      acquisitionCostMinor: undefined,
       impliedMargin: undefined,
-      impliedMarginMinor: undefined,
     };
     render([trimmed], [Permission.Reporting.View]);
 

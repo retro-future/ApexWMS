@@ -30,18 +30,17 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import BelowCostAlert
 from application.models.below_cost_alert import BelowCostAlertData
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 from application.models.payment import PaymentData
 
 # Imported from the module rather than the package: ``application.services``
 # pulls in every poster, and several of those import this file.
-from application.services.customer_balance import relieved_on, remaining_on
+from application.services.customer_balance import paid_on, relieved_on, remaining_on
 from domain.entities import CustomerReturn, Payment, SalesInvoice, SalesInvoiceLine
 from domain.enums import DocumentStatus, PaymentType, TrackingType
 from domain.value_objects import Currency, Money
@@ -56,27 +55,15 @@ class SalesInvoiceLineData(CamelModel):
     currency: Currency
     # What the system resolved at confirm, and what was actually charged
     # (FR-4.5f). Both null while the invoice is a draft.
-    resolved_price: Decimal | None = None
-    resolved_price_minor: int | None = None
-    charged_price: Decimal | None = None
-    charged_price_minor: int | None = None
-    line_total: Decimal | None = None
-    line_total_minor: int | None = None
+    resolved_price: MoneyData | None = None
+    charged_price: MoneyData | None = None
+    line_total: MoneyData | None = None
     # Set while the invoice is a draft too: an override is a decision
     # somebody made, not a figure the confirm produced.
-    override_price: Decimal | None = None
-    override_price_minor: int | None = None
+    override_price: MoneyData | None = None
     price_approved_by: UUID | None = None
     price_note: str | None = None
     is_deviation: bool = False
-
-    @staticmethod
-    def _major(amount: Money | None) -> Decimal | None:
-        return None if amount is None else amount.as_major()
-
-    @staticmethod
-    def _minor(amount: Money | None) -> int | None:
-        return None if amount is None else amount.amount_minor
 
     @classmethod
     def from_entity(cls, line: SalesInvoiceLine) -> SalesInvoiceLineData:
@@ -87,14 +74,10 @@ class SalesInvoiceLineData(CamelModel):
             quantity=line.quantity,
             tracking_type=line.tracking_type,
             currency=line.currency,
-            resolved_price=cls._major(line.resolved_price),
-            resolved_price_minor=cls._minor(line.resolved_price),
-            charged_price=cls._major(line.charged_price),
-            charged_price_minor=cls._minor(line.charged_price),
-            line_total=cls._major(line.line_total),
-            line_total_minor=cls._minor(line.line_total),
-            override_price=cls._major(line.override_price),
-            override_price_minor=cls._minor(line.override_price),
+            resolved_price=MoneyData.from_entity(line.resolved_price),
+            charged_price=MoneyData.from_entity(line.charged_price),
+            line_total=MoneyData.from_entity(line.line_total),
+            override_price=MoneyData.from_entity(line.override_price),
             price_approved_by=line.price_approved_by,
             price_note=line.price_note,
             is_deviation=line.is_deviation,
@@ -118,17 +101,19 @@ class SalesInvoiceData(CamelModel):
     lines: list[SalesInvoiceLineData]
     # One figure per currency present, never their sum (FR-2.7). Empty on
     # a draft, because a draft holds no prices.
-    subtotals: list[CurrencySubtotalData]
+    subtotals: list[MoneyData]
     # How this sale is paid for (§4.7). All three debt figures are som.
     payment_type: PaymentType
     credit_company_id: UUID | None
     contract_ref: str | None
-    debt: Decimal | None = None
-    debt_minor: int | None = None
-    paid_minor: int = 0
+    debt: MoneyData | None = None
+    paid: MoneyData
     # Som written off by confirmed customer returns (FR-4.9d).
-    relieved_minor: int = 0
-    remaining_minor: int = 0
+    relieved: MoneyData
+    remaining: MoneyData
+    # What physically changed hands, one figure per currency — the till's
+    # side of the sale, never netted against the revenue above it.
+    tendered: list[MoneyData] = []
     payments: list[PaymentData] = []
     # Populated only by the confirm handler (see the below-cost design doc);
     # empty on get/list/create/cancel.
@@ -143,13 +128,19 @@ class SalesInvoiceData(CamelModel):
         *,
         below_cost_alerts: list[BelowCostAlert] | None = None,
     ) -> SalesInvoiceData:
-        paid = sum(payment.amount.amount_minor for payment in payments)
-        debt_minor = None if invoice.debt is None else invoice.debt.amount_minor
+        # ``paid_on`` and not a plain sum: it counts only what settles the
+        # som debt, so a tender in another currency cannot reduce it.
+        paid = paid_on(payments)
+        tendered: dict[Currency, Money] = {}
+        for payment in payments:
+            currency = payment.amount.currency
+            tendered[currency] = (
+                tendered.get(currency, Money.zero(currency)) + payment.amount
+            )
         # Through ``remaining_on`` so the three-term balance is stated once
         # (§4.7, FR-4.9d) — a cancelled sale's debt is void, and any
         # payments taken are a refund, which is why they are still listed.
-        owing = remaining_on(invoice, payments, returns).amount_minor
-        relieved = relieved_on(returns).amount_minor
+        owing = remaining_on(invoice, payments, returns)
         return cls(
             id=invoice.id,
             number=invoice.number,
@@ -165,15 +156,15 @@ class SalesInvoiceData(CamelModel):
             cancelled_at=invoice.cancelled_at,
             cancellation_reason=invoice.cancellation_reason,
             lines=[SalesInvoiceLineData.from_entity(line) for line in invoice.lines],
-            subtotals=CurrencySubtotalData.from_entity(invoice.subtotals()),
+            subtotals=MoneyData.from_entity(invoice.subtotals()),
             payment_type=invoice.payment_type,
             credit_company_id=invoice.credit_company_id,
             contract_ref=invoice.contract_ref,
-            debt=None if invoice.debt is None else invoice.debt.as_major(),
-            debt_minor=debt_minor,
-            paid_minor=paid,
-            relieved_minor=relieved,
-            remaining_minor=owing,
+            debt=MoneyData.from_entity(invoice.debt),
+            paid=MoneyData.from_entity(paid),
+            relieved=MoneyData.from_entity(relieved_on(returns)),
+            remaining=MoneyData.from_entity(owing),
+            tendered=MoneyData.from_entity(tendered),
             payments=[PaymentData.from_entity(payment) for payment in payments],
             below_cost_alerts=[
                 BelowCostAlertData.from_entity(one)

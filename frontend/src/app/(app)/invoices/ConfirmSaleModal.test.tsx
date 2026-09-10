@@ -34,10 +34,10 @@ const DRAFT: SalesInvoice = {
   creditCompanyId: null,
   contractRef: null,
   debt: null,
-  debtMinor: null,
-  paidMinor: 0,
-  relievedMinor: 0,
-  remainingMinor: 0,
+  paid: { minor: 0, currency: "UZS" },
+  relieved: { minor: 0, currency: "UZS" },
+  remaining: { minor: 0, currency: "UZS" },
+  tendered: [],
   payments: [],
   belowCostAlerts: [],
 };
@@ -51,7 +51,7 @@ function open(invoice: SalesInvoice = DRAFT, onSubmit = vi.fn()) {
   renderWithProviders(
     <ConfirmSaleModal
       invoice={invoice}
-      quote={[{ currency: "USD", amountMinor: 60000 }]}
+      quote={[{ currency: "USD", minor: 60000 }]}
       busy={false}
       error={null}
       onClose={vi.fn()}

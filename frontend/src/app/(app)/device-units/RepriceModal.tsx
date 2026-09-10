@@ -7,7 +7,7 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useDocumentAction } from "@/hooks/use-document";
-import { isValidPriceInput } from "@/lib/money";
+import { isValidPriceInput, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import type { DeviceUnit } from "@/lib/types";
 
@@ -23,7 +23,7 @@ export function RepriceModal({
   const tCommon = useTranslations("common");
   const tDoc = useTranslations("documents");
 
-  const [price, setPrice] = useState(unit.askingPrice ?? "");
+  const [price, setPrice] = useState(moneyToInput(unit.askingPrice));
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 

@@ -14,12 +14,18 @@ class TenantSettingsData(CamelModel):
     business_name: str | None = None
     address: str | None = None
     has_logo: bool = False
+    # Whether the store records the money that physically changed hands
+    # (§4.5b). Off, nothing about a sale or a receipt changes.
+    runs_till: bool = False
 
     @classmethod
-    def from_entity(cls, timezone: str, letterhead: Letterhead) -> TenantSettingsData:
+    def from_entity(
+        cls, timezone: str, letterhead: Letterhead, runs_till: bool
+    ) -> TenantSettingsData:
         return cls(
             timezone=timezone,
             business_name=letterhead.business_name,
             address=letterhead.address,
             has_logo=letterhead.logo is not None,
+            runs_till=runs_till,
         )

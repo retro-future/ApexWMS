@@ -123,7 +123,7 @@ class TestTheCounterRefusesAnUnpricedUsedHandset:
         )
 
         assert scanned.status_code == 200, scanned.text
-        assert scanned.json()["data"]["resolvedPriceMinor"] == 50000
+        assert scanned.json()["data"]["resolvedPrice"]["minor"] == 50000
 
 
 class TestSellingAPhoneAndCancellingIt:
@@ -148,9 +148,9 @@ class TestSellingAPhoneAndCancellingIt:
         assert confirmed.status_code == 200, confirmed.text
         data = confirmed.json()["data"]
         assert data["status"] == "confirmed"
-        assert data["lines"][0]["chargedPriceMinor"] == 52000
+        assert data["lines"][0]["chargedPrice"]["minor"] == 52000
         assert data["subtotals"] == [
-            {"currency": "USD", "amount": "520.00", "amountMinor": 52000}
+            {"currency": "USD", "minor": 52000}
         ]
 
         movements, totals = await ledger_rows(settings, owner, unit_id)
@@ -188,7 +188,7 @@ class TestSellingAPhoneAndCancellingIt:
         assert unit.json()["data"]["status"] == DeviceStatus.IN_STOCK.value
         # An invoice-line override never repriced it, and a cancel cannot
         # either (FR-4.5).
-        assert unit.json()["data"]["resolvedPriceMinor"] == 52000
+        assert unit.json()["data"]["resolvedPrice"]["minor"] == 52000
 
     async def test_a_sold_handset_cannot_be_sold_again(self, client, settings, owner):
         unit_id, _, location_id = await receive_phone(client, settings, owner)
@@ -275,8 +275,8 @@ class TestOverridingAPriceCarriesItsApprover:
         )
 
         line = confirmed.json()["data"]["lines"][0]
-        assert line["resolvedPriceMinor"] == 52000
-        assert line["chargedPriceMinor"] == 30000
+        assert line["resolvedPrice"]["minor"] == 52000
+        assert line["chargedPrice"]["minor"] == 30000
         assert line["priceApprovedBy"] == owner.user_id
         assert line["priceNote"] == "haggled hard"
         assert line["isDeviation"] is True
@@ -331,7 +331,7 @@ class TestWhoMaySell:
         )
         assert refused.status_code == 403
         read = await client.get(f"/api/v1/invoices/{invoice_id}", headers=seller)
-        assert read.json()["data"]["lines"][0]["overridePriceMinor"] is None
+        assert read.json()["data"]["lines"][0]["overridePrice"] is None
 
         confirmed = await client.post(
             f"/api/v1/invoices/{invoice_id}/confirm", headers=seller

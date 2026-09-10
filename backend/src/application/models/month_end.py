@@ -27,7 +27,7 @@ from application.dtos import (
     MonthEndReport,
     Period,
 )
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 from domain.enums import PaymentType
 from domain.value_objects import Currency
 
@@ -68,44 +68,44 @@ class MarginPercentData(CamelModel):
 
 
 class AccrualFiguresData(CamelModel):
-    opening_inventory: list[CurrencySubtotalData]
-    purchases: list[CurrencySubtotalData]
-    cost_of_goods: list[CurrencySubtotalData]
-    revenue: list[CurrencySubtotalData]
+    opening_inventory: list[MoneyData]
+    purchases: list[MoneyData]
+    cost_of_goods: list[MoneyData]
+    revenue: list[MoneyData]
     # Negative: money handed back to customers (FR-4.9).
-    sales_returns: list[CurrencySubtotalData]
-    write_offs: list[CurrencySubtotalData]
-    supplier_return_credits: list[CurrencySubtotalData]
-    count_adjustments: list[CurrencySubtotalData]
-    closing_inventory: list[CurrencySubtotalData]
-    margin: list[CurrencySubtotalData]
+    sales_returns: list[MoneyData]
+    write_offs: list[MoneyData]
+    supplier_return_credits: list[MoneyData]
+    count_adjustments: list[MoneyData]
+    closing_inventory: list[MoneyData]
+    margin: list[MoneyData]
     margin_percent: list[MarginPercentData]
 
     @classmethod
     def from_entity(cls, figures: AccrualFigures) -> AccrualFiguresData:
         return cls(
-            opening_inventory=CurrencySubtotalData.from_entity(
+            opening_inventory=MoneyData.from_entity(
                 figures.opening_inventory.as_dict()
             ),
-            purchases=CurrencySubtotalData.from_entity(figures.purchases.as_dict()),
-            cost_of_goods=CurrencySubtotalData.from_entity(
+            purchases=MoneyData.from_entity(figures.purchases.as_dict()),
+            cost_of_goods=MoneyData.from_entity(
                 figures.cost_of_goods.as_dict()
             ),
-            revenue=CurrencySubtotalData.from_entity(figures.revenue.as_dict()),
-            sales_returns=CurrencySubtotalData.from_entity(
+            revenue=MoneyData.from_entity(figures.revenue.as_dict()),
+            sales_returns=MoneyData.from_entity(
                 figures.sales_returns.as_dict()
             ),
-            write_offs=CurrencySubtotalData.from_entity(figures.write_offs.as_dict()),
-            supplier_return_credits=CurrencySubtotalData.from_entity(
+            write_offs=MoneyData.from_entity(figures.write_offs.as_dict()),
+            supplier_return_credits=MoneyData.from_entity(
                 figures.supplier_return_credits.as_dict()
             ),
-            count_adjustments=CurrencySubtotalData.from_entity(
+            count_adjustments=MoneyData.from_entity(
                 figures.count_adjustments.as_dict()
             ),
-            closing_inventory=CurrencySubtotalData.from_entity(
+            closing_inventory=MoneyData.from_entity(
                 figures.closing_inventory.as_dict()
             ),
-            margin=CurrencySubtotalData.from_entity(figures.margin),
+            margin=MoneyData.from_entity(figures.margin),
             margin_percent=MarginPercentData.from_entity(figures),
         )
 
@@ -114,7 +114,7 @@ class LocationInventoryValueData(CamelModel):
     location_id: UUID
     location_name: str | None
     quantity: int
-    value: list[CurrencySubtotalData]
+    value: list[MoneyData]
 
     @classmethod
     def from_entity(cls, entry: LocationInventoryValue) -> LocationInventoryValueData:
@@ -122,7 +122,7 @@ class LocationInventoryValueData(CamelModel):
             location_id=entry.location_id,
             location_name=entry.location_name,
             quantity=entry.quantity,
-            value=CurrencySubtotalData.from_entity(entry.value.as_dict()),
+            value=MoneyData.from_entity(entry.value.as_dict()),
         )
 
 
@@ -130,25 +130,23 @@ class DebtMovementData(CamelModel):
     """Always som, and always store-wide — debt belongs to a customer, not
     a shelf, so a location-scoped report does not narrow it."""
 
-    opening_minor: int
-    booked_minor: int
-    collected_minor: int
-    voided_minor: int
+    opening: MoneyData
+    booked: MoneyData
+    collected: MoneyData
+    voided: MoneyData
     # Debt written off by confirmed customer returns (FR-4.9d).
-    relieved_minor: int
-    closing_minor: int
-    currency: Currency
+    relieved: MoneyData
+    closing: MoneyData
 
     @classmethod
     def from_entity(cls, debt: DebtMovement) -> DebtMovementData:
         return cls(
-            opening_minor=debt.opening.amount_minor,
-            booked_minor=debt.booked.amount_minor,
-            collected_minor=debt.collected.amount_minor,
-            voided_minor=debt.voided.amount_minor,
-            relieved_minor=debt.relieved.amount_minor,
-            closing_minor=debt.closing.amount_minor,
-            currency=debt.closing.currency,
+            opening=MoneyData.from_entity(debt.opening),
+            booked=MoneyData.from_entity(debt.booked),
+            collected=MoneyData.from_entity(debt.collected),
+            voided=MoneyData.from_entity(debt.voided),
+            relieved=MoneyData.from_entity(debt.relieved),
+            closing=MoneyData.from_entity(debt.closing),
         )
 
 
@@ -157,7 +155,7 @@ class FinancingSplitData(CamelModel):
     credit_company_id: UUID | None
     credit_company_name: str | None
     invoice_count: int
-    revenue: list[CurrencySubtotalData]
+    revenue: list[MoneyData]
 
     @classmethod
     def from_entity(cls, row: FinancingSplitRow) -> FinancingSplitData:
@@ -166,7 +164,7 @@ class FinancingSplitData(CamelModel):
             credit_company_id=row.credit_company_id,
             credit_company_name=row.credit_company_name,
             invoice_count=row.invoice_count,
-            revenue=CurrencySubtotalData.from_entity({row.revenue.currency: row.revenue}),
+            revenue=MoneyData.from_entity({row.revenue.currency: row.revenue}),
         )
 
 

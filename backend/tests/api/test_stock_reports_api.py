@@ -225,9 +225,9 @@ class TestAgeing:
         row = (await ageing(client, owner.auth, days=0))["data"][0]
 
         assert row["imei"] == PHONE_IMEI
-        assert row["acquisitionCostMinor"] == 38000
-        assert row["askingPriceMinor"] == 50000
-        assert row["impliedMarginMinor"] == 12000
+        assert row["acquisitionCost"]["minor"] == 38000
+        assert row["askingPrice"]["minor"] == 50000
+        assert row["impliedMargin"]["minor"] == 12000
         assert row["daysInStock"] == 0
 
     async def test_an_unpriced_handset_implies_no_margin(
@@ -240,7 +240,7 @@ class TestAgeing:
 
         assert row["askingPrice"] is None
         assert row["impliedMargin"] is None
-        assert row["acquisitionCostMinor"] == 38000
+        assert row["acquisitionCost"]["minor"] == 38000
 
     async def test_only_reductions_count_as_markdowns(self, client, settings, owner):
         """FR-9.4 counts how many times it was *marked down*. The first

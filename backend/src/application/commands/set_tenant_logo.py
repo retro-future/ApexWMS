@@ -50,7 +50,9 @@ class SetTenantLogoHandler(
         timezone = await self._settings.get_timezone()
         letterhead = await self._settings.get_letterhead()
         return ResultWithData[TenantSettingsData].succeed_with_data(
-            TenantSettingsData.from_entity(timezone, letterhead)
+            TenantSettingsData.from_entity(
+                timezone, letterhead, await self._settings.runs_till()
+            )
         )
 
     def _decode(self, content: str) -> TenantLogo:

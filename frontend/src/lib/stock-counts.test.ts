@@ -151,7 +151,7 @@ describe("surplusNeedingValue", () => {
       outcome: "unexpected",
       expected: false,
       isSurprise: true,
-      acquisitionCostMinor: null,
+      acquisitionCost: null,
     });
 
     expect(surplusNeedingValue(count({ units: [unpriced] }))).toEqual([unpriced]);
@@ -162,8 +162,7 @@ describe("surplusNeedingValue", () => {
       outcome: "unexpected",
       expected: false,
       isSurprise: true,
-      acquisitionCost: "300.00",
-      acquisitionCostMinor: 30000,
+      acquisitionCost: { minor: 30000, currency: "USD" },
     });
 
     expect(surplusNeedingValue(count({ units: [valued] }))).toEqual([]);

@@ -6,6 +6,7 @@ import {
   IconArrowBackUp,
   IconPackageImport,
   IconReceipt,
+  IconReceiptRefund,
   IconTag,
   IconTrashX,
 } from "@tabler/icons-react";
@@ -18,12 +19,13 @@ import { ErrorAlert } from "@/components/ErrorAlert";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { apiGet } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
-import type { Currency, DeviceTrace, TraceEvent, TraceEventKind } from "@/lib/types";
+import type { DeviceTrace, TraceEvent, TraceEventKind } from "@/lib/types";
 
 const ICONS: Record<TraceEventKind, React.ElementType> = {
   received: IconPackageImport,
   priced: IconTag,
   sold: IconReceipt,
+  returned_by_customer: IconReceiptRefund,
   returned_to_supplier: IconArrowBackUp,
   written_off: IconTrashX,
   count_adjustment: IconAdjustments,
@@ -64,7 +66,7 @@ export function DeviceTraceTimeline({ deviceUnitId }: { deviceUnitId: string }) 
     );
   }
 
-  const { unit, events } = query.data;
+  const { events } = query.data;
 
   if (events.length === 0) {
     return (
@@ -84,7 +86,7 @@ export function DeviceTraceTimeline({ deviceUnitId }: { deviceUnitId: string }) 
             bullet={<Icon size={14} stroke={1.5} />}
             title={t(`traceKind.${event.kind}`)}
           >
-            <TraceEventBody event={event} currency={unit.currency} />
+            <TraceEventBody event={event} />
           </Timeline.Item>
         );
       })}
@@ -94,10 +96,8 @@ export function DeviceTraceTimeline({ deviceUnitId }: { deviceUnitId: string }) 
 
 function TraceEventBody({
   event,
-  currency,
 }: {
   event: TraceEvent;
-  currency: Currency;
 }) {
   const t = useTranslations("reports");
   const tUnits = useTranslations("deviceUnits");
@@ -139,15 +139,15 @@ function TraceEventBody({
         </Text>
       )}
 
-      {event.kind === "priced" && event.newPriceMinor !== null && (
+      {event.kind === "priced" && event.newPrice !== null && (
         <Text size="sm">
-          {event.oldPriceMinor === null
+          {event.oldPrice === null
             ? tUnits("priceFirst", {
-                price: formatMoney(event.newPriceMinor, currency),
+                price: formatMoney(event.newPrice),
               })
             : tUnits("priceChanged", {
-                oldPrice: formatMoney(event.oldPriceMinor, currency),
-                newPrice: formatMoney(event.newPriceMinor, currency),
+                oldPrice: formatMoney(event.oldPrice),
+                newPrice: formatMoney(event.newPrice),
               })}
         </Text>
       )}
@@ -166,9 +166,9 @@ function TraceEventBody({
             <Text size="sm">
               {event.sale.customerName ?? t("walkIn")}
             </Text>
-            {event.sale.chargedPriceMinor !== null && (
+            {event.sale.chargedPrice !== null && (
               <Text size="sm" fw={600}>
-                {formatMoney(event.sale.chargedPriceMinor, currency)}
+                {formatMoney(event.sale.chargedPrice)}
               </Text>
             )}
           </Group>
@@ -179,10 +179,10 @@ function TraceEventBody({
               <Badge size="xs" variant="light" color="orange">
                 {t("overridden")}
               </Badge>
-              {event.sale.resolvedPriceMinor !== null && (
+              {event.sale.resolvedPrice !== null && (
                 <Text size="xs" c="dimmed">
                   {t("resolvedWas", {
-                    price: formatMoney(event.sale.resolvedPriceMinor, currency),
+                    price: formatMoney(event.sale.resolvedPrice),
                   })}
                 </Text>
               )}

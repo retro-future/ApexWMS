@@ -103,7 +103,7 @@ class TestPricingOneHandset:
         rows = await history(world, unit)
         assert len(rows) == 1
         assert rows[0].old_price is None
-        assert rows[0].new_price_minor == 42_000
+        assert rows[0].new_price.minor == 42_000
 
     async def test_two_cuts_leave_three_rows_and_the_latest_price(self):
         """FR-2.15's stated test: price at intake, cut twice, and the unit
@@ -115,9 +115,12 @@ class TestPricingOneHandset:
         await reprice(world, unit, "390")
         result = await reprice(world, unit, "360")
 
-        assert result.data.asking_price == Money.from_major("360", Currency.USD).as_major()
+        assert result.data.asking_price.minor == Money.from_major("360", Currency.USD).amount_minor
         rows = await history(world, unit)
-        assert [(r.old_price_minor, r.new_price_minor) for r in rows] == [
+        assert [
+            (None if r.old_price is None else r.old_price.minor, r.new_price.minor)
+            for r in rows
+        ] == [
             (None, 42_000),
             (42_000, 39_000),
             (39_000, 36_000),
@@ -322,7 +325,7 @@ class TestCondition:
         before = await world.get_device_unit().handle(
             GetDeviceUnitQuery(device_unit_id=unit.id)
         )
-        assert before.data.resolved_price_minor == 90_000
+        assert before.data.resolved_price.minor == 90_000
 
         await world.change_device_unit_condition().handle(
             ChangeDeviceUnitConditionCommand(
@@ -369,7 +372,6 @@ class TestCostVisibility:
         )
 
         assert result.data.acquisition_cost is None
-        assert result.data.acquisition_cost_minor is None
         assert result.data.cash_paid is None
 
     async def test_a_manager_sees_cost_and_what_was_actually_paid(self):
@@ -388,7 +390,7 @@ class TestCostVisibility:
             GetDeviceUnitQuery(device_unit_id=unit.id)
         )
 
-        assert result.data.acquisition_cost_minor == 33_000
+        assert result.data.acquisition_cost.minor == 33_000
         assert result.data.cash_paid == "4 200 000 so'm"
 
     async def test_the_resolved_price_is_visible_to_everyone(self):
@@ -402,5 +404,5 @@ class TestCostVisibility:
             GetDeviceUnitQuery(device_unit_id=unit.id)
         )
 
-        assert result.data.resolved_price_minor == 42_000
+        assert result.data.resolved_price.minor == 42_000
         assert result.data.acquisition_cost is None

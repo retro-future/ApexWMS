@@ -35,13 +35,23 @@ from infrastructure.persistence.tenant.models import (
     EmployeeModel,
 )
 
-_OF_MOVEMENT = {
+# Exhaustive by assertion, not by hope: a new ``MovementType`` that nobody
+# maps here would otherwise take out the whole timeline of every handset it
+# touched, and only at read time. M6 added ``CUSTOMER_RETURN`` and this table
+# did not follow.
+_OF_MOVEMENT: dict[MovementType, TraceEventKind] = {
     MovementType.RECEIPT: TraceEventKind.RECEIVED,
     MovementType.SALE: TraceEventKind.SOLD,
+    MovementType.CUSTOMER_RETURN: TraceEventKind.RETURNED_BY_CUSTOMER,
     MovementType.SUPPLIER_RETURN: TraceEventKind.RETURNED_TO_SUPPLIER,
     MovementType.WRITE_OFF: TraceEventKind.WRITTEN_OFF,
     MovementType.COUNT_ADJUSTMENT: TraceEventKind.COUNT_ADJUSTMENT,
 }
+
+assert set(_OF_MOVEMENT) == set(MovementType), (
+    "every MovementType needs a TraceEventKind: "
+    f"{set(MovementType) - set(_OF_MOVEMENT)} unmapped"
+)
 
 
 class UnitTraceAssembler:

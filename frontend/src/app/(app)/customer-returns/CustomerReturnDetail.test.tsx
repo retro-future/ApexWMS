@@ -33,7 +33,7 @@ function customerReturn(
     customerId: "customer-1",
     locationId: "location-1",
     reason: "defective",
-    debtReliefMinor: null,
+    debtRelief: null,
     note: null,
     createdBy: "user-1",
     createdAt: "2026-08-19T09:00:00Z",
@@ -51,16 +51,15 @@ function customerReturn(
         soldQuantity: 1,
         currency: "USD",
         trackingType: "serial",
-        chargedPriceMinor: 90000,
-        refundPriceMinor: 90000,
-        refundPrice: "900.00",
-        lineTotalMinor: 90000,
+        chargedPrice: { minor: 90000, currency: "USD" },
+        refundPrice: { minor: 90000, currency: "USD" },
+        lineTotal: { minor: 90000, currency: "USD" },
         isReduced: false,
         refundApprovedBy: null,
         refundNote: null,
       },
     ],
-    subtotals: [{ currency: "USD", amount: "900.00", amountMinor: 90000 }],
+    subtotals: [{ currency: "USD", minor: 90000 }],
     lineCount: 1,
     ...overrides,
   };
@@ -110,15 +109,14 @@ describe("the refund is visible beside what was charged", () => {
         lines: [
           {
             ...customerReturn("draft").lines[0],
-            refundPriceMinor: 81000,
-            refundPrice: "810.00",
-            lineTotalMinor: 81000,
+            refundPrice: { minor: 81000, currency: "USD" },
+            lineTotal: { minor: 81000, currency: "USD" },
             isReduced: true,
             refundApprovedBy: "user-1",
             refundNote: "opened box",
           },
         ],
-        subtotals: [{ currency: "USD", amount: "810.00", amountMinor: 81000 }],
+        subtotals: [{ currency: "USD", minor: 81000 }],
       }),
     );
 
@@ -160,7 +158,7 @@ describe("gating on permissions rather than roles", () => {
 
 describe("relieved debt", () => {
   it("says so on a return that wrote some off", async () => {
-    render(customerReturn("confirmed", { debtReliefMinor: 7_000_000 }));
+    render(customerReturn("confirmed", { debtRelief: { minor: 7000000, currency: "UZS" } }));
 
     await screen.findByText("CR-2026-0001");
     expect(

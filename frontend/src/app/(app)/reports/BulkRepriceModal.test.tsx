@@ -33,7 +33,6 @@ function unit(id: string, imei: string): DeviceUnit {
     currency: "USD",
     askingPrice: null,
     resolvedPrice: null,
-    resolvedPriceMinor: null,
     createdAt: "2026-01-04T09:00:00Z",
   };
 }

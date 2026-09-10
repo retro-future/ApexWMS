@@ -85,13 +85,13 @@ class TestADiscountIsReportedWithItsApprover:
         assert body["totalItems"] == 1
         row = body["data"][0]
         assert row["invoiceId"] == invoice_id
-        assert row["resolvedPriceMinor"] == 52000
-        assert row["chargedPriceMinor"] == 30000
-        assert row["differenceMinor"] == -22000
+        assert row["resolvedPrice"]["minor"] == 52000
+        assert row["chargedPrice"]["minor"] == 30000
+        assert row["difference"]["minor"] == -22000
         assert row["priceApprovedBy"] == owner.user_id
         assert row["priceNote"] == "haggled hard"
         assert row["imei"] == PHONE_IMEI
-        assert row["currency"] == "USD"
+        assert row["chargedPrice"]["currency"] == "USD"
 
 
 class TestASaleAboveTheAskingPriceIsReportedToo:
@@ -105,7 +105,7 @@ class TestASaleAboveTheAskingPriceIsReportedToo:
         body = await deviations(client, owner.auth)
 
         assert body["totalItems"] == 1
-        assert body["data"][0]["differenceMinor"] == 8000
+        assert body["data"][0]["difference"]["minor"] == 8000
 
 
 class TestALineChargedWhatWasResolvedIsNotADeviation:

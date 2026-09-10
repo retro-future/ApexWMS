@@ -62,7 +62,7 @@ export function MonthEndDebtAndFinancing({
                   </Table.Td>
                   <Table.Td ta="right">
                     <Text size="sm" fw={strong ? 600 : undefined}>
-                      {formatMoney(report.debt[field], report.debt.currency)}
+                      {formatMoney(report.debt[field])}
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -118,15 +118,15 @@ export function MonthEndDebtAndFinancing({
 /** In movement order, closing last — the line the other four have to reach. */
 const DEBT_LINES: readonly {
   key: string;
-  field: keyof Omit<DebtMovement, "currency">;
+  field: keyof DebtMovement;
   strong: boolean;
 }[] = [
-  { key: "debtOpening", field: "openingMinor", strong: false },
-  { key: "debtBooked", field: "bookedMinor", strong: false },
-  { key: "debtCollected", field: "collectedMinor", strong: false },
-  { key: "debtVoided", field: "voidedMinor", strong: false },
-  { key: "debtRelieved", field: "relievedMinor", strong: false },
-  { key: "debtClosing", field: "closingMinor", strong: true },
+  { key: "debtOpening", field: "opening", strong: false },
+  { key: "debtBooked", field: "booked", strong: false },
+  { key: "debtCollected", field: "collected", strong: false },
+  { key: "debtVoided", field: "voided", strong: false },
+  { key: "debtRelieved", field: "relieved", strong: false },
+  { key: "debtClosing", field: "closing", strong: true },
 ];
 
 /**
@@ -134,19 +134,19 @@ const DEBT_LINES: readonly {
  * closing are balances rolled from the ledger, not a list.
  */
 function debtLineHref(
-  field: keyof Omit<DebtMovement, "currency">,
+  field: keyof DebtMovement,
   period: Period,
 ): string | undefined {
   switch (field) {
-    case "bookedMinor":
+    case "booked":
       return invoicesHref({
         paymentType: "store_credit",
         status: "confirmed",
         period,
       });
-    case "collectedMinor":
+    case "collected":
       return ledgerHref("payment_received", period);
-    case "voidedMinor":
+    case "voided":
       return invoicesHref({
         paymentType: "store_credit",
         status: "cancelled",

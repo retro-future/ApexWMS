@@ -18,6 +18,12 @@ Three things happen per scanned handset, in this order and for a reason:
    being seeded behind the log's back.
 3. Both ledgers are written by ``LedgerPoster``, together or not at all.
 
+A store that balances a drawer also books what it physically handed the
+walk-in (``TENDER_PAID``), which is money out of the till and nothing to do
+with the ``PURCHASE`` beside it: the purchase is what the handset is worth
+in the product's currency, the tender is the som that left the box. Without
+the till the som stays the inert note FR-3.4c made it.
+
 Nothing here commits. The handler owns the transaction, so a duplicate
 IMEI found on the tenth phone rolls back the nine before it.
 """
@@ -27,7 +33,7 @@ from datetime import datetime
 from application.common.repository import TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import DuplicateImeiError
-from application.ports import Clock
+from application.ports import Clock, TenantSettingsRepository
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.ledger import LedgerPoster
 from application.specs import DeviceUnitByImei
@@ -44,11 +50,13 @@ class ReceiptPoster:
         repricer: DeviceUnitRepricer,
         poster: LedgerPoster,
         clock: Clock,
+        settings: TenantSettingsRepository,
     ) -> None:
         self._units = units
         self._repricer = repricer
         self._poster = poster
         self._clock = clock
+        self._settings = settings
 
     async def receive(self, receipt: GoodsReceipt) -> None:
         now = self._clock.now()
@@ -73,12 +81,36 @@ class ReceiptPoster:
             )
         )
 
+        await self._pay_out(receipt)
+
         # After the movement, not before it. A handset is received and then
         # priced, and FR-9.2's timeline is ordered by these very stamps —
         # pricing first would show it priced before it arrived.
         for unit, asking in to_price:
             await self._repricer.set_price(unit, asking, "priced at intake")
             await self._units.update(unit)
+
+    async def _pay_out(self, receipt: GoodsReceipt) -> None:
+        """Cash handed to a walk-in, when the store runs a till (§4.5b)."""
+        if not await self._settings.runs_till():
+            return
+        effects = [
+            MoneyEffect(
+                TransactionType.TENDER_PAID,
+                -Money(scanned.cash_paid_minor, scanned.cash_paid_currency),
+            )
+            for scanned in receipt.units()
+            if scanned.cash_paid_minor is not None
+            and scanned.cash_paid_currency is not None
+        ]
+        if not effects:
+            return
+        await self._poster.post_money(
+            DocumentType.GOODS_RECEIPT,
+            receipt.id,
+            effects,
+            location_id=receipt.location_id,
+        )
 
     async def _create_unit(
         self,

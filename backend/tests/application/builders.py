@@ -497,7 +497,11 @@ class World:
 
     def receipt_poster(self, actor: UUID | None = None) -> ReceiptPoster:
         return ReceiptPoster(
-            self.units, self.unit_repricer(actor), self.poster(actor), self.clock
+            self.units,
+            self.unit_repricer(actor),
+            self.poster(actor),
+            self.clock,
+            self.tenant_settings,
         )
 
     def create_purchase_order(self, actor: UUID | None = None) -> CreatePurchaseOrderHandler:
@@ -808,6 +812,7 @@ class World:
             self.poster(actor),
             self.clock,
             self._as(actor),
+            self.tenant_settings,
         )
 
     def create_credit_company(self) -> CreateCreditCompanyHandler:

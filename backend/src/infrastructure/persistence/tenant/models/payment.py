@@ -15,9 +15,10 @@ class PaymentModel(TenantBase):
     ``reverses_payment_id``. That column is unique, which is what stops a
     payment being reversed twice.
 
-    No ``currency`` column, unlike ``financial_transactions``: every
-    customer debt in the system is som (§4.7), so there is nothing here that
-    could be denominated otherwise.
+    Carries its own currency because two different things land here: money
+    against a store-credit debt, which is always som (§4.7), and what was
+    physically handed over on a sale settled at confirm, which is in
+    whatever currency the customer paid.
     """
 
     __tablename__ = "payments"
@@ -29,6 +30,7 @@ class PaymentModel(TenantBase):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     # Signed: the direction is the sign, as it is in the money ledger.
     amount_minor: Mapped[int] = mapped_column(BigInteger)
+    currency: Mapped[str] = mapped_column(String(3))
     method: Mapped[str] = mapped_column(String(20))
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"))
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)

@@ -65,6 +65,11 @@ class ConfirmSalesInvoiceCommandPayload(CamelModel):
     # Som, as a major-unit string or int — never a JSON float (§4.5).
     debt: str | int | None = None
     down_payment: str | int | None = None
+    # What the customer physically handed over on a sale that opens no debt.
+    # Optional: a store that does not run a till states nothing and the sale
+    # confirms exactly as it did before.
+    tendered: str | int | None = None
+    tendered_currency: Currency = Currency.UZS
     payment_method: PaymentMethod = PaymentMethod.CASH
 
 
@@ -120,7 +125,7 @@ class ConfirmSalesInvoiceHandler(
         # cost going in", the same basis the goods-receipt warning uses.
         alerts = await self._checker.alerts_for_invoice(invoice)
         await self._poster.sell(invoice)
-        await self._take_down_payment(invoice, request)
+        await self._take_money(invoice, request)
         await self._invoices.update(invoice, spec)
         await self._uow.commit()
 
@@ -165,12 +170,18 @@ class ConfirmSalesInvoiceHandler(
                 f"{company.name} is no longer a financing partner of this store"
             )
 
-    async def _take_down_payment(
+    async def _take_money(
         self, invoice: SalesInvoice, request: ConfirmSalesInvoiceCommand
     ) -> None:
-        down = self._prices.parse(request.down_payment, Currency.UZS)
-        if down is None or down.is_zero:
+        """The down payment on a credit sale, or the tender on any other."""
+        if invoice.payment_type.opens_debt:
+            amount = self._prices.parse(request.down_payment, Currency.UZS)
+            note = "down payment"
+        else:
+            amount = self._prices.parse(request.tendered, request.tendered_currency)
+            note = "tendered"
+        if amount is None or amount.is_zero:
             return
         await self._payment_poster.receive(
-            invoice, down, request.payment_method, "down payment"
+            invoice, amount, request.payment_method, note
         )

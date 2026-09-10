@@ -60,7 +60,7 @@ export function AddAccessoryLine({
         onAdded(result);
         setAccepted(
           t("accepted", {
-            price: formatMoney(result.resolvedPriceMinor, result.line.currency),
+            price: formatMoney(result.resolvedPrice),
             count: result.lineCount,
           }),
         );

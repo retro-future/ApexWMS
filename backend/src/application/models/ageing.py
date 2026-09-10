@@ -9,13 +9,12 @@ see money: *this handset has been cut twice and is still here.*
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import AgeingRow
+from application.models.money import MoneyData
 from domain.enums import DeviceCondition
-from domain.value_objects import Currency
 
 
 class AgeingRowData(CamelModel):
@@ -30,15 +29,11 @@ class AgeingRowData(CamelModel):
     location_name: str | None
     since: datetime
     days_in_stock: int
-    currency: Currency
-    asking_price: Decimal | None
-    asking_price_minor: int | None
+    asking_price: MoneyData | None
     markdown_count: int
     # --- Permission.Cost.View only (FR-1.7) ---
-    acquisition_cost: Decimal | None = None
-    acquisition_cost_minor: int | None = None
-    implied_margin: Decimal | None = None
-    implied_margin_minor: int | None = None
+    acquisition_cost: MoneyData | None = None
+    implied_margin: MoneyData | None = None
 
     @classmethod
     def from_entity(
@@ -56,21 +51,14 @@ class AgeingRowData(CamelModel):
             location_name=row.location_name,
             since=row.created_at,
             days_in_stock=(now - row.created_at).days,
-            currency=row.acquisition_cost.currency,
-            asking_price=row.asking_price.as_major() if row.asking_price else None,
-            asking_price_minor=(
-                row.asking_price.amount_minor if row.asking_price else None
-            ),
+            asking_price=MoneyData.from_entity(row.asking_price),
             markdown_count=row.markdown_count,
         )
         if not show_cost:
             return data
-        margin = row.implied_margin
         return data.model_copy(
             update={
-                "acquisition_cost": row.acquisition_cost.as_major(),
-                "acquisition_cost_minor": row.acquisition_cost.amount_minor,
-                "implied_margin": margin.as_major() if margin else None,
-                "implied_margin_minor": margin.amount_minor if margin else None,
+                "acquisition_cost": MoneyData.from_entity(row.acquisition_cost),
+                "implied_margin": MoneyData.from_entity(row.implied_margin),
             }
         )

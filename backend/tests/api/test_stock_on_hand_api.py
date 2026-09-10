@@ -94,7 +94,7 @@ async def on_hand(client, auth, **params):
 
 
 def subtotals(row):
-    return {one["currency"]: one["amountMinor"] for one in row["costValue"]}
+    return {one["currency"]: one["minor"] for one in row["costValue"]}
 
 
 async def a_phone_on_the_shelf(client, owner, ids):

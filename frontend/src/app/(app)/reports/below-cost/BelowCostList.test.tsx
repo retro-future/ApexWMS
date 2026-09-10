@@ -20,13 +20,9 @@ const row: BelowCostRow = {
   locationId: "location-1",
   locationName: "Chilonzor shop",
   quantity: 12,
-  currency: "USD",
-  catalogPrice: "10.00",
-  catalogPriceMinor: 1000,
-  averageUnitCost: "10.50",
-  averageUnitCostMinor: 1050,
-  shortfall: "0.50",
-  shortfallMinor: 50,
+  catalogPrice: { minor: 1000, currency: "USD" },
+  averageUnitCost: { minor: 1050, currency: "USD" },
+  shortfall: { minor: 50, currency: "USD" },
 };
 
 function render() {

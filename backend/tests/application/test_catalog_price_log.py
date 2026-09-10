@@ -57,7 +57,7 @@ class TestTheLogStartsWithTheFirstPrice:
         rows = await history(world, result.data.id)
         assert len(rows) == 1
         assert rows[0].old_price is None
-        assert rows[0].new_price_minor == 90_000
+        assert rows[0].new_price.minor == 90_000
 
     async def test_a_product_created_without_a_price_has_an_empty_log(self):
         """FR-2.12: a SERIAL product with no catalog price is valid — its
@@ -88,9 +88,12 @@ class TestRepricing:
         await reprice(world, product.id, "850")
         result = await reprice(world, product.id, "780")
 
-        assert result.data.default_sale_price_minor == 78_000
+        assert result.data.default_sale_price.minor == 78_000
         rows = await history(world, product.id)
-        assert [(r.old_price_minor, r.new_price_minor) for r in rows] == [
+        assert [
+            (None if r.old_price is None else r.old_price.minor, r.new_price.minor)
+            for r in rows
+        ] == [
             (None, 90_000),
             (90_000, 85_000),
             (85_000, 78_000),
@@ -104,7 +107,7 @@ class TestRepricing:
 
         latest = await world.price_changes.find_one(LatestPriceChangeForProduct(product.id))
         assert latest is not None
-        assert latest.new_price.amount_minor == result.data.default_sale_price_minor
+        assert latest.new_price.amount_minor == result.data.default_sale_price.minor
 
     async def test_a_product_that_had_no_price_can_be_given_one(self):
         """FR-2.19 — "including being set on a product that had none"."""
@@ -113,7 +116,7 @@ class TestRepricing:
 
         result = await reprice(world, product.id, "780")
 
-        assert result.data.default_sale_price_minor == 78_000
+        assert result.data.default_sale_price.minor == 78_000
         rows = await history(world, product.id)
         assert len(rows) == 1 and rows[0].old_price is None
 
@@ -155,7 +158,7 @@ class TestRepricing:
             UpdateProductCommand(product_id=product.id, name="iPhone 15 Pro (256GB)")
         )
 
-        assert result.data.default_sale_price_minor == 90_000
+        assert result.data.default_sale_price.minor == 90_000
         assert len(await history(world, product.id)) == 1
 
 
@@ -235,7 +238,7 @@ class TestReadingTheHistory:
 
         rows = await history(world, product.id)
 
-        assert [r.new_price_minor for r in rows] == [90_000, 85_000, 78_000]
+        assert [r.new_price.minor for r in rows] == [90_000, 85_000, 78_000]
 
     async def test_one_products_history_never_contains_another_s(self):
         world = make_world()
@@ -252,6 +255,6 @@ class TestReadingTheHistory:
 
         rows = await history(world, case.id)
 
-        assert [r.new_price_minor for r in rows] == [50_000]
-        assert rows[0].currency is Currency.UZS
-        assert (await history(world, phone.id))[0].currency is Currency.USD
+        assert [r.new_price.minor for r in rows] == [50_000]
+        assert rows[0].new_price.currency is Currency.UZS
+        assert (await history(world, phone.id))[0].new_price.currency is Currency.USD

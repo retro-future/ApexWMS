@@ -171,7 +171,7 @@ export function InvoicesList() {
                 in full by the company at confirm (FR-11.4). */}
             {invoice.paymentType === "store_credit" ? (
               <Text size="sm" fw={isOpenDebt(invoice) ? 600 : undefined}>
-                {formatMoney(invoice.remainingMinor, "UZS")}
+                {formatMoney(invoice.remaining)}
               </Text>
             ) : (
               <Text size="sm" c="dimmed">

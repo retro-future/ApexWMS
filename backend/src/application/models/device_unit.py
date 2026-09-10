@@ -15,10 +15,10 @@ rather than reporting zero or the catalog price.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
+from application.models.money import MoneyData
 from domain.entities import DeviceUnit, Product
 from domain.enums import DeviceCondition, DeviceStatus
 from domain.services import PriceResolver
@@ -40,13 +40,11 @@ class DeviceUnitData(CamelModel):
     # The resolved price (FR-2.14), or None where the rule refuses. A
     # Seller reads this; ``resolvedPrice is None`` is the counter's cue
     # that an Owner or Manager has to price the handset first.
-    asking_price: Decimal | None
-    resolved_price: Decimal | None
-    resolved_price_minor: int | None
+    asking_price: MoneyData | None
+    resolved_price: MoneyData | None
     created_at: datetime
     # --- Permission.Cost.View only (FR-1.7) ---
-    acquisition_cost: Decimal | None = None
-    acquisition_cost_minor: int | None = None
+    acquisition_cost: MoneyData | None = None
     # "paid 4 200 000 so'm · booked at $330" — a string, never a number,
     # so no caller can add it to anything (§4.5b, FR-3.4d).
     cash_paid: str | None = None
@@ -68,17 +66,15 @@ class DeviceUnitData(CamelModel):
             condition=unit.condition,
             location_id=unit.location_id,
             currency=unit.currency,
-            asking_price=unit.asking_price.as_major() if unit.asking_price else None,
-            resolved_price=resolved.as_major() if resolved else None,
-            resolved_price_minor=resolved.amount_minor if resolved else None,
+            asking_price=MoneyData.from_entity(unit.asking_price),
+            resolved_price=MoneyData.from_entity(resolved),
             created_at=unit.created_at,
         )
         if not show_cost:
             return data
         return data.model_copy(
             update={
-                "acquisition_cost": unit.acquisition_cost.as_major(),
-                "acquisition_cost_minor": unit.acquisition_cost.amount_minor,
+                "acquisition_cost": MoneyData.from_entity(unit.acquisition_cost),
                 "cash_paid": unit.cash_paid_display(),
             }
         )

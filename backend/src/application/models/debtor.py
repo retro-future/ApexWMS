@@ -9,19 +9,18 @@ what surfaces a debt that has been sitting for a year.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import DebtorSummary
+from application.models.money import MoneyData
 
 
 class DebtorData(CamelModel):
     customer_id: UUID
     full_name: str
     phone: str | None
-    balance: Decimal
-    balance_minor: int
+    balance: MoneyData
     oldest_open_at: datetime
     days_since_oldest: int
     open_invoice_count: int
@@ -32,8 +31,7 @@ class DebtorData(CamelModel):
             customer_id=debtor.customer_id,
             full_name=debtor.full_name,
             phone=debtor.phone,
-            balance=debtor.balance.as_major(),
-            balance_minor=debtor.balance.amount_minor,
+            balance=MoneyData.from_entity(debtor.balance),
             oldest_open_at=debtor.oldest_open_at,
             days_since_oldest=(now - debtor.oldest_open_at).days,
             open_invoice_count=debtor.open_invoice_count,

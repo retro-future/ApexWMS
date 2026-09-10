@@ -151,9 +151,9 @@ class TestTheStoreCreditDemo:
         )
 
         assert sale["paymentType"] == "store_credit"
-        assert sale["debtMinor"] == 7_800_000
-        assert sale["paidMinor"] == 800_000
-        assert sale["remainingMinor"] == 7_000_000
+        assert sale["debt"]["minor"] == 7_800_000
+        assert sale["paid"]["minor"] == 800_000
+        assert sale["remaining"]["minor"] == 7_000_000
         assert len(sale["payments"]) == 1
 
     async def test_revenue_is_still_booked_in_dollars(self, client, settings, owner):
@@ -167,7 +167,7 @@ class TestTheStoreCreditDemo:
         )
 
         assert sale["subtotals"] == [
-            {"currency": "USD", "amount": "600.00", "amountMinor": 60000}
+            {"currency": "USD", "minor": 60000}
         ]
 
     async def test_two_payments_bring_the_balance_down(self, client, settings, owner):
@@ -190,7 +190,7 @@ class TestTheStoreCreditDemo:
             )
             assert paid.status_code == 201, paid.text
 
-        assert paid.json()["data"]["remainingMinor"] == 2_000_000
+        assert paid.json()["data"]["remaining"]["minor"] == 2_000_000
 
     async def test_the_customer_account_shows_what_is_left_and_how_old(
         self, client, settings, owner
@@ -212,7 +212,7 @@ class TestTheStoreCreditDemo:
 
         assert account.status_code == 200, account.text
         data = account.json()["data"]
-        assert data["balanceMinor"] == 7_000_000
+        assert data["balance"]["minor"] == 7_000_000
         assert data["openDebts"][0]["daysSinceSale"] == 0
         assert data["financedSales"] == []
 
@@ -232,7 +232,7 @@ class TestTheStoreCreditDemo:
 
         assert listed.status_code == 200, listed.text
         rows = listed.json()["data"]
-        assert [(r["fullName"], r["balanceMinor"]) for r in rows] == [
+        assert [(r["fullName"], r["balance"]["minor"]) for r in rows] == [
             ("Aziz Karimov", 7_000_000)
         ]
 
@@ -264,7 +264,7 @@ class TestTheStoreCreditDemo:
 
         listed = await client.get("/api/v1/reports/debtors", headers=owner.auth)
 
-        assert [r["balanceMinor"] for r in listed.json()["data"]] == [4_000_000]
+        assert [r["balance"]["minor"] for r in listed.json()["data"]] == [4_000_000]
 
     async def test_a_debt_paid_off_leaves_the_list(self, client, settings, owner):
         customer_id = await a_customer(client, owner)
@@ -308,7 +308,7 @@ class TestTheStoreCreditDemo:
         listed = await client.get("/api/v1/reports/debtors", headers=owner.auth)
 
         rows = listed.json()["data"]
-        assert [(r["balanceMinor"], r["openInvoiceCount"]) for r in rows] == [
+        assert [(r["balance"]["minor"], r["openInvoiceCount"]) for r in rows] == [
             (7_200_000, 1)
         ]
 
@@ -347,8 +347,8 @@ class TestTheCreditCompanyDemo:
             contractRef="UZ-99417",
         )
 
-        assert sale["debtMinor"] is None
-        assert sale["remainingMinor"] == 0
+        assert sale["debt"] is None
+        assert sale["remaining"]["minor"] == 0
         assert sale["payments"] == []
 
     async def test_the_customer_balance_stays_zero_and_the_sale_is_labelled(
@@ -373,7 +373,7 @@ class TestTheCreditCompanyDemo:
         )
 
         data = account.json()["data"]
-        assert data["balanceMinor"] == 0
+        assert data["balance"]["minor"] == 0
         assert data["openDebts"] == []
         assert data["financedSales"][0]["creditCompanyId"] == company_id
         assert data["financedSales"][0]["contractRef"] == "UZ-99417"
@@ -463,8 +463,8 @@ class TestReversingAPayment:
 
         assert reversed_sale.status_code == 200, reversed_sale.text
         data = reversed_sale.json()["data"]
-        assert data["remainingMinor"] == 7_800_000
-        assert [p["amountMinor"] for p in data["payments"]] == [800_000, -800_000]
+        assert data["remaining"]["minor"] == 7_800_000
+        assert [p["amount"]["minor"] for p in data["payments"]] == [800_000, -800_000]
 
     async def test_reversing_twice_is_a_conflict(self, client, settings, owner):
         customer_id = await a_customer(client, owner)
@@ -537,8 +537,8 @@ class TestCancellingAStoreCreditSale:
 
         assert cancelled.status_code == 200, cancelled.text
         data = cancelled.json()["data"]
-        assert data["remainingMinor"] == 0
-        assert data["paidMinor"] == 800_000
+        assert data["remaining"]["minor"] == 0
+        assert data["paid"]["minor"] == 800_000
 
     async def test_the_customer_owes_nothing_afterwards(self, client, settings, owner):
         customer_id = await a_customer(client, owner)

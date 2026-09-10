@@ -61,7 +61,7 @@ class TestTheLedgersReconcile:
         assert data["imei"] == PHONE_IMEI
         assert data["status"] == "in_stock"
         assert data["locationId"] == str(location_id)
-        assert data["acquisitionCost"] == "380.00"
+        assert data["acquisitionCost"] == {"minor": 38000, "currency": "USD"}
 
     async def test_a_som_paid_trade_in_books_dollars_and_shows_som(
         self, client, settings, owner
@@ -80,7 +80,7 @@ class TestTheLedgersReconcile:
         resp = await client.get(f"/api/v1/device-units/{unit_id}", headers=owner.auth)
 
         data = resp.json()["data"]
-        assert data["acquisitionCost"] == "330.00"
+        assert data["acquisitionCost"] == {"minor": 33000, "currency": "USD"}
         assert data["cashPaid"] == "4 200 000 so'm"
 
     async def test_the_som_figure_enters_no_financial_total(
@@ -139,7 +139,7 @@ class TestPricingAHandsetOverHttp:
         )
 
         assert priced.status_code == 200, priced.text
-        assert priced.json()["data"]["resolvedPrice"] == "500.00"
+        assert priced.json()["data"]["resolvedPrice"] == {"minor": 50000, "currency": "USD"}
 
     async def test_two_cuts_leave_three_rows_in_order(self, client, settings, owner):
         """FR-2.15's stated test over HTTP, and the ``user_id`` foreign key
@@ -159,9 +159,9 @@ class TestPricingAHandsetOverHttp:
         )
         rows = history.json()["data"]
         assert [(r["oldPrice"], r["newPrice"]) for r in rows] == [
-            (None, "420.00"),
-            ("420.00", "390.00"),
-            ("390.00", "360.00"),
+            (None, {"minor": 42000, "currency": "USD"}),
+            ({"minor": 42000, "currency": "USD"}, {"minor": 39000, "currency": "USD"}),
+            ({"minor": 39000, "currency": "USD"}, {"minor": 36000, "currency": "USD"}),
         ]
         assert {r["userId"] for r in rows} == {owner.user_id}
 
@@ -180,7 +180,7 @@ class TestPricingAHandsetOverHttp:
         )
 
         at_first = await client.get(f"/api/v1/device-units/{unit_id}", headers=owner.auth)
-        assert at_first.json()["data"]["resolvedPrice"] == "900.00"
+        assert at_first.json()["data"]["resolvedPrice"] == {"minor": 90000, "currency": "USD"}
 
         await client.patch(
             f"/api/v1/products/{product_id}",
@@ -189,7 +189,7 @@ class TestPricingAHandsetOverHttp:
         )
 
         after = await client.get(f"/api/v1/device-units/{unit_id}", headers=owner.auth)
-        assert after.json()["data"]["resolvedPrice"] == "780.00"
+        assert after.json()["data"]["resolvedPrice"] == {"minor": 78000, "currency": "USD"}
         # No row was written to the unit's own log — the price is resolved,
         # not stored twice.
         history = await client.get(
@@ -242,12 +242,12 @@ class TestPricingAHandsetOverHttp:
 
         assert resp.status_code == 200, resp.text
         assert resp.json()["data"] == 2
-        for unit_id, price in ((first, "400.00"), (second, "450.00")):
+        for unit_id, price in ((first, 40000), (second, 45000)):
             history = await client.get(
                 f"/api/v1/device-units/{unit_id}/price-history", headers=owner.auth
             )
             rows = history.json()["data"]
-            assert [r["newPrice"] for r in rows] == [price]
+            assert [r["newPrice"]["minor"] for r in rows] == [price]
             assert rows[0]["reason"] == "Ramadan clearance"
 
     async def test_an_unknown_handset_is_a_404(self, client, owner):

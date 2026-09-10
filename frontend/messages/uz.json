@@ -230,7 +230,9 @@
     "logoRemove": "O'chirish",
     "logoTooLarge": "Bu rasm 512 KB dan katta. Kichikrogini tanlang.",
     "logoWrongType": "Logotip PNG yoki JPEG bo'lishi kerak.",
-    "readOnly": "Ularni faqat do'kon egasi o'zgartira oladi."
+    "readOnly": "Ularni faqat do'kon egasi o'zgartira oladi.",
+    "runsTill": "Kassa yuritamiz",
+    "runsTillHint": "Haqiqatda qo'ldan qo'lga o'tgan pulni yozish: savdoda olingan va mijozdan sotib olingan telefon uchun berilgan. Har bir summa o'z valyutasida qoladi va boshqa hisobotga tushmaydi."
   },
   "errors": {
     "generic": "Nimadir noto'g'ri ketdi. Qaytadan urinib ko'ring.",
@@ -478,7 +480,8 @@
       "companyRequired": "Sotuvni moliyalashtiradigan kredit kompaniyasini tanlang.",
       "debtRequired": "Mijoz rozi bo'lgan qarz summasini so'mda kiriting.",
       "downPaymentTooLarge": "Boshlang'ich to'lov qarzdan katta.",
-      "overpayment": "Bu mijozning qolgan qarzidan ko'p."
+      "overpayment": "Bu mijozning qolgan qarzidan ko'p.",
+      "tenderMalformed": "Summani tanlangan valyutada kiriting."
     },
     "panelTitle": "To'lovlar",
     "panelHint": "Qarz — kelishilgan summa. To'langan va qolgan quyidagi to'lovlardan hisoblanadi.",
@@ -513,7 +516,14 @@
     "openDebtsHint": "Bu mijozga nasiyaga sotilgan har bir sotuv va ular bo'yicha qolgan summa.",
     "noOpenDebts": "Bu mijozga nasiyaga hech narsa sotilmagan.",
     "financedSales": "Kredit orqali sotilganlar",
-    "financedSalesHint": "Kredit kompaniyasi orqali sotilgan. Kompaniya do'konga to'liq to'lagan — mijoz bular bo'yicha do'konga qarzdor emas."
+    "financedSalesHint": "Kredit kompaniyasi orqali sotilgan. Kompaniya do'konga to'liq to'lagan — mijoz bular bo'yicha do'konga qarzdor emas.",
+    "tenderTitle": "Kassada olingan pul",
+    "tenderHint": "Mijoz qancha va qaysi valyutada bergani. Savdo summasi yonida yoziladi, unga hech qachon aylantirilmaydi.",
+    "recordTender": "To'lovni yozish",
+    "tendered": "Olingan",
+    "tenderAmountHint": "Haqiqatda qo'ldan qo'lga o'tgan summa.",
+    "tenderRecorded": "Yozildi",
+    "currency": "Valyuta"
   },
   "supplierReturns": {
     "title": "Yetkazib beruvchiga qaytarish",
@@ -859,7 +869,9 @@
       "supplier_return_credit": "Yetkazib beruvchiga qaytarish",
       "sales_return_refund": "Mijozga qaytarilgan pul",
       "count_adjustment": "Inventarizatsiya tuzatishi",
-      "payment_received": "Olingan to'lov"
+      "payment_received": "Olingan to'lov",
+      "tender_received": "Kassada olingan",
+      "tender_paid": "Kassadan berilgan"
     },
     "salesSummaryTitle": "Sotuv hisoboti",
     "salesSummarySubtitle": "Davr uchun har bir joy bo'yicha sotilgan dona, tushum, mijozlardan qaytarishlar, tannarx va marja. Barcha joylar ko'rsatiladi: bitta sahifaning jami do'konning jami emas.",
@@ -920,7 +932,8 @@
       "sold": "Sotildi",
       "returned_to_supplier": "Yetkazib beruvchiga qaytarildi",
       "written_off": "Hisobdan chiqarildi",
-      "count_adjustment": "Inventarizatsiyada topildi"
+      "count_adjustment": "Inventarizatsiyada topildi",
+      "returned_by_customer": "Mijoz qaytardi"
     },
     "receivedFrom": "{name} dan",
     "tradedInFrom": "{name} dan treyd-in orqali",

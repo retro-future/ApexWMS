@@ -1,8 +1,11 @@
 # ApexWMS — Product Requirements Document
 
 **Version:** 1.0 (MVP)
-**Status:** Draft for implementation
+**Status:** Delivered — M0 through M9 shipped (§10)
 **Last updated:** 2026-07-14
+
+> This document specifies the system as it is. Everything it defers is collected in
+> [prdv2.md](prdv2.md), which owns V2 scope, priority and open questions.
 
 ---
 
@@ -28,7 +31,7 @@ A phone store's inventory is not a pile of interchangeable units. Every handset 
 
 ### 1.3 Non-Goals (explicitly NOT in v1)
 
-Naming these is the point of this section. If a request falls in this list, it is a v2 conversation, not a scope adjustment.
+Naming these is the point of this section. If a request falls in this list, it is a v2 conversation, not a scope adjustment. Where each one landed is in [prdv2.md](prdv2.md) §2.
 
 | Not in v1 | Why / when |
 |---|---|
@@ -187,17 +190,7 @@ That reasoning was wrong, and the fix is the `Employee.id == User.id` mirror des
 
 **What this buys back.** FR-1.3 returns: one person, one login, several stores, switched with `X-Tenant` and authorized by `user_tenant_access`. Login gets simpler, not harder — no store handle in the login form.
 
-**Deliberately NOT built yet** — the groundwork is documented here so it isn't reinvented, but building it now would be premature:
-
-| Deferred to v2 | Why not now |
-|---|---|
-| **SuperAdmin admin portal** — a UI to create/edit tenants and change subscription plans. | The CLI covers every operation it would. A portal is a second frontend before the first one exists. |
-| **`/admin/*` HTTP API.** | Platform operators already exist as real accounts and can authenticate (their token simply carries no tenant claim), so no new auth realm is needed when the portal lands — only routes. Until then the CLI is the whole surface. |
-| **Billing / subscription metadata** — `Subscription`, `SubscriptionPlan`, `PlanFeature`, and the subscription check that would run right after tenant resolution. | Nothing reads it yet. It belongs in MasterDB when it arrives — an application-level concern, not a store's business data. |
-| **Per-store custom roles** — `TenantRole` as DB rows with free-form claims rather than a fixed enum. | §2.1 fixes the four roles, and the reference implementation this is ported from does not exercise dynamic roles either. `register_tenant_role()` is the seam; the schema change is additive when it is needed. |
-| **API keys, feature flags, impersonation** — the remaining master-side tables in the reference. | No ApexWMS feature reads any of them. |
-| **Welcome email** carrying the temporary password. | No transactional email infrastructure exists in the project. The flow (temp password + forced change) is built; only delivery is manual. |
-| **Server-side hard gate on `must_change_password`** — blocking every other endpoint until the password is changed. | The MVP surfaces the flag on login and `/auth/me` and provides the change endpoint. The exposure is a user who already knows their own temporary password. Worth tightening, not worth blocking M2 on. |
+**Deliberately NOT built in v1.** The admin portal, the `/admin/*` API, billing and subscription metadata, per-store custom roles, API keys, feature flags, impersonation, the welcome email and the server-side hard gate on `must_change_password` are all V2 — see [prdv2.md](prdv2.md) §1 (W1, W2) for what each one is and why it waited. Two seams matter here and are worth not reinventing: platform operators already authenticate as real accounts whose token carries no tenant claim, so the portal needs routes and not a new auth realm; and `register_tenant_role()` is where DB-driven tenant roles plug in, additively, whenever §2.1's fixed four stop being enough.
 
 ---
 
@@ -1122,6 +1115,14 @@ Each milestone is independently demoable.
 
 ## 11. Risks & Open Questions
 
+**Read this as a record, not a to-do list.** Every row below was either settled during
+v1 (the mitigation column says how, and that reasoning is why the code looks the way it
+does) or is a permanent operating property of db-per-tenant, documented alongside its
+mechanism in [architecture/multi-tenancy.md](architecture/multi-tenancy.md) and
+[architecture/ledgers.md](architecture/ledgers.md). Nothing here is still awaiting a
+decision: the handful of questions that genuinely stayed open moved to
+[prdv2.md](prdv2.md) §4, which is the only place to look for them.
+
 | Risk | Impact | Mitigation / decision needed |
 |---|---|---|
 | **Migration fan-out** across N tenant DBs | High, ongoing | Resumable, idempotent migration CLI with per-tenant version tracking from M1. This cost is permanent — it is the price of db-per-tenant. |
@@ -1150,9 +1151,18 @@ Each milestone is independently demoable.
 | **Store-credit debt has no due date** | Low, by design | An open balance can sit forever without ever being "late." Accepted — it matches how these debts actually work. The debtor list orders by age of oldest open invoice (FR-11.10), so stale debts surface anyway. If owners ask for due dates, that's a v2 field, not a redesign. |
 | **Credit company fails to pay immediately** | Low | The model assumes payment at sale time, per the owner. If a company ever pays late or partially, v1 has no way to represent it — the sale would simply be settled. Accepted; revisit only if it happens in practice (sales are labelled by company, so history is recoverable). |
 
-### Deferred to v2 (schema anticipates them)
-Inter-location transfers · reservations · low-stock alerts · domain events · barcode label printing · **a single combined cross-currency bottom line (would require an FX rate — deliberately absent in v1)** · stored month-end snapshots · external accounting export (1C/QuickBooks) · full double-entry chart of accounts · **due dates / overdue tracking on store credit · customer credit limits · installment schedules · credit-company payout & commission tracking** · supplier accounts-payable (store's debts to suppliers).
+### Deferred to v2
 
-**Pricing** (§4.5b decides where a price lives; these decide how one is *chosen*, which v1 leaves to the owner): **condition grades driving an automatic used price** (Grade A = 85% of new, …) · **depreciation curves or market price feeds** · **a floor/minimum price per unit** — only meaningful once Sellers can discount, which FR-4.5 does not allow · **scheduled or automatic markdowns** by age · **percentage- or formula-driven bulk markdowns** (FR-2.21 reprices many units in one call, but each unit's new price is stated — a single percentage across handsets in different conditions is the automated valuation §1.3 rejects, merely applied to several at once) · **lower-of-cost-or-market inventory write-downs** (v1 carries stock at cost, FR-2.17) · price lists per customer or channel · **any exchange rate, including one recorded on a som-paid trade-in** (§4.5b keeps the som figure inert precisely so that no rate is implied by dividing it into the booked cost).
+Everything this document defers — inter-location transfers, reservations, low-stock
+alerts, domain events, stored month-end snapshots, accounting export, supplier
+accounts-payable, due dates and credit limits on store credit, the whole pricing-automation
+family, and the tenancy and administration list from §3.5 — is collected, grouped and
+prioritised in [prdv2.md](prdv2.md). Its §2 maps each item to the workstream that picks it
+up, and its §3 names what is deliberately not planned at all.
 
-**Tenancy & administration** (see §3.5 for the reasoning behind each): a **SuperAdmin-only admin portal** for tenant management — create, edit, change subscription plan · an **`/admin/*` API** · **billing / subscription metadata** on the tenant registry · **per-store custom roles** (DB-driven `TenantRole` rather than the fixed enum) · **API keys, feature flags, impersonation** · **welcome email** delivering the Owner's temporary password · a **server-side hard gate on `must_change_password`**. Note what is *not* deferred — it shipped in M1: public sign-up is **removed**, tenants are **SuperAdmin-provisioned**, identity is **split** between MasterDB (`users`) and each store (`employees`), and authorization runs on a **permission catalog**.
+Two things are worth restating here rather than following a link. The schema already
+anticipates most of it: `Location` is on every movement, sales are labelled by credit
+company, and both price logs are append-only, so these land additively. And note what is
+*not* deferred — it shipped in M1: public sign-up is **removed**, tenants are
+**SuperAdmin-provisioned**, identity is **split** between MasterDB (`users`) and each
+store (`employees`), and authorization runs on a **permission catalog**.

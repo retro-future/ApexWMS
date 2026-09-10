@@ -23,8 +23,7 @@ function payment(id: string, amountMinor: number): Payment {
     id,
     salesInvoiceId: "invoice-1",
     occurredAt: "2026-08-19T09:30:00Z",
-    amount: String(amountMinor),
-    amountMinor,
+    amount: { minor: amountMinor, currency: "UZS" },
     method: "cash",
     userId: "user-1",
     note: null,
@@ -53,11 +52,11 @@ function sale(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     paymentType: "store_credit",
     creditCompanyId: null,
     contractRef: null,
-    debt: "7200000",
-    debtMinor: 7200000,
-    paidMinor: 200000,
-    relievedMinor: 0,
-    remainingMinor: 7000000,
+    debt: { minor: 7200000, currency: "UZS" },
+    paid: { minor: 200000, currency: "UZS" },
+    relieved: { minor: 0, currency: "UZS" },
+    remaining: { minor: 7000000, currency: "UZS" },
+    tendered: [{ minor: 200000, currency: "UZS" }],
     payments: [payment("a", 200000)],
     belowCostAlerts: [],
     ...overrides,
@@ -78,8 +77,8 @@ describe("CreditPanel", () => {
 
   it("stops offering it once the debt is paid off", () => {
     const settled = sale({
-      paidMinor: 7200000,
-      remainingMinor: 0,
+      paid: { minor: 7200000, currency: "UZS" },
+      remaining: { minor: 0, currency: "UZS" },
       payments: [payment("a", 200000), payment("b", 7000000)],
     });
 
@@ -92,7 +91,7 @@ describe("CreditPanel", () => {
   it("still lets a manager reverse a payment on a settled sale", () => {
     // Reversing reopens the debt, which is the point: FR-11.8 exists to
     // correct a payment that was typed wrong.
-    const settled = sale({ paidMinor: 7200000, remainingMinor: 0 });
+    const settled = sale({ paid: { minor: 7200000, currency: "UZS" }, remaining: { minor: 0, currency: "UZS" } });
 
     renderWithProviders(<CreditPanel invoice={settled} />, { me: MANAGER });
 
@@ -100,7 +99,7 @@ describe("CreditPanel", () => {
   });
 
   it("names the refund owed on a cancelled sale (FR-11.11)", () => {
-    const cancelled = sale({ status: "cancelled", remainingMinor: 0 });
+    const cancelled = sale({ status: "cancelled", remaining: { minor: 0, currency: "UZS" } });
 
     renderWithProviders(<CreditPanel invoice={cancelled} />, { me: MANAGER });
 

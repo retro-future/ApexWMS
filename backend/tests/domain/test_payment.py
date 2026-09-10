@@ -14,7 +14,6 @@ import pytest
 from domain.entities import Payment
 from domain.enums import PaymentMethod
 from domain.errors import (
-    CurrencyMismatchError,
     InvalidMoneyError,
     PaymentAlreadyReversedError,
 )
@@ -38,18 +37,20 @@ def a_payment(**overrides) -> Payment:
     return Payment(**{**fields, **overrides})
 
 
-class TestEveryPaymentIsWrittenInSom:
-    """§4.7: the seller quotes a som total for a dollar-priced phone, and
-    that figure *is* the debt — no rate is recorded anywhere."""
+class TestAPaymentCarriesItsOwnCurrency:
+    """A debt payment is som (§4.7) and a tender is whatever crossed the
+    counter. ``PaymentPoster`` enforces which, because only it sees the
+    invoice; the entity converts nothing either way."""
 
     def test_a_som_payment_is_accepted(self):
         payment = a_payment(amount=som("800000"))
 
         assert payment.amount == som("800000")
 
-    def test_a_dollar_payment_is_refused(self):
-        with pytest.raises(CurrencyMismatchError):
-            a_payment(amount=Money.from_major("600", Currency.USD))
+    def test_a_dollar_tender_is_accepted(self):
+        payment = a_payment(amount=Money.from_major("600", Currency.USD))
+
+        assert payment.amount == Money.from_major("600", Currency.USD)
 
 
 class TestAPaymentRecordsMoneyThatMoved:

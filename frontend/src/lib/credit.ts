@@ -17,7 +17,7 @@
  */
 
 import { isValidPriceInput } from "@/lib/money";
-import type { Payment, PaymentType, SalesInvoice } from "@/lib/types";
+import type { Currency, Payment, PaymentType, SalesInvoice } from "@/lib/types";
 
 /** What the confirm dialog has collected so far. */
 export type CreditTerms = {
@@ -27,6 +27,9 @@ export type CreditTerms = {
   /** Major-unit som strings, exactly as they are sent. */
   debt: string;
   downPayment: string;
+  /** Paid in full only: what the customer handed over, and in what. */
+  tendered: string;
+  tenderedCurrency: Currency;
 };
 
 export const EMPTY_TERMS: CreditTerms = {
@@ -35,6 +38,8 @@ export const EMPTY_TERMS: CreditTerms = {
   contractRef: "",
   debt: "",
   downPayment: "",
+  tendered: "",
+  tenderedCurrency: "UZS",
 };
 
 /** A som input as a number, or null when it is blank or malformed. */
@@ -48,7 +53,8 @@ export type TermsBlocker =
   | "customerRequired"
   | "debtRequired"
   | "companyRequired"
-  | "downPaymentTooLarge";
+  | "downPaymentTooLarge"
+  | "tenderMalformed";
 
 /**
  * Why this sale cannot be confirmed on these terms yet.
@@ -63,6 +69,12 @@ export function termsBlockers(
 ): TermsBlocker[] {
   if (terms.paymentType === "credit_company") {
     return terms.creditCompanyId ? [] : ["companyRequired"];
+  }
+  if (terms.paymentType === "paid_in_full") {
+    const tendered = terms.tendered.trim();
+    return tendered && !isValidPriceInput(tendered, terms.tenderedCurrency)
+      ? ["tenderMalformed"]
+      : [];
   }
   if (terms.paymentType !== "store_credit") return [];
 
@@ -97,12 +109,20 @@ export function confirmBody(terms: CreditTerms): Record<string, unknown> {
       ...(down ? { downPayment: down } : {}),
     };
   }
-  return { paymentType: terms.paymentType };
+  const tendered = terms.tendered.trim();
+  return {
+    paymentType: terms.paymentType,
+    // Omitted when blank: a store that runs no till confirms exactly as it
+    // did before, and the server records nothing.
+    ...(tendered
+      ? { tendered, tenderedCurrency: terms.tenderedCurrency }
+      : {}),
+  };
 }
 
 /** Whether this sale still has a balance somebody has to settle. */
 export function isOpenDebt(invoice: SalesInvoice): boolean {
-  return invoice.paymentType === "store_credit" && invoice.remainingMinor > 0;
+  return invoice.paymentType === "store_credit" && (invoice.remaining?.minor ?? 0) > 0;
 }
 
 /**
@@ -113,7 +133,7 @@ export function isOpenDebt(invoice: SalesInvoice): boolean {
  */
 export function refundDueMinor(invoice: SalesInvoice): number {
   if (invoice.status !== "cancelled") return 0;
-  return Math.max(invoice.paidMinor, 0);
+  return Math.max(invoice.paid?.minor ?? 0, 0);
 }
 
 /** Payments oldest first, with reversals beside the rows they undo. */
