@@ -18,10 +18,10 @@ costs (§2.1) — still reads the whole discrepancy report.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
+from application.models.money import MoneyData
 from domain.entities import StockCount, StockCountLine, StockCountUnit
 from domain.enums import CountOutcome, DocumentStatus
 
@@ -38,8 +38,7 @@ class StockCountUnitData(CamelModel):
     # row a cost must be stated on (FR-6.4b).
     is_surprise: bool
     # --- Permission.Cost.View only (FR-1.7) ---
-    acquisition_cost: Decimal | None = None
-    acquisition_cost_minor: int | None = None
+    acquisition_cost: MoneyData | None = None
 
     @classmethod
     def from_entity(cls, unit: StockCountUnit, *, show_cost: bool) -> StockCountUnitData:
@@ -56,10 +55,7 @@ class StockCountUnitData(CamelModel):
         if not show_cost or unit.acquisition_cost is None:
             return data
         return data.model_copy(
-            update={
-                "acquisition_cost": unit.acquisition_cost.as_major(),
-                "acquisition_cost_minor": unit.acquisition_cost.amount_minor,
-            }
+            update={"acquisition_cost": MoneyData.from_entity(unit.acquisition_cost)}
         )
 
 

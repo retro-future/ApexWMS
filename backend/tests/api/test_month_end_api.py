@@ -181,9 +181,9 @@ class TestTheDemo:
 
         body = await month_end(client, owner.auth, **await this_month(client, owner.auth))
 
-        assert body["debt"]["bookedMinor"] == 7_800_000
-        assert body["debt"]["collectedMinor"] == 800_000
-        assert body["debt"]["closingMinor"] == 7_000_000
+        assert body["debt"]["booked"]["minor"] == 7_800_000
+        assert body["debt"]["collected"]["minor"] == 800_000
+        assert body["debt"]["closing"]["minor"] == 7_000_000
         assert body["reconciles"] is True
 
     async def test_the_sale_is_labelled_by_how_it_was_financed(
@@ -301,5 +301,5 @@ def _minor(subtotals: list[dict], currency: str) -> int:
     """One currency's figure, or zero — never a total across the list."""
     for subtotal in subtotals:
         if subtotal["currency"] == currency:
-            return subtotal["amountMinor"]
+            return subtotal["minor"]
     return 0

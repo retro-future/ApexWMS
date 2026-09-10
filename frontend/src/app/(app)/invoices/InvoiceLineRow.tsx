@@ -65,10 +65,10 @@ export function InvoiceLineRow({
   }
 
   const quote = quotes.get(line.id);
-  const resolvedMinor = draft ? (quote?.resolvedMinor ?? null) : line.resolvedPriceMinor;
-  const charged = draft ? (quote?.chargedMinor ?? null) : line.chargedPriceMinor;
+  const resolvedMinor = draft ? (quote?.resolvedMinor ?? null) : (line.resolvedPrice?.minor ?? null);
+  const charged = draft ? (quote?.chargedMinor ?? null) : (line.chargedPrice?.minor ?? null);
   const deviates = draft
-    ? line.overridePriceMinor !== null && line.overridePriceMinor !== resolvedMinor
+    ? line.overridePrice !== null && line.overridePrice.minor !== resolvedMinor
     : line.isDeviation;
 
   return (
@@ -109,7 +109,7 @@ export function InvoiceLineRow({
             td={deviates ? "line-through" : undefined}
             c={deviates ? "dimmed" : undefined}
           >
-            {formatMoney(resolvedMinor, line.currency)}
+            {formatMoney({ minor: resolvedMinor, currency: line.currency })}
           </Text>
         )}
       </Table.Td>
@@ -119,7 +119,7 @@ export function InvoiceLineRow({
         ) : (
           <Stack gap="3xs">
             <Text size="sm" fw={deviates ? 600 : undefined}>
-              {formatMoney(charged, line.currency)}
+              {formatMoney({ minor: charged, currency: line.currency })}
             </Text>
             {deviates && (
               <Text size="xs" c="dimmed">

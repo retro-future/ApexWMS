@@ -10,7 +10,12 @@
  * again; what they buy is a disabled button that can say why.
  */
 
-import type { CustomerReturn, CustomerReturnLine, CustomerReturnReason } from "@/lib/types";
+import type {
+  CustomerReturn,
+  CustomerReturnLine,
+  CustomerReturnReason,
+  Money,
+} from "@/lib/types";
 
 export const CUSTOMER_RETURN_REASON_COLOR: Record<CustomerReturnReason, string> = {
   defective: "red",
@@ -31,13 +36,13 @@ export function canConfirmReturn(document: CustomerReturn): boolean {
 
 /** What the store is keeping on this line, in the line's own currency. */
 export function keptOnLine(line: CustomerReturnLine): number {
-  return (line.chargedPriceMinor - line.refundPriceMinor) * line.quantity;
+  return (line.chargedPrice.minor - line.refundPrice.minor) * line.quantity;
 }
 
 /** What the store is keeping across the document, per currency. */
 export function keptSubtotals(
   document: CustomerReturn,
-): { currency: CustomerReturnLine["currency"]; amountMinor: number }[] {
+): Money[] {
   const running = new Map<CustomerReturnLine["currency"], number>();
   for (const line of document.lines) {
     const kept = keptOnLine(line);
@@ -45,7 +50,7 @@ export function keptSubtotals(
     running.set(line.currency, (running.get(line.currency) ?? 0) + kept);
   }
   return [...running.entries()]
-    .map(([currency, amountMinor]) => ({ currency, amountMinor }))
+    .map(([currency, minor]) => ({ currency, minor }))
     .sort((a, b) => a.currency.localeCompare(b.currency));
 }
 

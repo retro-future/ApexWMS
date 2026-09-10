@@ -26,10 +26,15 @@ from domain.value_objects import Currency, Money
 
 
 def paid_on(payments: Iterable[Payment]) -> Money:
-    """What the customer has actually handed over, som, reversals netted."""
+    """What has been paid *against the debt*, som, reversals netted.
+
+    Non-som rows are skipped rather than converted: a debt is a som figure
+    and a tender in another currency settles none of it (§4.5 rule 1).
+    """
     total = Money.zero(Currency.UZS)
     for payment in payments:
-        total = total + payment.amount
+        if payment.amount.currency is Currency.UZS:
+            total = total + payment.amount
     return total
 
 

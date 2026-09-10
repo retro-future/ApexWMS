@@ -378,8 +378,8 @@ class TestDebtReconciles:
             settings,
             owner.tenant_id,
             "INSERT INTO payments "
-            "(id, sales_invoice_id, occurred_at, amount_minor, method, user_id) "
-            f"SELECT gen_random_uuid(), '{invoice_id}', now(), 500000, 'cash', "
+            "(id, sales_invoice_id, occurred_at, amount_minor, currency, method, user_id) "
+            f"SELECT gen_random_uuid(), '{invoice_id}', now(), 500000, 'UZS', 'cash', "
             "created_by FROM sales_invoices "
             f"WHERE id = '{invoice_id}'",
         )
@@ -388,7 +388,7 @@ class TestDebtReconciles:
 
         out = capsys.readouterr().out
         assert exit_code == 1
-        assert "cash collected on store credit" in out
+        assert "money received, UZS" in out
 
     async def test_a_debt_edited_below_what_was_collected_is_caught(
         self, client, settings, owner, capsys

@@ -47,8 +47,8 @@ class TestProducts:
         fetched = await client.get(f"/api/v1/products/{product_id}", headers=owner.auth)
 
         data = fetched.json()["data"]
-        assert data["defaultSalePriceMinor"] == 60000
-        assert data["defaultSalePrice"] == "600.00"
+        assert data["defaultSalePrice"]["minor"] == 60000
+        assert data["defaultSalePrice"] == {"minor": 60000, "currency": "USD"}
 
     async def test_som_and_dollars_of_the_same_magnitude_store_differently(
         self, client, owner
@@ -65,8 +65,8 @@ class TestProducts:
             defaultSalePrice="1000",
         )
 
-        assert phone.json()["data"]["defaultSalePriceMinor"] == 100_000
-        assert case.json()["data"]["defaultSalePriceMinor"] == 1_000
+        assert phone.json()["data"]["defaultSalePrice"]["minor"] == 100_000
+        assert case.json()["data"]["defaultSalePrice"]["minor"] == 1_000
 
     async def test_a_duplicate_sku_is_a_conflict(self, client, owner):
         await post_product(client, owner)
@@ -219,16 +219,16 @@ class TestCatalogPriceHistory:
             assert patched.status_code == 200, patched.text
 
         product = await client.get(f"/api/v1/products/{product_id}", headers=owner.auth)
-        assert product.json()["data"]["defaultSalePrice"] == "780.00"
+        assert product.json()["data"]["defaultSalePrice"] == {"minor": 78000, "currency": "USD"}
 
         history = await client.get(
             f"/api/v1/products/{product_id}/price-history", headers=owner.auth
         )
         rows = history.json()["data"]
-        assert [(r["oldPrice"], r["newPrice"]) for r in rows] == [
-            (None, "900.00"),
-            ("900.00", "850.00"),
-            ("850.00", "780.00"),
+        assert [(r["oldPrice"], r["newPrice"]["minor"]) for r in rows] == [
+            (None, 90000),
+            ({"minor": 90000, "currency": "USD"}, 85000),
+            ({"minor": 85000, "currency": "USD"}, 78000),
         ]
 
     async def test_a_reason_survives_the_round_trip(self, client, owner):
@@ -265,11 +265,7 @@ class TestCatalogPriceHistory:
         )
 
         row = history.json()["data"][0]
-        assert (row["currency"], row["newPriceMinor"], row["newPrice"]) == (
-            "UZS",
-            50000,
-            "50000",
-        )
+        assert row["newPrice"] == {"minor": 50000, "currency": "UZS"}
 
     async def test_a_price_cannot_be_cleared_once_set(self, client, owner):
         """The projection would otherwise contradict the log it is derived
@@ -285,7 +281,7 @@ class TestCatalogPriceHistory:
 
         assert resp.status_code == 422, resp.text
         product = await client.get(f"/api/v1/products/{product_id}", headers=owner.auth)
-        assert product.json()["data"]["defaultSalePrice"] == "900.00"
+        assert product.json()["data"]["defaultSalePrice"] == {"minor": 90000, "currency": "USD"}
 
     async def test_an_unknown_product_has_no_history_to_read(self, client, owner):
         resp = await client.get(

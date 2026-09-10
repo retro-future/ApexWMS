@@ -1139,9 +1139,11 @@ class FakePaymentRepository(FakeAppendOnlyRepository[Payment]):
 
 
 class FakeTenantSettingsRepository:
-    def __init__(self, timezone: str = "Asia/Tashkent") -> None:
+    def __init__(self, timezone: str = "Asia/Tashkent", *, till: bool = False) -> None:
         self.timezone = timezone
         self.letterhead = Letterhead()
+        # Off by default, like a real store: the till is opt-in (§4.5b).
+        self.till = till
 
     async def get_timezone(self) -> str:
         return self.timezone
@@ -1163,6 +1165,12 @@ class FakeTenantSettingsRepository:
 
     async def set_logo(self, logo: TenantLogo | None) -> None:
         self.letterhead = replace(self.letterhead, logo=logo)
+
+    async def runs_till(self) -> bool:
+        return self.till
+
+    async def set_runs_till(self, runs_till: bool) -> None:
+        self.till = runs_till
 
 
 class FakeUnitOfWork:

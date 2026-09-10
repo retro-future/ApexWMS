@@ -204,9 +204,9 @@ class TestSellingOnStoreCredit:
 
         invoice = await sold_on_credit(world)
 
-        assert invoice.debt_minor == 7_800_000
-        assert invoice.paid_minor == 800_000
-        assert invoice.remaining_minor == 7_000_000
+        assert invoice.debt.minor == 7_800_000
+        assert invoice.paid.minor == 800_000
+        assert invoice.remaining.minor == 7_000_000
 
     async def test_the_down_payment_is_cash_collected_like_any_other(self):
         world = make_world()
@@ -220,7 +220,7 @@ class TestSellingOnStoreCredit:
 
         invoice = await sold_on_credit(world, down=None)
 
-        assert invoice.remaining_minor == 7_800_000
+        assert invoice.remaining.minor == 7_800_000
         assert world.payments.rows == []
 
     async def test_lending_to_a_walk_in_is_refused(self):
@@ -274,8 +274,8 @@ class TestAFinancedSaleIsSettledAtConfirm:
         )
 
         assert result.data is not None
-        assert result.data.debt_minor is None
-        assert result.data.remaining_minor == 0
+        assert result.data.debt is None
+        assert result.data.remaining.minor == 0
         assert world.payments.rows == []
 
     async def test_the_customer_balance_stays_at_zero(self):
@@ -294,7 +294,7 @@ class TestAFinancedSaleIsSettledAtConfirm:
         )
 
         assert account.data is not None
-        assert account.data.balance_minor == 0
+        assert account.data.balance.minor == 0
         assert len(account.data.financed_sales) == 1
         assert account.data.open_debts == []
 
@@ -318,7 +318,7 @@ class TestAFinancedSaleIsSettledAtConfirm:
         financed = account.data.financed_sales[0]
         assert financed.credit_company_id == company_id
         assert financed.contract_ref == "UZ-99417"
-        assert financed.remaining_minor == 0
+        assert financed.remaining.minor == 0
 
     async def test_a_retired_partner_cannot_finance_a_new_sale(self):
         world = make_world()
@@ -363,7 +363,7 @@ class TestPayingDownADebt:
         )
 
         assert result.data is not None
-        assert result.data.remaining_minor == 2_000_000
+        assert result.data.remaining.minor == 2_000_000
 
     async def test_a_payment_records_how_the_money_arrived(self):
         world = make_world()
@@ -414,7 +414,7 @@ class TestPayingDownADebt:
         )
 
         assert result.data is not None
-        assert result.data.remaining_minor == 0
+        assert result.data.remaining.minor == 0
 
 
 class TestAPaymentIsNeverRevenue:
@@ -479,7 +479,7 @@ class TestReversingAPayment:
         )
 
         assert result.data is not None
-        assert result.data.remaining_minor == 7_800_000
+        assert result.data.remaining.minor == 7_800_000
 
     async def test_the_money_ledger_nets_to_zero_for_that_payment(self):
         world = make_world()
@@ -528,14 +528,14 @@ class TestCancellingVoidsTheDebtAndKeepsThePayments:
 
         cancelled = await self._cancelled(world)
 
-        assert cancelled.remaining_minor == 0
+        assert cancelled.remaining.minor == 0
 
     async def test_the_payments_are_surfaced_and_never_silently_deleted(self):
         world = make_world()
 
         cancelled = await self._cancelled(world)
 
-        assert cancelled.paid_minor == 800_000
+        assert cancelled.paid.minor == 800_000
         assert len(cancelled.payments) == 1
         assert booked(world, TransactionType.PAYMENT_RECEIVED) == som("800000")
 
@@ -553,7 +553,7 @@ class TestCancellingVoidsTheDebtAndKeepsThePayments:
         )
 
         assert account.data is not None
-        assert account.data.balance_minor == 0
+        assert account.data.balance.minor == 0
 
     async def test_no_new_payment_may_be_recorded_against_it(self):
         world = make_world()
@@ -576,7 +576,7 @@ class TestCancellingVoidsTheDebtAndKeepsThePayments:
         )
 
         assert result.data is not None
-        assert result.data.paid_minor == 0
+        assert result.data.paid.minor == 0
 
 
 class TestTheCustomerAccount:
@@ -593,7 +593,7 @@ class TestTheCustomerAccount:
         )
 
         assert account.data is not None
-        assert account.data.balance_minor == 7_000_000
+        assert account.data.balance.minor == 7_000_000
 
     async def test_an_open_debt_reports_its_age(self):
         world = make_world()
@@ -625,7 +625,7 @@ class TestTheCustomerAccount:
         )
 
         assert account.data is not None
-        assert account.data.balance_minor == 0
+        assert account.data.balance.minor == 0
         assert account.data.open_debts == []
         assert account.data.financed_sales == []
 
@@ -655,7 +655,7 @@ class TestTheDebtorList:
         listed = await world.list_debtors().handle(ListDebtorsQuery())
 
         assert listed.data is not None
-        assert [d.balance_minor for d in listed.data] == [7_000_000]
+        assert [d.balance.minor for d in listed.data] == [7_000_000]
 
     async def test_the_oldest_debt_comes_first(self):
         """Store credit has no due date (§4.7), so age is what makes a
@@ -740,7 +740,7 @@ class TestBalancesReconcile:
         findings = await world.balance_verifier().verify()
 
         assert len(findings) == 1
-        assert "cash collected" in findings[0].subject
+        assert "money received" in findings[0].subject
 
     async def test_a_debt_smaller_than_what_was_collected_is_reported(self):
         world = make_world()

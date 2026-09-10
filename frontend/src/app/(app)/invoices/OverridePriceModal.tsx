@@ -7,7 +7,7 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useDocumentAction } from "@/hooks/use-document";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import type { SalesInvoice, SalesInvoiceLine } from "@/lib/types";
 
@@ -37,7 +37,7 @@ export function OverridePriceModal({
   const tSell = useTranslations("invoices.sell");
   const tCommon = useTranslations("common");
 
-  const [price, setPrice] = useState(line.overridePrice ?? "");
+  const [price, setPrice] = useState(moneyToInput(line.overridePrice));
   const [note, setNote] = useState(line.priceNote ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +79,7 @@ export function OverridePriceModal({
           resolvedMinor === null
             ? tSell("noResolvedPrice")
             : tSell("resolvedHint", {
-                price: formatMoney(resolvedMinor, line.currency),
+                price: formatMoney({ minor: resolvedMinor, currency: line.currency }),
               })
         }
         value={price}
@@ -95,7 +95,7 @@ export function OverridePriceModal({
         autosize
         minRows={2}
       />
-      {line.overridePriceMinor !== null && (
+      {line.overridePrice !== null && (
         <Button
           variant="subtle"
           color="red"

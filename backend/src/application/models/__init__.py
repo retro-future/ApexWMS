@@ -20,7 +20,6 @@ from application.models.count_scan_result import CountScanResultData
 from application.models.create_superadmin import CreateSuperAdminData
 from application.models.create_tenant import CreateTenantData
 from application.models.credit_company import CreditCompanyData
-from application.models.currency_subtotal import CurrencySubtotalData
 from application.models.customer import CustomerData
 from application.models.customer_account import (
     CreditInvoiceDebtData,
@@ -47,6 +46,7 @@ from application.models.invoice_scan_result import InvoiceScanResultData
 from application.models.location import LocationData
 from application.models.login import LoginData
 from application.models.me import MeData
+from application.models.money import MoneyData
 from application.models.month_end import (
     AccrualFiguresData,
     DebtMovementData,
@@ -103,7 +103,6 @@ __all__ = [
     "CreateTenantData",
     "CreditCompanyData",
     "CreditInvoiceDebtData",
-    "CurrencySubtotalData",
     "CustomerAccountData",
     "CustomerData",
     "DebtMovementData",
@@ -126,6 +125,7 @@ __all__ = [
     "LoginData",
     "MarginPercentData",
     "MeData",
+    "MoneyData",
     "MonthEndReportData",
     "MovementRowData",
     "NeedsPricingRowData",

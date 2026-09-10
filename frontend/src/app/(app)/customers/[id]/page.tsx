@@ -11,7 +11,7 @@ import { TableScrollArea } from "@/components/TableScrollArea";
 import { useCustomerAccount } from "@/hooks/use-customer-account";
 import { useDateFormat } from "@/hooks/use-date-format";
 import { useCreditCompanyLookup } from "@/hooks/use-lookup";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatMoneyOrDash } from "@/lib/money";
 import type { CreditInvoiceDebt } from "@/lib/types";
 
 /**
@@ -62,7 +62,7 @@ export default function CustomerAccountPage() {
             {t("balance")}
           </Text>
           <Text size="xl" fw={700}>
-            {formatMoney(account.balanceMinor, "UZS")}
+            {formatMoney(account.balance)}
           </Text>
         </Stack>
       </Group>
@@ -103,15 +103,15 @@ export default function CustomerAccountPage() {
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm">
-                          {formatMoney(debt.debtMinor ?? 0, "UZS")}
+                          {formatMoneyOrDash(debt.debt)}
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm">{formatMoney(debt.paidMinor, "UZS")}</Text>
+                        <Text size="sm">{formatMoney(debt.paid)}</Text>
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" fw={600}>
-                          {formatMoney(debt.remainingMinor, "UZS")}
+                          {formatMoney(debt.remaining)}
                         </Text>
                       </Table.Td>
                       <Table.Td>

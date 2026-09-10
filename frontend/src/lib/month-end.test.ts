@@ -15,7 +15,7 @@ import {
   stockMoveMinor,
   toMonthInput,
 } from "@/lib/month-end";
-import type { AccrualFigures, CurrencySubtotal, Period } from "@/lib/types";
+import type { AccrualFigures, Money, Period } from "@/lib/types";
 
 /**
  * Two things here are worth pinning down. **The period is the store's, not the
@@ -25,17 +25,9 @@ import type { AccrualFigures, CurrencySubtotal, Period } from "@/lib/types";
  * produce a wrong number that still looks plausible.
  */
 
-const usd = (amountMinor: number): CurrencySubtotal => ({
-  currency: "USD",
-  amount: String(amountMinor / 100),
-  amountMinor,
-});
+const usd = (minor: number): Money => ({ currency: "USD", minor });
 
-const som = (amountMinor: number): CurrencySubtotal => ({
-  currency: "UZS",
-  amount: String(amountMinor),
-  amountMinor,
-});
+const som = (minor: number): Money => ({ currency: "UZS", minor });
 
 function figures(overrides: Partial<AccrualFigures> = {}): AccrualFigures {
   return {

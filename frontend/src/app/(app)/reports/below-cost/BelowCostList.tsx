@@ -87,16 +87,16 @@ export function BelowCostList() {
             <Text size="sm">{row.quantity}</Text>
           </Table.Td>
           <Table.Td>
-            <Text size="sm">{formatMoney(row.catalogPriceMinor, row.currency)}</Text>
+            <Text size="sm">{formatMoney(row.catalogPrice)}</Text>
           </Table.Td>
           <Table.Td>
             <Text size="sm">
-              {formatMoney(row.averageUnitCostMinor, row.currency)}
+              {formatMoney(row.averageUnitCost)}
             </Text>
           </Table.Td>
           <Table.Td>
             <Text size="sm" c="red">
-              {formatMoney(row.shortfallMinor, row.currency)}
+              {formatMoney(row.shortfall)}
             </Text>
           </Table.Td>
         </Table.Tr>

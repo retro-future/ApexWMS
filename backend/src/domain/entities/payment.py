@@ -1,4 +1,4 @@
-"""Money received against a store-credit sale (PRD §4.7, FR-11.6).
+"""Money the store actually received against a sale (PRD §4.7, FR-11.6).
 
 Append-only, like both ledgers and for the same reason: the customer's
 balance is *derived* from `(debt entered at sale) − (payments recorded)`,
@@ -6,13 +6,18 @@ so a balance you can trust needs rows nobody can go back and edit. **A
 mistaken payment is reversed by a compensating negative payment**, which is
 what ``reverses_payment_id`` names.
 
-Always in som, whatever currency the handset was priced in. The seller
-writes the total som figure at the counter and *that figure is the debt* —
-there is no rate here and no conversion (§4.7).
+**A payment carries its own currency and converts nothing.** Against a
+store-credit debt it is som, because the debt itself is a som figure the
+seller wrote at the counter (§4.7) — ``PaymentPoster`` is where that rule
+lives, since only it knows the invoice. On a sale settled at confirm the
+payment is a *tender*: what the customer physically handed over, in
+whatever currency, sitting beside revenue booked in the product's own and
+never netted against it.
 
-A payment settles a debt; it never books revenue. ``SALE_REVENUE`` was
-written in full the moment the sale confirmed (FR-11.7), and re-booking it
-per instalment is the signature bug of naive credit systems.
+A payment settles a debt or fills the till; it never books revenue.
+``SALE_REVENUE`` was written in full the moment the sale confirmed
+(FR-11.7), and re-booking it per instalment is the signature bug of naive
+credit systems.
 """
 
 from dataclasses import dataclass
@@ -21,12 +26,8 @@ from uuid import UUID
 
 from domain.core import TenantEntity, UuidEntity
 from domain.enums import PaymentMethod
-from domain.errors import (
-    CurrencyMismatchError,
-    InvalidMoneyError,
-    PaymentAlreadyReversedError,
-)
-from domain.value_objects import Currency, Money
+from domain.errors import InvalidMoneyError, PaymentAlreadyReversedError
+from domain.value_objects import Money
 
 
 @dataclass(eq=False, kw_only=True)
@@ -41,11 +42,6 @@ class Payment(UuidEntity, TenantEntity):
     reverses_payment_id: UUID | None = None
 
     def __post_init__(self) -> None:
-        if self.amount.currency is not Currency.UZS:
-            raise CurrencyMismatchError(
-                f"a payment is {self.amount.currency.value} but all customer debt "
-                "is written in som (§4.7)"
-            )
         if self.amount.is_zero:
             raise InvalidMoneyError("a payment of zero settles nothing")
         if self.is_reversal and not self.amount.is_negative:

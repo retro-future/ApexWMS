@@ -72,8 +72,8 @@ class TestCreate:
             default_sale_price="50000",
         )
 
-        assert phone.data.default_sale_price_minor == 60_000
-        assert case.data.default_sale_price_minor == 50_000
+        assert phone.data.default_sale_price.minor == 60_000
+        assert case.data.default_sale_price.minor == 50_000
 
     async def test_a_product_may_be_created_unpriced(self):
         world = make_world()
@@ -81,7 +81,6 @@ class TestCreate:
         result = await create(world)
 
         assert result.data.default_sale_price is None
-        assert result.data.default_sale_price_minor is None
 
     async def test_a_fractional_som_price_is_refused(self):
         """UZS has exponent 0 — there is no half som to store."""
@@ -151,7 +150,7 @@ class TestUpdate:
 
         assert result.data.name == "iPhone 15 Pro Max"
         assert result.data.sku == "IP15P-256"
-        assert result.data.default_sale_price_minor == 60_000
+        assert result.data.default_sale_price.minor == 60_000
 
     async def test_deactivating_preserves_the_row(self):
         """FR-2.4: deactivation stops new movements; it does not delete."""

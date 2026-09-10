@@ -11,6 +11,7 @@ class UpdateTenantSettingsCommand(Command[ResultWithData[TenantSettingsData]]):
     timezone: str
     business_name: str | None = None
     address: str | None = None
+    runs_till: bool = False
 
 
 class UpdateTenantSettingsHandler(
@@ -34,11 +35,12 @@ class UpdateTenantSettingsHandler(
         await self._settings.set_letterhead(
             Letterhead(business_name=request.business_name, address=request.address)
         )
+        await self._settings.set_runs_till(request.runs_till)
         await self._uow.commit()
         # Read back rather than map what was just written: the logo is not
         # part of this command, and the response has to report whether one
         # is there.
         stored = await self._settings.get_letterhead()
         return ResultWithData[TenantSettingsData].succeed_with_data(
-            TenantSettingsData.from_entity(request.timezone, stored)
+            TenantSettingsData.from_entity(request.timezone, stored, request.runs_till)
         )

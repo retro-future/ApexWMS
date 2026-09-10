@@ -77,7 +77,7 @@ export function ConfirmReturnModal({
           <MoneyInput
             label={t("debtRelief")}
             description={t("debtReliefHint", {
-              outstanding: formatMoney(outstandingMinor, "UZS"),
+              outstanding: formatMoney({ minor: outstandingMinor, currency: "UZS" }),
             })}
             value={relief}
             onChange={setRelief}

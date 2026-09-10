@@ -120,10 +120,10 @@ class TestTheWorklist:
         assert body["totalItems"] == 1
         row = body["data"][0]
         assert row["sku"] == "CASE-X"
-        assert row["catalogPriceMinor"] == 1000
-        assert row["averageUnitCostMinor"] == 1000
+        assert row["catalogPrice"]["minor"] == 1000
+        assert row["averageUnitCost"]["minor"] == 1000
         assert row["quantity"] == 20
-        assert row["currency"] == "USD"
+        assert row["catalogPrice"]["currency"] == "USD"
 
     async def test_the_confirm_response_flags_the_same_receipt(self, client, store):
         owner, ids = store
@@ -136,7 +136,7 @@ class TestTheWorklist:
         alerts = second["belowCostAlerts"]
         assert len(alerts) == 1
         assert alerts[0]["sku"] == "CASE-X"
-        assert alerts[0]["averageUnitCostMinor"] == 1000
+        assert alerts[0]["averageUnitCost"]["minor"] == 1000
 
 
 class TestTheTwoFoldsAgree:

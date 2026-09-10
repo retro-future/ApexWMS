@@ -200,33 +200,31 @@ export function DeviceInventoryList() {
           </Table.Td>
           <Table.Td>
             <Text size="sm">
-              {row.resolvedPriceMinor === null
+              {row.resolvedPrice === null
                 ? tCommon("none")
-                : formatMoney(row.resolvedPriceMinor, row.currency)}
+                : formatMoney(row.resolvedPrice)}
             </Text>
           </Table.Td>
           {showCost && (
             <>
               <Table.Td>
                 <Text size="sm" c="dimmed">
-                  {row.acquisitionCostMinor === null ||
-                  row.acquisitionCostMinor === undefined
-                    ? tCommon("none")
-                    : formatMoney(row.acquisitionCostMinor, row.currency)}
+                  {row.acquisitionCost
+                    ? formatMoney(row.acquisitionCost)
+                    : tCommon("none")}
                 </Text>
               </Table.Td>
               <Table.Td>
-                {row.impliedMarginMinor === null ||
-                row.impliedMarginMinor === undefined ? (
-                  <Text size="sm" c="dimmed">
-                    {tCommon("none")}
-                  </Text>
-                ) : (
+                {row.impliedMargin ? (
                   <Text
                     size="sm"
-                    c={row.impliedMarginMinor < 0 ? "red" : "teal"}
+                    c={row.impliedMargin.minor < 0 ? "red" : "teal"}
                   >
-                    {formatMoney(row.impliedMarginMinor, row.currency)}
+                    {formatMoney(row.impliedMargin)}
+                  </Text>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {tCommon("none")}
                   </Text>
                 )}
               </Table.Td>

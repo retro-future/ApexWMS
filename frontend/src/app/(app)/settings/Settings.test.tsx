@@ -24,6 +24,7 @@ const settings: TenantSettings = {
   businessName: "Apex Mobile",
   address: "12 Amir Temur, Tashkent",
   hasLogo: false,
+  runsTill: false,
 };
 
 function png(size = 64): File {
@@ -70,6 +71,7 @@ describe("the letterhead", () => {
         timezone: "Asia/Tashkent",
         businessName: "Apex Mobile!",
         address: "12 Amir Temur, Tashkent",
+        runsTill: false,
       }),
     );
   });

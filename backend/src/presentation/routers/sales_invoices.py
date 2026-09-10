@@ -227,9 +227,10 @@ async def record_payment(
     current: FromDishka[CurrentUser],
     handler: FromDishka[RecordPaymentHandler],
 ) -> ResultWithData[SalesInvoiceData]:
-    """FR-11.6: money off what the customer still owes. Writes
-    ``PAYMENT_RECEIVED`` and never ``SALE_REVENUE`` (FR-11.7), and refuses
-    anything above the remaining balance."""
+    """FR-11.6: money the customer handed over. Against a store-credit sale
+    it pays down the debt, capped at the remaining balance; against one
+    settled at confirm it is a tender for the till. Never writes
+    ``SALE_REVENUE`` (FR-11.7)."""
     require(current, Permission.PAYMENT_RECORD)
     return await handler.handle(
         RecordPaymentCommand(

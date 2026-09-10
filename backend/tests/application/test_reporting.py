@@ -98,8 +98,8 @@ class TestTheDeviceInventoryRow:
         )
 
         assert row.acquisition_cost is None
-        assert row.implied_margin_minor is None
-        assert row.resolved_price_minor == 50000
+        assert row.implied_margin is None
+        assert row.resolved_price.minor == 50000
         assert row.days_in_stock == 59
 
     def test_the_margin_is_the_difference_with_the_permission(self):
@@ -107,8 +107,8 @@ class TestTheDeviceInventoryRow:
             a_device_inventory_row(asking=usd("500")), NOW, show_cost=True
         )
 
-        assert row.acquisition_cost_minor == 38000
-        assert row.implied_margin_minor == 12000
+        assert row.acquisition_cost.minor == 38000
+        assert row.implied_margin.minor == 12000
 
     def test_a_new_unit_falls_back_to_the_catalog_price(self):
         row = DeviceInventoryRowData.from_entity(
@@ -120,8 +120,8 @@ class TestTheDeviceInventoryRow:
         )
 
         assert row.asking_price is None
-        assert row.resolved_price_minor == 90000
-        assert row.implied_margin_minor == 52000
+        assert row.resolved_price.minor == 90000
+        assert row.implied_margin.minor == 52000
 
     def test_a_used_unit_does_not_inherit_the_catalog_price(self):
         row = DeviceInventoryRowData.from_entity(
@@ -149,9 +149,8 @@ class TestTheAgeingReportWithoutCostView:
         )
 
         assert row.acquisition_cost is None
-        assert row.acquisition_cost_minor is None
         assert row.implied_margin is None
-        assert row.implied_margin_minor is None
+        assert row.implied_margin is None
 
     def test_what_survives_is_still_worth_reading(self):
         """The asking price and the markdown count are not costs, so the
@@ -160,15 +159,15 @@ class TestTheAgeingReportWithoutCostView:
             an_ageing_row(usd("500")), NOW, show_cost=False
         )
 
-        assert row.asking_price_minor == 50000
+        assert row.asking_price.minor == 50000
         assert row.markdown_count == 2
         assert row.days_in_stock == 59
 
     def test_with_the_permission_the_margin_is_the_difference(self):
         row = AgeingRowData.from_entity(an_ageing_row(usd("500")), NOW, show_cost=True)
 
-        assert row.acquisition_cost_minor == 38000
-        assert row.implied_margin_minor == 12000
+        assert row.acquisition_cost.minor == 38000
+        assert row.implied_margin.minor == 12000
 
     def test_an_unpriced_handset_implies_no_margin_even_with_the_permission(self):
         """Zero would read as a margin. There is not one to report."""
@@ -176,7 +175,7 @@ class TestTheAgeingReportWithoutCostView:
 
         assert row.asking_price is None
         assert row.implied_margin is None
-        assert row.acquisition_cost_minor == 38000
+        assert row.acquisition_cost.minor == 38000
 
 
 class TestStockOnHandWithoutCostView:
@@ -201,7 +200,7 @@ class TestStockOnHandWithoutCostView:
         row = StockOnHandData.from_entity(self.group(), show_cost=True)
 
         assert row.cost_value is not None
-        assert [(one.currency, one.amount_minor) for one in row.cost_value] == [
+        assert [(one.currency, one.minor) for one in row.cost_value] == [
             (Currency.USD, 70000),
             (Currency.UZS, 300000),
         ]
@@ -222,7 +221,7 @@ class TestNoReportEverMergesTwoCurrencies:
             )
         )
 
-        assert {(one.currency, one.amount_minor) for one in figures.margin} == {
+        assert {(one.currency, one.minor) for one in figures.margin} == {
             (Currency.USD, 22000),
             (Currency.UZS, 20000),
         }
@@ -235,7 +234,7 @@ class TestNoReportEverMergesTwoCurrencies:
             SalesFigures(revenue=CurrencyTotals.empty().add(uzs("50000")))
         )
 
-        assert [(one.currency, one.amount_minor) for one in figures.margin] == [
+        assert [(one.currency, one.minor) for one in figures.margin] == [
             (Currency.UZS, 50000)
         ]
 

@@ -8,7 +8,7 @@ import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useDocumentAction } from "@/hooks/use-document";
 import { isSerialLine } from "@/lib/customer-returns";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import type { CustomerReturn, CustomerReturnLine } from "@/lib/types";
 
@@ -37,7 +37,7 @@ export function RefundModal({
   const t = useTranslations("customerReturns");
   const tCommon = useTranslations("common");
 
-  const [refund, setRefund] = useState(line.refundPrice);
+  const [refund, setRefund] = useState(moneyToInput(line.refundPrice));
   const [note, setNote] = useState(line.refundNote ?? "");
   const [quantity, setQuantity] = useState<number>(line.quantity);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function RefundModal({
       <MoneyInput
         label={t("refund")}
         description={t("refundHint", {
-          charged: formatMoney(line.chargedPriceMinor, line.currency),
+          charged: formatMoney(line.chargedPrice),
         })}
         value={refund}
         onChange={setRefund}

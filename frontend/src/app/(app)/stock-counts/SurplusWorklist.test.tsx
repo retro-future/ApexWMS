@@ -29,8 +29,7 @@ const product: Product = {
   trackingType: "serial",
   currency: "USD",
   barcode: null,
-  defaultSalePrice: "900.00",
-  defaultSalePriceMinor: 90000,
+  defaultSalePrice: { minor: 90000, currency: "USD" },
   isActive: true,
 };
 
@@ -64,7 +63,6 @@ const unpriced: StockCountUnit = {
   outcome: "unexpected",
   isSurprise: true,
   acquisitionCost: null,
-  acquisitionCostMinor: null,
 };
 
 beforeEach(() => {
@@ -92,7 +90,7 @@ describe("SurplusWorklist", () => {
     // A repeat beep on a count changes nothing about what was found, and may
     // carry the product and cost the first one lacked.
     apiSend.mockResolvedValue({
-      unit: { ...unpriced, acquisitionCostMinor: 30000 },
+      unit: { ...unpriced, acquisitionCost: { minor: 30000, currency: "USD" } },
       line: null,
       matchedCount: 0,
       missingCount: 0,

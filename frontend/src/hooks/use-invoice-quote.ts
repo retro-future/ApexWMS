@@ -61,7 +61,7 @@ export function useInvoiceQuote(invoice: SalesInvoice | undefined): {
   // A stable dependency for the memo: the ids and prices that came back,
   // not the query objects, which are new on every render.
   const unitPrices = units
-    .map((query) => `${query.data?.id}:${query.data?.resolvedPriceMinor}`)
+    .map((query) => `${query.data?.id}:${query.data?.resolvedPrice?.minor}`)
     .join("|");
 
   const quotes = useMemo(() => {
@@ -77,14 +77,14 @@ export function useInvoiceQuote(invoice: SalesInvoice | undefined): {
       // `resolvedPrice: null` means FR-2.14 refuses — the handset needs
       // pricing. Not zero, and never the catalog price of a used phone.
       const resolvedMinor = line.deviceUnitId
-        ? (unitById.get(line.deviceUnitId)?.resolvedPriceMinor ?? null)
-        : (productById.get(line.productId)?.defaultSalePriceMinor ?? null);
+        ? (unitById.get(line.deviceUnitId)?.resolvedPrice?.minor ?? null)
+        : (productById.get(line.productId)?.defaultSalePrice?.minor ?? null);
 
       map.set(line.id, {
         resolvedMinor,
         chargedMinor: chargedMinor(line, resolvedMinor),
         currency: line.currency,
-        isOverride: line.overridePriceMinor !== null,
+        isOverride: line.overridePrice !== null,
       });
     }
     return map;

@@ -19,11 +19,11 @@ that makes a stale debt visible.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import CreditInvoiceDebt
+from application.models.money import MoneyData
 from domain.entities import Customer
 from domain.enums import DocumentStatus, PaymentType
 from domain.value_objects import Currency, Money
@@ -35,19 +35,15 @@ class CreditInvoiceDebtData(CamelModel):
     status: DocumentStatus
     payment_type: PaymentType
     confirmed_at: datetime | None
-    debt: Decimal | None
-    debt_minor: int | None
-    paid: Decimal
-    paid_minor: int
-    remaining: Decimal
-    remaining_minor: int
+    debt: MoneyData | None
+    paid: MoneyData
+    remaining: MoneyData
     credit_company_id: UUID | None
     contract_ref: str | None
     days_since_sale: int | None
 
     @classmethod
     def from_entity(cls, debt: CreditInvoiceDebt, now: datetime) -> CreditInvoiceDebtData:
-        remaining = debt.remaining
         age = None if debt.confirmed_at is None else (now - debt.confirmed_at).days
         return cls(
             invoice_id=debt.invoice_id,
@@ -55,12 +51,9 @@ class CreditInvoiceDebtData(CamelModel):
             status=debt.status,
             payment_type=debt.payment_type,
             confirmed_at=debt.confirmed_at,
-            debt=None if debt.debt is None else debt.debt.as_major(),
-            debt_minor=None if debt.debt is None else debt.debt.amount_minor,
-            paid=debt.paid.as_major(),
-            paid_minor=debt.paid.amount_minor,
-            remaining=remaining.as_major(),
-            remaining_minor=remaining.amount_minor,
+            debt=MoneyData.from_entity(debt.debt),
+            paid=MoneyData.from_entity(debt.paid),
+            remaining=MoneyData.from_entity(debt.remaining),
             credit_company_id=debt.credit_company_id,
             contract_ref=debt.contract_ref,
             days_since_sale=age,
@@ -71,8 +64,7 @@ class CustomerAccountData(CamelModel):
     customer_id: UUID
     full_name: str
     phone: str | None
-    balance: Decimal
-    balance_minor: int
+    balance: MoneyData
     open_debts: list[CreditInvoiceDebtData]
     financed_sales: list[CreditInvoiceDebtData]
 
@@ -87,8 +79,7 @@ class CustomerAccountData(CamelModel):
             customer_id=customer.id,
             full_name=customer.full_name,
             phone=customer.phone,
-            balance=balance.as_major(),
-            balance_minor=balance.amount_minor,
+            balance=MoneyData.from_entity(balance),
             open_debts=[
                 CreditInvoiceDebtData.from_entity(entry, now)
                 for entry in history

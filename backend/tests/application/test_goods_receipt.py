@@ -437,7 +437,6 @@ class TestWhatEachRoleSees:
         unit = seen.data.lines[0].units[0]
         assert unit.asking_price is not None
         assert unit.acquisition_cost is None
-        assert unit.acquisition_cost_minor is None
         assert unit.cash_paid is None
         assert seen.data.subtotals == []
 
@@ -461,9 +460,9 @@ class TestWhatEachRoleSees:
 
         assert seen.data is not None
         unit = seen.data.lines[0].units[0]
-        assert unit.acquisition_cost_minor == 41_000
+        assert unit.acquisition_cost.minor == 41_000
         assert unit.cash_paid == uzs("5000000").format()
-        assert [s.amount_minor for s in seen.data.subtotals] == [41_000]
+        assert [s.minor for s in seen.data.subtotals] == [41_000]
 
     async def test_an_unpriced_used_handset_is_flagged_to_whoever_scanned_it(self):
         """The Storekeeper cannot price it, but can see what is blocking

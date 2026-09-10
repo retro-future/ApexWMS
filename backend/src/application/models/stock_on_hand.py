@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from application.core import CamelModel
 from application.dtos import StockGroupBy, StockOnHandGroup
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 
 
 class StockOnHandData(CamelModel):
@@ -24,7 +24,7 @@ class StockOnHandData(CamelModel):
     # Only set when grouping by product; None for location/brand rows.
     sku: str | None = None
     # --- Permission.Cost.View only (FR-9.1) ---
-    cost_value: list[CurrencySubtotalData] | None = None
+    cost_value: list[MoneyData] | None = None
 
     @classmethod
     def from_entity(
@@ -41,7 +41,7 @@ class StockOnHandData(CamelModel):
             return data
         return data.model_copy(
             update={
-                "cost_value": CurrencySubtotalData.from_entity(
+                "cost_value": MoneyData.from_entity(
                     group.cost_value.as_dict()
                 )
             }

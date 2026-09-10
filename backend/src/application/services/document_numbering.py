@@ -24,6 +24,16 @@ _PREFIXES: dict[DocumentType, str] = {
     DocumentType.WRITE_OFF: "WO",
 }
 
+# ``PAYMENT`` is the one document type with no number: it is a row against an
+# invoice, not a paper anyone hands over. Named here so a future type that
+# *should* be numbered cannot slip through the same gap.
+_UNNUMBERED = {DocumentType.PAYMENT}
+
+assert set(_PREFIXES) | _UNNUMBERED == set(DocumentType), (
+    "every DocumentType is numbered or explicitly not: "
+    f"{set(DocumentType) - set(_PREFIXES) - _UNNUMBERED} unaccounted for"
+)
+
 
 class DocumentNumberer:
     def __init__(self, numbers: DocumentNumberAllocator, clock: Clock) -> None:

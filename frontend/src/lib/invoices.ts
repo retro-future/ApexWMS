@@ -17,7 +17,7 @@
  * testable without a DOM.
  */
 
-import type { Currency, SalesInvoice, SalesInvoiceLine } from "@/lib/types";
+import type { Currency, Money, SalesInvoice, SalesInvoiceLine } from "@/lib/types";
 
 /** What one line resolves to right now, or the fact that it resolves to nothing. */
 export type LineQuote = {
@@ -43,7 +43,7 @@ export function chargedMinor(
   line: SalesInvoiceLine,
   resolvedMinor: number | null,
 ): number | null {
-  return line.overridePriceMinor ?? resolvedMinor;
+  return line.overridePrice?.minor ?? resolvedMinor;
 }
 
 /**
@@ -97,7 +97,7 @@ export function confirmBlockers(
 export function quoteSubtotals(
   invoice: SalesInvoice,
   quotes: QuoteMap,
-): { currency: Currency; amountMinor: number }[] {
+): Money[] {
   const totals = new Map<Currency, number>();
   for (const line of invoice.lines) {
     const quote = quotes.get(line.id);
@@ -107,5 +107,5 @@ export function quoteSubtotals(
   }
   return [...totals.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([currency, amountMinor]) => ({ currency, amountMinor }));
+    .map(([currency, minor]) => ({ currency, minor }));
 }

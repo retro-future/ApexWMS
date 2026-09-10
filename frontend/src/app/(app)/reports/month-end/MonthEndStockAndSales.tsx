@@ -16,7 +16,7 @@ import {
   percentIn,
   stockMoveMinor,
 } from "@/lib/month-end";
-import type { Currency, CurrencySubtotal, MonthEndReport } from "@/lib/types";
+import type { Currency, Money, MonthEndReport } from "@/lib/types";
 
 /** Which sales rows drill into a ledger category. Margin is a sum, so none. */
 const SALES_LEDGER_TYPE = {
@@ -136,7 +136,7 @@ export function MonthEndStockAndSales({ report }: { report: MonthEndReport }) {
                 }
                 currencies={currencies}
                 amount={(currency) =>
-                  amountIn(figures[row] as CurrencySubtotal[], currency)
+                  amountIn(figures[row] as Money[], currency)
                 }
               />
             ))}
@@ -222,7 +222,7 @@ function MoneyRow({
       {currencies.map((currency) => (
         <Table.Td key={currency}>
           <Subtotals
-            subtotals={[{ currency, amountMinor: amount(currency) }]}
+            subtotals={[{ currency, minor: amount(currency) }]}
             fw={strong ? 600 : undefined}
           />
         </Table.Td>

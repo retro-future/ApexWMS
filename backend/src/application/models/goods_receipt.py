@@ -14,13 +14,12 @@ its lines, its counts, and each handset's asking price.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import BelowCostAlert
 from application.models.below_cost_alert import BelowCostAlertData
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 from application.models.received_unit import ReceivedUnitData
 from domain.entities import GoodsReceipt, GoodsReceiptLine
 from domain.enums import AcquisitionSource, DocumentStatus, TrackingType
@@ -38,8 +37,7 @@ class GoodsReceiptLineData(CamelModel):
     scanned_count: int
     units: list[ReceivedUnitData]
     # --- Permission.Cost.View only (FR-1.7) ---
-    unit_cost: Decimal | None = None
-    unit_cost_minor: int | None = None
+    unit_cost: MoneyData | None = None
 
     @classmethod
     def from_entity(
@@ -61,8 +59,7 @@ class GoodsReceiptLineData(CamelModel):
             return data
         return data.model_copy(
             update={
-                "unit_cost": line.unit_cost.as_major(),
-                "unit_cost_minor": line.unit_cost.amount_minor,
+                "unit_cost": MoneyData.from_entity(line.unit_cost),
             }
         )
 
@@ -84,7 +81,7 @@ class GoodsReceiptData(CamelModel):
     lines: list[GoodsReceiptLineData]
     # --- Permission.Cost.View only (FR-1.7) ---
     # One figure per currency present, never their sum (FR-2.7).
-    subtotals: list[CurrencySubtotalData] = []
+    subtotals: list[MoneyData] = []
     # Populated only by the confirm handler (see the below-cost design doc);
     # empty on get/list/create/cancel.
     below_cost_alerts: list[BelowCostAlertData] = []
@@ -123,5 +120,5 @@ class GoodsReceiptData(CamelModel):
         if not show_cost:
             return data
         return data.model_copy(
-            update={"subtotals": CurrencySubtotalData.from_entity(receipt.subtotals())}
+            update={"subtotals": MoneyData.from_entity(receipt.subtotals())}
         )

@@ -14,12 +14,11 @@ afterwards.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import PriceDeviation
-from domain.value_objects import Currency
+from application.models.money import MoneyData
 
 
 class PriceDeviationData(CamelModel):
@@ -32,22 +31,17 @@ class PriceDeviationData(CamelModel):
     product_name: str
     # Null on an accessory line — there is no handset to name (§4.1).
     imei: str | None
-    currency: Currency
-    resolved_price: Decimal
-    resolved_price_minor: int
-    charged_price: Decimal
-    charged_price_minor: int
+    resolved_price: MoneyData
+    charged_price: MoneyData
     # Signed: negative is a discount, positive is a sale above the asking
     # price, and the report reports both.
-    difference: Decimal
-    difference_minor: int
+    difference: MoneyData
     price_approved_by: UUID | None
     price_approved_by_name: str | None
     price_note: str | None
 
     @classmethod
     def from_entity(cls, deviation: PriceDeviation) -> PriceDeviationData:
-        difference = deviation.difference
         return cls(
             invoice_id=deviation.invoice_id,
             invoice_number=deviation.invoice_number,
@@ -57,13 +51,9 @@ class PriceDeviationData(CamelModel):
             product_id=deviation.product_id,
             product_name=deviation.product_name,
             imei=deviation.imei,
-            currency=deviation.charged_price.currency,
-            resolved_price=deviation.resolved_price.as_major(),
-            resolved_price_minor=deviation.resolved_price.amount_minor,
-            charged_price=deviation.charged_price.as_major(),
-            charged_price_minor=deviation.charged_price.amount_minor,
-            difference=difference.as_major(),
-            difference_minor=difference.amount_minor,
+            resolved_price=MoneyData.from_entity(deviation.resolved_price),
+            charged_price=MoneyData.from_entity(deviation.charged_price),
+            difference=MoneyData.from_entity(deviation.difference),
             price_approved_by=deviation.price_approved_by,
             price_approved_by_name=deviation.price_approved_by_name,
             price_note=deviation.price_note,

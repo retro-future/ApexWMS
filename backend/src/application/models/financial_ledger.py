@@ -12,23 +12,20 @@ no per-field omission here — a reader who reaches this sees the money.
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import FinancialLedgerRow
+from application.models.money import MoneyData
 from domain.enums import DocumentType, TransactionType
-from domain.value_objects import Currency
 
 
 class FinancialLedgerRowData(CamelModel):
     id: UUID
     occurred_at: datetime
     txn_type: TransactionType
-    currency: Currency
     # Signed, per §4.6's convention: negative is money out.
-    amount: Decimal
-    amount_minor: int
+    amount: MoneyData
     product_id: UUID | None
     product_name: str | None
     device_unit_id: UUID | None
@@ -48,9 +45,7 @@ class FinancialLedgerRowData(CamelModel):
             id=row.id,
             occurred_at=row.occurred_at,
             txn_type=row.txn_type,
-            currency=row.amount.currency,
-            amount=row.amount.as_major(),
-            amount_minor=row.amount.amount_minor,
+            amount=MoneyData.from_entity(row.amount),
             product_id=row.product_id,
             product_name=row.product_name,
             device_unit_id=row.device_unit_id,

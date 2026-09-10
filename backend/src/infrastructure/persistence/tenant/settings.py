@@ -55,6 +55,12 @@ class SqlTenantSettingsRepository:
         row.logo = None if logo is None else logo.content
         row.logo_content_type = None if logo is None else logo.content_type
 
+    async def runs_till(self) -> bool:
+        return (await self._row()).runs_till
+
+    async def set_runs_till(self, runs_till: bool) -> None:
+        (await self._row()).runs_till = runs_till
+
     async def _row(self) -> TenantSettingsModel:
         row = await self._session.get(TenantSettingsModel, SETTINGS_ROW_ID)
         if row is None:

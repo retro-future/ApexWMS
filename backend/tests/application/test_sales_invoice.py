@@ -235,7 +235,7 @@ class TestAUsedHandsetNeverInheritsTheCatalogPrice:
         result = await scan(world, invoice, PHONE_IMEI)
 
         assert result.data is not None
-        assert result.data.resolved_price_minor == usd("500").amount_minor
+        assert result.data.resolved_price.minor == usd("500").amount_minor
 
     async def test_a_new_unit_with_no_price_of_its_own_takes_the_catalog_price(self):
         world = make_world()
@@ -247,7 +247,7 @@ class TestAUsedHandsetNeverInheritsTheCatalogPrice:
         result = await scan(world, invoice, PHONE_IMEI)
 
         assert result.data is not None
-        assert result.data.resolved_price_minor == usd("900").amount_minor
+        assert result.data.resolved_price.minor == usd("900").amount_minor
 
 
 class TestScanningChecksTheGoodsAreHere:
@@ -417,7 +417,7 @@ class TestAddingAnAccessoryFromTheCatalog:
         result = await self.add(world, invoice, case, 3)
 
         assert result.data is not None
-        assert result.data.resolved_price_minor == uzs("25000").amount_minor
+        assert result.data.resolved_price.minor == uzs("25000").amount_minor
         assert len(invoice.lines) == 1
         assert invoice.lines[0].quantity == 3
         assert invoice.lines[0].product_id == case.id

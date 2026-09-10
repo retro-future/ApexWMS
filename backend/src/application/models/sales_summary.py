@@ -15,27 +15,27 @@ from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import LocationSales, SalesFigures, SalesSummary
-from application.models.currency_subtotal import CurrencySubtotalData
+from application.models.money import MoneyData
 
 
 class SalesFiguresData(CamelModel):
     units_sold: int
-    revenue: list[CurrencySubtotalData]
-    cost_of_goods: list[CurrencySubtotalData]
+    revenue: list[MoneyData]
+    cost_of_goods: list[MoneyData]
     # Negative: money handed back on customer returns (FR-4.9).
-    returns: list[CurrencySubtotalData]
-    margin: list[CurrencySubtotalData]
+    returns: list[MoneyData]
+    margin: list[MoneyData]
 
     @classmethod
     def from_entity(cls, figures: SalesFigures) -> SalesFiguresData:
         return cls(
             units_sold=figures.units_sold,
-            revenue=CurrencySubtotalData.from_entity(figures.revenue.as_dict()),
-            cost_of_goods=CurrencySubtotalData.from_entity(
+            revenue=MoneyData.from_entity(figures.revenue.as_dict()),
+            cost_of_goods=MoneyData.from_entity(
                 figures.cost_of_goods.as_dict()
             ),
-            returns=CurrencySubtotalData.from_entity(figures.returns.as_dict()),
-            margin=CurrencySubtotalData.from_entity(figures.margin),
+            returns=MoneyData.from_entity(figures.returns.as_dict()),
+            margin=MoneyData.from_entity(figures.margin),
         )
 
 

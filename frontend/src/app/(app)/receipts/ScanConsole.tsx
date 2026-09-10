@@ -22,6 +22,7 @@ import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
 import { CameraScanner } from "@/components/scan/CameraScanner";
 import { useDocumentAction } from "@/hooks/use-document";
+import { useRunsTill } from "@/hooks/use-tenant-settings";
 import { useProductLookup } from "@/hooks/use-lookup";
 import { formatMoney, minorToInput } from "@/lib/money";
 import { errorMessage } from "@/lib/notify";
@@ -73,6 +74,7 @@ export function ScanConsole({
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
   const can = useCan();
+  const runsTill = useRunsTill();
   const canPrice = can(Permission.Pricing.Set);
   const products = useProductLookup();
   const queryClient = useQueryClient();
@@ -295,7 +297,7 @@ export function ScanConsole({
                     description={
                       reference
                         ? t("poReferenceHint", {
-                            price: formatMoney(reference.minor, reference.currency),
+                            price: formatMoney(reference),
                           })
                         : undefined
                     }
@@ -309,14 +311,16 @@ export function ScanConsole({
                     onChange={(event) => setAskingPrice(event.currentTarget.value)}
                     w={{ base: "100%", sm: 160 }}
                   />
-                  <MoneyInput
-                    label={t("cashPaid")}
-                    description={t("cashPaidHint")}
-                    value={cashPaid}
-                    onChange={setCashPaid}
-                    currency="UZS"
-                    w={{ base: "100%", sm: 260 }}
-                  />
+                  {runsTill && (
+                    <MoneyInput
+                      label={t("cashPaid")}
+                      description={t("cashPaidHint")}
+                      value={cashPaid}
+                      onChange={setCashPaid}
+                      currency="UZS"
+                      w={{ base: "100%", sm: 260 }}
+                    />
+                  )}
                 </Group>
               )}
 

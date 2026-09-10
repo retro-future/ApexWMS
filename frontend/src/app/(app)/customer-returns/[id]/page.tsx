@@ -111,7 +111,7 @@ export default function CustomerReturnPage() {
   const kept = keptSubtotals(document);
   const outstanding =
     sale.data && sale.data.paymentType === "store_credit"
-      ? sale.data.remainingMinor
+      ? sale.data.remaining.minor
       : null;
 
   async function runConfirm(debtRelief: string | null) {
@@ -249,10 +249,10 @@ export default function CustomerReturnPage() {
         </Stack>
       </Card>
 
-      {document.debtReliefMinor !== null && (
+      {document.debtRelief !== null && (
         <Alert variant="light" color="blue" icon={<IconAlertCircle size={18} />}>
           {t("debtRelieved", {
-            amount: formatMoney(document.debtReliefMinor, "UZS"),
+            amount: formatMoney(document.debtRelief),
           })}
         </Alert>
       )}

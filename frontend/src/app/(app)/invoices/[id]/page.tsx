@@ -14,9 +14,11 @@ import { CreditPanel } from "@/app/(app)/invoices/CreditPanel";
 import { InvoiceLineRow } from "@/app/(app)/invoices/InvoiceLineRow";
 import { OverridePriceModal } from "@/app/(app)/invoices/OverridePriceModal";
 import { SellConsole } from "@/app/(app)/invoices/SellConsole";
+import { TenderPanel } from "@/app/(app)/invoices/TenderPanel";
 import { DetailError, DetailLoading } from "@/components/DetailStates";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { DocumentStatusBadge } from "@/components/DocumentStatusBadge";
+import { formatMoney } from "@/lib/money";
 import { useCan } from "@/components/MeProvider";
 import { OpenPdfButton } from "@/components/OpenPdfButton";
 import { ReasonModal } from "@/components/ReasonModal";
@@ -34,6 +36,7 @@ import {
   useProductLookup,
 } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
+import { useRunsTill } from "@/hooks/use-tenant-settings";
 import { isEditable } from "@/lib/documents";
 import { confirmBlockers, quoteSubtotals } from "@/lib/invoices";
 import { errorMessage, notifySuccess } from "@/lib/notify";
@@ -54,6 +57,7 @@ export default function InvoicePage() {
   const { formatDateTime } = useDateFormat();
   const { id } = useParams<{ id: string }>();
   const can = useCan();
+  const runsTill = useRunsTill();
   const queryClient = useQueryClient();
 
   const query = useResourceItem<SalesInvoice>("invoices", id);
@@ -202,8 +206,8 @@ export default function InvoicePage() {
                   <Anchor component={Link} href={`/products/${alert.productId}`}>
                     {t("belowCostWarningRow", {
                       sku: alert.sku,
-                      price: alert.catalogPrice,
-                      cost: alert.averageUnitCost,
+                      price: formatMoney(alert.catalogPrice),
+                      cost: formatMoney(alert.averageUnitCost),
                     })}
                   </Anchor>
                 </List.Item>
@@ -293,6 +297,12 @@ export default function InvoicePage() {
           attributing one to the customer would be a lie (§4.7). */}
       {invoice.paymentType === "store_credit" && !draft && (
         <CreditPanel invoice={invoice} />
+      )}
+
+      {/* Only a store that balances a drawer records what crossed the
+          counter; without one the sale is complete as it stands (§4.5b). */}
+      {invoice.paymentType === "paid_in_full" && !draft && runsTill && (
+        <TenderPanel invoice={invoice} />
       )}
 
       {invoice.paymentType === "credit_company" && !draft && (

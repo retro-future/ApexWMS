@@ -77,9 +77,7 @@ export function surplusNeedingValue(count: StockCount): StockCountUnit[] {
   return count.units.filter(
     (unit) =>
       unit.isSurprise &&
-      (unit.productId === null ||
-        unit.acquisitionCostMinor === null ||
-        unit.acquisitionCostMinor === undefined),
+      (unit.productId === null || !unit.acquisitionCost),
   );
 }
 

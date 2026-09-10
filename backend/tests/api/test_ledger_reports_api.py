@@ -140,9 +140,9 @@ class TestTheFinancialLedger:
         assert body["totalItems"] == 1
         row = body["data"][0]
         assert row["txnType"] == "purchase"
-        assert row["currency"] == "USD"
+        assert row["amount"]["currency"] == "USD"
         # §4.6's sign convention describes cash: money left the till.
-        assert row["amountMinor"] == -38000
+        assert row["amount"]["minor"] == -38000
         assert row["userName"] == owner.full_name
 
     async def test_a_confirmed_sale_books_revenue_and_cogs_against_its_invoice(
@@ -154,8 +154,8 @@ class TestTheFinancialLedger:
 
         rows = (await ledger(client, owner.auth))["data"]
         booked = {row["txnType"]: row for row in rows}
-        assert booked["sale_revenue"]["amountMinor"] == 50000
-        assert booked["cogs"]["amountMinor"] == -38000
+        assert booked["sale_revenue"]["amount"]["minor"] == 50000
+        assert booked["cogs"]["amount"]["minor"] == -38000
         assert booked["sale_revenue"]["documentNumber"] == number
         assert booked["sale_revenue"]["imei"] == PHONE_IMEI
 
@@ -226,7 +226,7 @@ async def summary(client, auth, **params):
 
 
 def per_currency(figures, field):
-    return {one["currency"]: one["amountMinor"] for one in figures[field]}
+    return {one["currency"]: one["minor"] for one in figures[field]}
 
 
 class TestTheSalesSummary:

@@ -8,7 +8,7 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { apiGet, apiSend } from "@/lib/api";
-import { isValidPriceInput } from "@/lib/money";
+import { isValidPriceInput, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import type { DeviceUnit } from "@/lib/types";
 
@@ -132,7 +132,7 @@ export function BulkRepriceModal({
                     <MoneyInput
                       aria-label={`${tUnits("newPrice")} ${unit.imei}`}
                       value={prices[unit.id] ?? ""}
-                      placeholder={unit.askingPrice ?? ""}
+                      placeholder={moneyToInput(unit.askingPrice)}
                       onChange={(value) =>
                         setPrices((current) => ({ ...current, [unit.id]: value }))
                       }

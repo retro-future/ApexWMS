@@ -89,9 +89,9 @@ class TestTheList:
         assert row["locationId"] == str(location_id)
         assert row["status"] == "in_stock"
         assert row["wasCustomerReturned"] is False
-        assert row["resolvedPriceMinor"] == 50000
-        assert row["acquisitionCostMinor"] == 38000
-        assert row["impliedMarginMinor"] == 12000
+        assert row["resolvedPrice"]["minor"] == 50000
+        assert row["acquisitionCost"]["minor"] == 38000
+        assert row["impliedMargin"]["minor"] == 12000
 
     async def test_a_seller_is_refused(self, client, settings, owner):
         """§2.1: Reporting.View is Manager and Owner only, like every report."""

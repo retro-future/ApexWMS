@@ -180,9 +180,9 @@ class TestTheDemo:
         ]
 
         assert priced[0]["oldPrice"] is None
-        assert priced[0]["newPriceMinor"] == 42000
-        assert [event["oldPriceMinor"] for event in priced[1:]] == [42000, 39000]
-        assert [event["newPriceMinor"] for event in priced[1:]] == [39000, 36000]
+        assert priced[0]["newPrice"]["minor"] == 42000
+        assert [event["oldPrice"]["minor"] for event in priced[1:]] == [42000, 39000]
+        assert [event["newPrice"]["minor"] for event in priced[1:]] == [39000, 36000]
         assert priced[1]["userName"] == "Dilnoza"
 
     async def test_the_sale_names_the_buyer_both_prices_and_the_approver(
@@ -197,8 +197,8 @@ class TestTheDemo:
         assert sold["sale"]["invoiceNumber"] == invoice_number
         assert sold["sale"]["customerName"] == "Bek"
         # Sold below the price the shelf was asking at that moment.
-        assert sold["sale"]["resolvedPriceMinor"] == 36000
-        assert sold["sale"]["chargedPriceMinor"] == 35000
+        assert sold["sale"]["resolvedPrice"]["minor"] == 36000
+        assert sold["sale"]["chargedPrice"]["minor"] == 35000
         assert sold["sale"]["priceApprovedByName"] == "Dilnoza"
         assert sold["sale"]["priceNote"] == "haggled hard"
 
@@ -212,7 +212,7 @@ class TestTheDemo:
 
         unit = (await trace(client, owner.auth, unit_id))["unit"]
 
-        assert unit["acquisitionCostMinor"] == 33000
+        assert unit["acquisitionCost"]["minor"] == 33000
         # A string beside the booked cost, never a number: there is no
         # numeric field the som could be added to anything from.
         assert unit["cashPaid"] == "4 200 000 so'm"
@@ -294,8 +294,8 @@ class TestWhatASellerSees:
         data = await trace(client, seller, unit_id)
 
         assert data["unit"]["acquisitionCost"] is None
-        assert data["unit"]["acquisitionCostMinor"] is None
+        assert data["unit"]["acquisitionCost"] is None
         assert data["unit"]["cashPaid"] is None
         priced = [event for event in data["events"] if event["kind"] == "priced"]
-        assert [event["newPriceMinor"] for event in priced] == [42000, 39000, 36000]
-        assert data["events"][-1]["sale"]["chargedPriceMinor"] == 35000
+        assert [event["newPrice"]["minor"] for event in priced] == [42000, 39000, 36000]
+        assert data["events"][-1]["sale"]["chargedPrice"]["minor"] == 35000

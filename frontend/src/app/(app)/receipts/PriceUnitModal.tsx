@@ -6,7 +6,8 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useDocumentAction } from "@/hooks/use-document";
-import { formatMoney, minorToInput } from "@/lib/money";
+import { useRunsTill } from "@/hooks/use-tenant-settings";
+import { formatMoney, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import type { ReferenceCost } from "@/lib/receipts";
 import type { ReceivedUnit } from "@/lib/types";
@@ -25,12 +26,10 @@ export function PriceUnitModal({
 }) {
   const tScan = useTranslations("receipts.scan");
   const tCommon = useTranslations("common");
+  const runsTill = useRunsTill();
 
-  const [cost, setCost] = useState(
-    unit.acquisitionCost ??
-      (reference ? minorToInput(reference.minor, reference.currency) : ""),
-  );
-  const [asking, setAsking] = useState(unit.askingPrice ?? "");
+  const [cost, setCost] = useState(moneyToInput(unit.acquisitionCost ?? reference));
+  const [asking, setAsking] = useState(moneyToInput(unit.askingPrice));
   const [cash, setCash] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +77,7 @@ export function PriceUnitModal({
         description={
           !unit.acquisitionCost && reference
             ? tScan("poReferenceHint", {
-                price: formatMoney(reference.minor, reference.currency),
+                price: formatMoney(reference),
               })
             : undefined
         }
@@ -93,13 +92,17 @@ export function PriceUnitModal({
         onChange={setAsking}
         currency={unit.currency}
       />
-      <MoneyInput
-        label={tScan("cashPaid")}
-        description={tScan("cashPaidHint")}
-        value={cash}
-        onChange={setCash}
-        currency="UZS"
-      />
+      {/* The som handed to a walk-in is only recorded by a store that
+          balances a drawer (§4.5b); the server refuses it otherwise. */}
+      {runsTill && (
+        <MoneyInput
+          label={tScan("cashPaid")}
+          description={tScan("cashPaidHint")}
+          value={cash}
+          onChange={setCash}
+          currency="UZS"
+        />
+      )}
     </FormModal>
   );
 }

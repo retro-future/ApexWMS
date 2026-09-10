@@ -4,7 +4,12 @@ The service behind ``apexwms verify-balances`` (FR-10.7b). Customer
 balances are *always* derived, so there is no cached projection to check
 them against — what this audits instead is that the two independent
 records of the same fact agree: the ``payments`` table and the money
-ledger's ``PAYMENT_RECEIVED`` rows.
+ledger's ``PAYMENT_RECEIVED`` and ``TENDER_RECEIVED`` rows.
+
+Payments are grouped **per invoice and per currency**, never summed across
+currencies. A sale settled at the counter may take a dollar tender and a som
+one, and adding those is the arithmetic the whole money model exists to
+prevent (§4.5 rule 1).
 
 The negative-balance sweep counts customer-return relief alongside the
 payments (FR-4.9d). Without it a fully returned credit sale reads as
@@ -20,7 +25,7 @@ from application.ports import FinancialTransactionQueries
 from application.services.customer_balance import relieved_on
 from application.specs import CustomerReturnsForInvoice, SalesInvoiceById
 from domain.entities import CustomerReturn, Payment, SalesInvoice
-from domain.enums import TransactionType
+from domain.enums import PaymentType, TransactionType
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import (
     CustomerReturnModel,
@@ -66,50 +71,84 @@ class BalanceVerifier:
     async def _verify_invoices(self, payments: list[Payment]) -> list[Discrepancy]:
         """Each invoice's terms against what has been collected on it.
 
-        Two different bugs, both worth catching: a store-credit sale paid
-        past its debt (the balance has gone negative), and a settled sale
-        carrying a debt or a payment at all — FR-11.4's "creates no debt
-        anywhere" as a sweep rather than a single test.
+        Three bugs, all worth catching: a store-credit sale paid past its
+        debt (the balance has gone negative), a debt settled in anything but
+        som (§4.7), and a credit-company sale carrying money at all — the
+        company settles with the store, so nothing crosses the counter.
+
+        A tender on a ``PAID_IN_FULL`` sale is none of those. It is expected,
+        in whatever currency, and capped by nothing: the sale owes nothing to
+        overpay.
         """
-        collected: dict[UUID, Money] = {}
+        collected: dict[UUID, dict[Currency, Money]] = {}
         for payment in payments:
-            _accumulate_for(collected, payment.sales_invoice_id, payment.amount)
+            by_currency = collected.setdefault(payment.sales_invoice_id, {})
+            currency = payment.amount.currency
+            by_currency[currency] = (
+                by_currency.get(currency, Money.zero(currency)) + payment.amount
+            )
 
         found: list[Discrepancy] = []
-        for invoice_id, paid in collected.items():
+        for invoice_id, totals in collected.items():
             invoice = await self._invoices.find_one(SalesInvoiceById(invoice_id))
             if invoice is None:
-                found.append(
+                found += [
                     Discrepancy(
                         subject=f"payments against invoice {invoice_id}",
                         expected="an invoice to settle",
                         found=f"{paid.format()} collected against no invoice",
                     )
-                )
+                    for paid in totals.values()
+                ]
                 continue
-            if not invoice.payment_type.opens_debt or invoice.debt is None:
-                found.append(
-                    Discrepancy(
-                        subject=f"payments against {invoice.number}",
-                        expected=f"none — it is {invoice.payment_type.value}",
-                        found=paid.format(),
-                    )
-                )
-                continue
-            relieved = relieved_on(
-                await self._returns.find(CustomerReturnsForInvoice(invoice.id))
+            if invoice.debt is None:
+                found += self._verify_no_debt(invoice, totals)
+            else:
+                found += await self._verify_debt(invoice, totals)
+        return found
+
+    @staticmethod
+    def _verify_no_debt(
+        invoice: SalesInvoice, totals: dict[Currency, Money]
+    ) -> list[Discrepancy]:
+        """A sale that opened no debt. Only a paid-in-full one may hold money."""
+        if invoice.payment_type is PaymentType.PAID_IN_FULL:
+            return []
+        return [
+            Discrepancy(
+                subject=f"money against {invoice.number}",
+                expected=f"none — it is {invoice.payment_type.value}",
+                found=paid.format(),
             )
-            settled = paid + relieved
-            if settled > invoice.debt:
-                found.append(
-                    Discrepancy(
-                        subject=f"debt on {invoice.number}",
-                        expected=(
-                            f"at least the {settled.format()} collected and relieved"
-                        ),
-                        found=invoice.debt.format(),
-                    )
+            for paid in totals.values()
+        ]
+
+    async def _verify_debt(
+        self, invoice: SalesInvoice, totals: dict[Currency, Money]
+    ) -> list[Discrepancy]:
+        assert invoice.debt is not None
+        found = [
+            Discrepancy(
+                subject=f"debt on {invoice.number}",
+                expected="som — all customer debt is written in som (§4.7)",
+                found=paid.format(),
+            )
+            for currency, paid in totals.items()
+            if currency is not Currency.UZS
+        ]
+        paid = totals.get(Currency.UZS, Money.zero(Currency.UZS))
+        relieved = relieved_on(
+            await self._returns.find(CustomerReturnsForInvoice(invoice.id))
+        )
+        settled = paid + relieved
+        if settled > invoice.debt:
+            found.append(
+                Discrepancy(
+                    subject=f"debt on {invoice.number}",
+                    expected=f"at least the {settled.format()} collected and relieved",
+                    found=invoice.debt.format(),
                 )
+            )
         return found
 
     async def _verify_ledger_agrees(self, payments: list[Payment]) -> list[Discrepancy]:
@@ -119,25 +158,34 @@ class BalanceVerifier:
         can only disagree if something wrote one without the other — which
         is precisely the bug a sweep exists to find.
         """
-        recorded = Money.zero(Currency.UZS)
+        recorded: dict[Currency, Money] = {}
         for payment in payments:
-            recorded = recorded + payment.amount
+            currency = payment.amount.currency
+            recorded[currency] = (
+                recorded.get(currency, Money.zero(currency)) + payment.amount
+            )
 
         totals = await self._transactions.totals_by_type()
-        booked = totals.get(
-            (TransactionType.PAYMENT_RECEIVED, Currency.UZS), Money.zero(Currency.UZS)
-        )
-        if recorded == booked:
-            return []
-        return [
-            Discrepancy(
-                subject="cash collected on store credit",
-                expected=booked.format(),
-                found=recorded.format(),
-            )
-        ]
-
-
-def _accumulate_for(totals: dict[UUID, Money], key: UUID, amount: Money) -> None:
-    running = totals.get(key)
-    totals[key] = amount if running is None else running + amount
+        # Both categories, because the poster writes one row per payment and
+        # picks the category from the invoice: a debt payment and a tender
+        # are the same table row and must both be accounted for.
+        found = []
+        for currency in Currency:
+            booked = Money.zero(currency)
+            for category in (
+                TransactionType.PAYMENT_RECEIVED,
+                TransactionType.TENDER_RECEIVED,
+            ):
+                booked = booked + totals.get(
+                    (category, currency), Money.zero(currency)
+                )
+            mine = recorded.get(currency, Money.zero(currency))
+            if mine != booked:
+                found.append(
+                    Discrepancy(
+                        subject=f"money received, {currency.value}",
+                        expected=booked.format(),
+                        found=mine.format(),
+                    )
+                )
+        return found

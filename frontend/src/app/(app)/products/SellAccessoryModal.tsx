@@ -90,7 +90,7 @@ export function SellAccessoryModal({
         {tSell("sellAccessoryBody")}
       </Text>
 
-      {product.defaultSalePriceMinor === null && (
+      {product.defaultSalePrice === null && (
         <Alert variant="light" color="yellow" icon={<IconAlertCircle size={18} />}>
           {tSell("sellAccessoryUnpriced")}
         </Alert>

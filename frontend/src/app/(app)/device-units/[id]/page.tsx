@@ -26,6 +26,7 @@ import { DeviceTraceTimeline } from "@/components/DeviceTraceTimeline";
 import { useCan } from "@/components/MeProvider";
 import { useLocationLookup } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
+import { formatMoney } from "@/lib/money";
 import { Permission } from "@/lib/permissions";
 import type { DeviceUnit } from "@/lib/types";
 
@@ -131,7 +132,7 @@ export default function DeviceUnitPage() {
           value={
             unit.resolvedPrice === null
               ? t("notPriced")
-              : `${unit.resolvedPrice} ${unit.currency}`
+              : formatMoney(unit.resolvedPrice)
           }
         />
         <Figure
@@ -139,14 +140,14 @@ export default function DeviceUnitPage() {
           value={
             unit.askingPrice === null
               ? tCommon("none")
-              : `${unit.askingPrice} ${unit.currency}`
+              : formatMoney(unit.askingPrice)
           }
         />
         {/* Absent without Cost.View — the payload never carried it (FR-1.7). */}
         {unit.acquisitionCost !== undefined && unit.acquisitionCost !== null && (
           <Figure
             label={t("acquisitionCost")}
-            value={`${unit.acquisitionCost} ${unit.currency}`}
+            value={formatMoney(unit.acquisitionCost)}
           />
         )}
         {unit.cashPaid && (

@@ -2,33 +2,28 @@
 
 import {
   Alert,
-  Badge,
   Button,
   Card,
   Group,
   Select,
   Stack,
-  Table,
   Text,
   Textarea,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { Figure, PaymentsTable } from "@/app/(app)/invoices/PaymentsTable";
 import { FormModal } from "@/components/FormModal";
 import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
-import { TableScrollArea } from "@/components/TableScrollArea";
-import { useDateFormat } from "@/hooks/use-date-format";
 import { useDocumentAction } from "@/hooks/use-document";
-import { useEmployeeLookup } from "@/hooks/use-lookup";
-import { refundDueMinor, reversedPaymentIds } from "@/lib/credit";
-import { formatMoney, isValidPriceInput } from "@/lib/money";
+import { refundDueMinor } from "@/lib/credit";
+import { formatMoney, formatMoneyOrDash, isValidPriceInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
-import type { Payment, PaymentMethod, SalesInvoice } from "@/lib/types";
+import type { PaymentMethod, SalesInvoice } from "@/lib/types";
 import { PAYMENT_METHODS } from "@/lib/types";
 
 /**
@@ -45,14 +40,11 @@ import { PAYMENT_METHODS } from "@/lib/types";
 export function CreditPanel({ invoice }: { invoice: SalesInvoice }) {
   const t = useTranslations("credit");
   const can = useCan();
-  const employees = useEmployeeLookup();
 
   const [recording, setRecording] = useState(false);
 
-  const debtMinor = invoice.debtMinor ?? 0;
   const refund = refundDueMinor(invoice);
-  const reversed = reversedPaymentIds(invoice.payments);
-  const settled = invoice.status === "confirmed" && invoice.remainingMinor === 0;
+  const settled = invoice.status === "confirmed" && invoice.remaining.minor === 0;
 
   return (
     <Card withBorder radius="md" padding="lg">
@@ -68,7 +60,7 @@ export function CreditPanel({ invoice }: { invoice: SalesInvoice }) {
               a payment above the balance (FR-11.6), and a settled sale's is
               zero. Reversing one reopens it and the button comes back. */}
           {invoice.status === "confirmed" &&
-            invoice.remainingMinor > 0 &&
+            invoice.remaining.minor > 0 &&
             can(Permission.Payment.Record) && (
               <Button variant="light" onClick={() => setRecording(true)}>
                 {t("recordPayment")}
@@ -77,11 +69,11 @@ export function CreditPanel({ invoice }: { invoice: SalesInvoice }) {
         </Group>
 
         <Group gap="xl" wrap="wrap">
-          <Figure label={t("debt")} value={formatMoney(debtMinor, "UZS")} />
-          <Figure label={t("paid")} value={formatMoney(invoice.paidMinor, "UZS")} />
+          <Figure label={t("debt")} value={formatMoneyOrDash(invoice.debt)} />
+          <Figure label={t("paid")} value={formatMoney(invoice.paid)} />
           <Figure
             label={t("remaining")}
-            value={formatMoney(invoice.remainingMinor, "UZS")}
+            value={formatMoney(invoice.remaining)}
             strong
           />
         </Group>
@@ -94,39 +86,11 @@ export function CreditPanel({ invoice }: { invoice: SalesInvoice }) {
 
         {refund > 0 && (
           <Alert variant="light" color="orange" icon={<IconAlertCircle size={18} />}>
-            {t("refundDue", { amount: formatMoney(refund, "UZS") })}
+            {t("refundDue", { amount: formatMoney({ minor: refund, currency: "UZS" }) })}
           </Alert>
         )}
 
-        {invoice.payments.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t("noPayments")}
-          </Text>
-        ) : (
-          <TableScrollArea>
-            <Table verticalSpacing="sm" miw={640}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t("date")}</Table.Th>
-                  <Table.Th>{t("amount")}</Table.Th>
-                  <Table.Th>{t("method")}</Table.Th>
-                  <Table.Th>{t("takenBy")}</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {invoice.payments.map((payment) => (
-                  <PaymentRow
-                    key={payment.id}
-                    payment={payment}
-                    takenBy={employees.get(payment.userId)}
-                    isReversed={reversed.has(payment.id)}
-                  />
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableScrollArea>
-        )}
+        <PaymentsTable invoice={invoice} />
       </Stack>
 
       {recording && (
@@ -139,124 +103,6 @@ export function CreditPanel({ invoice }: { invoice: SalesInvoice }) {
   );
 }
 
-function Figure({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <Stack gap="3xs">
-      <Text size="xs" c="dimmed" tt="uppercase">
-        {label}
-      </Text>
-      <Text size={strong ? "xl" : "md"} fw={strong ? 700 : 500}>
-        {value}
-      </Text>
-    </Stack>
-  );
-}
-
-/**
- * One payment. A reversal is shown beside the row it undoes rather than
- * replacing it: the money really did change hands twice, and FR-11.8 keeps
- * both halves.
- */
-function PaymentRow({
-  payment,
-  takenBy,
-  isReversed,
-}: {
-  payment: Payment;
-  takenBy: string | undefined;
-  isReversed: boolean;
-}) {
-  const t = useTranslations("credit");
-  const tCommon = useTranslations("common");
-  const { formatDateTime } = useDateFormat();
-  const can = useCan();
-  const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-
-  // The route is keyed by the payment, but what comes back is the invoice —
-  // so the cache this refreshes is the invoice's, not `["payments"]`.
-  const reverse = useDocumentAction<SalesInvoice>("payments", payment.id, {
-    path: "/reverse",
-    invalidate: false,
-  });
-
-  async function run() {
-    setError(null);
-    try {
-      await reverse.mutateAsync(undefined as never);
-      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifySuccess(t("reversed"));
-    } catch (thrown) {
-      setError(errorMessage(thrown, tCommon("retry")));
-    }
-  }
-
-  const spent = payment.isReversal || isReversed;
-
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Text size="sm">{formatDateTime(payment.occurredAt)}</Text>
-      </Table.Td>
-      <Table.Td>
-        <Group gap="2xs" wrap="nowrap">
-          <Text
-            size="sm"
-            fw={600}
-            c={payment.amountMinor < 0 ? "red" : undefined}
-            td={isReversed ? "line-through" : undefined}
-          >
-            {formatMoney(payment.amountMinor, "UZS")}
-          </Text>
-          {payment.isReversal && (
-            <Badge size="xs" variant="light" color="red">
-              {t("reversal")}
-            </Badge>
-          )}
-        </Group>
-        {payment.note && (
-          <Text size="xs" c="dimmed">
-            {payment.note}
-          </Text>
-        )}
-        {error && (
-          <Text size="xs" c="red">
-            {error}
-          </Text>
-        )}
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm">{t(`methods.${payment.method}`)}</Text>
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm">{takenBy ?? tCommon("none")}</Text>
-      </Table.Td>
-      <Table.Td>
-        <Group justify="flex-end">
-          {!spent && can(Permission.Payment.Reverse) && (
-            <Button
-              size="compact-sm"
-              variant="subtle"
-              color="red"
-              loading={reverse.isPending}
-              onClick={run}
-            >
-              {t("reverse")}
-            </Button>
-          )}
-        </Group>
-      </Table.Td>
-    </Table.Tr>
-  );
-}
 
 /** FR-11.6: money off what is still owed, refused above the balance. */
 function RecordPaymentModal({
@@ -280,7 +126,7 @@ function RecordPaymentModal({
   >("invoices", invoice.id, { path: "/payments" });
 
   const malformed = Boolean(amount.trim()) && !isValidPriceInput(amount, "UZS");
-  const tooMuch = !malformed && Number(amount.trim() || 0) > invoice.remainingMinor;
+  const tooMuch = !malformed && Number(amount.trim() || 0) > invoice.remaining.minor;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -312,7 +158,7 @@ function RecordPaymentModal({
       <MoneyInput
         label={t("amount")}
         description={t("remainingIs", {
-          amount: formatMoney(invoice.remainingMinor, "UZS"),
+          amount: formatMoney(invoice.remaining),
         })}
         value={amount}
         onChange={setAmount}

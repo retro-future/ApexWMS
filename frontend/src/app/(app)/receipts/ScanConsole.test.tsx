@@ -74,7 +74,6 @@ function scanResult(imei: string): ScanResult {
       condition: "new",
       currency: "USD",
       askingPrice: null,
-      askingPriceMinor: null,
       needsAskingPrice: false,
     },
   };

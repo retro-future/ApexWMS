@@ -56,10 +56,7 @@ export type Product = {
   trackingType: TrackingType;
   currency: Currency;
   barcode: string | null;
-  /** Exact major units as a string, e.g. "599.00". Never a float. */
-  defaultSalePrice: string | null;
-  /** The integer actually stored. Meaningless without `currency`. */
-  defaultSalePriceMinor: number | null;
+  defaultSalePrice: Money | null;
   isActive: boolean;
 };
 
@@ -109,6 +106,12 @@ export type TenantSettings = {
   address: string | null;
   /** The image itself is served as bytes from /settings/tenant/logo. */
   hasLogo: boolean;
+  /**
+   * Whether the store balances a cash drawer. Off, the money that
+   * physically changed hands is not recorded at all and nothing about a
+   * sale or a receipt differs from V1 (§4.5b).
+   */
+  runsTill: boolean;
 };
 
 /* ------------------------------------------------------------------ *
@@ -127,24 +130,27 @@ export type Fulfilment = "pending" | "partial" | "complete";
 /** Decides whether a unit may inherit the catalog price (FR-2.14). */
 export type DeviceCondition = "new" | "refurbished" | "used";
 
-export type DeviceStatus =
-  | "in_stock"
-  | "reserved"
-  | "sold"
-  | "returned_to_supplier"
-  | "written_off"
-  | "receipt_cancelled";
+export const DEVICE_STATUSES = [
+  "in_stock",
+  "reserved",
+  "sold",
+  "returned_to_supplier",
+  "written_off",
+  "receipt_cancelled",
+] as const;
+
+export type DeviceStatus = (typeof DEVICE_STATUSES)[number];
 
 /**
- * One document total, in one currency. A document carries a list of these —
- * never a combined figure, because §4.5 rule 4 leaves no field for a caller
- * to add 500 cents to 30 000 so'm in.
+ * One amount and its currency, as the API sends every money figure. The two
+ * travel together so no caller can pair an amount with the wrong currency.
+ *
+ * A document's totals are a *list* of these, never a combined figure: §4.5
+ * rule 4 leaves no field for a caller to add 500 cents to 30 000 so'm in.
  */
-export type CurrencySubtotal = {
+export type Money = {
+  minor: number;
   currency: Currency;
-  /** Exact major units as a string, e.g. "599.00". Never a float. */
-  amount: string;
-  amountMinor: number;
 };
 
 /**
@@ -158,10 +164,8 @@ export type PurchaseOrderLine = {
   trackingType: TrackingType;
   currency: Currency;
   /** Null until someone prices the line; the order cannot be confirmed so. */
-  unitCost: string | null;
-  unitCostMinor: number | null;
-  totalCost: string | null;
-  totalCostMinor: number | null;
+  unitCost: Money | null;
+  totalCost: Money | null;
   receivedQuantity: number;
 };
 
@@ -176,7 +180,7 @@ export type PurchaseOrder = {
   confirmedAt: string | null;
   cancelledAt: string | null;
   lines: PurchaseOrderLine[];
-  subtotals: CurrencySubtotal[];
+  subtotals: Money[];
   fulfilment: Fulfilment;
 };
 
@@ -188,13 +192,11 @@ export type ReceivedUnit = {
   serialNumber: string | null;
   condition: DeviceCondition;
   currency: Currency;
-  askingPrice: string | null;
-  askingPriceMinor: number | null;
+  askingPrice: Money | null;
   /** Not NEW and unpriced — exactly what FR-3.10 refuses the confirm over. */
   needsAskingPrice: boolean;
   /** --- Permission.Cost.View only --- */
-  acquisitionCost?: string | null;
-  acquisitionCostMinor?: number | null;
+  acquisitionCost?: Money | null;
   /** A formatted string, never a number: it enters no total (FR-3.4d). */
   cashPaid?: string | null;
 };
@@ -206,10 +208,8 @@ export type ReceivedUnit = {
 export type BelowCostAlert = {
   productId: string;
   sku: string;
-  catalogPrice: string;
-  catalogPriceMinor: number;
-  averageUnitCost: string;
-  averageUnitCostMinor: number;
+  catalogPrice: Money;
+  averageUnitCost: Money;
 };
 
 export type GoodsReceiptLine = {
@@ -221,8 +221,7 @@ export type GoodsReceiptLine = {
   scannedCount: number;
   units: ReceivedUnit[];
   /** --- Permission.Cost.View only --- */
-  unitCost?: string | null;
-  unitCostMinor?: number | null;
+  unitCost?: Money | null;
 };
 
 export type GoodsReceipt = {
@@ -241,7 +240,7 @@ export type GoodsReceipt = {
   cancelledAt: string | null;
   lines: GoodsReceiptLine[];
   /** --- Permission.Cost.View only; empty otherwise --- */
-  subtotals: CurrencySubtotal[];
+  subtotals: Money[];
   /** Populated only on the confirm response; empty on every GET. */
   belowCostAlerts: BelowCostAlert[];
 };
@@ -266,18 +265,16 @@ export type DeviceUnit = {
   condition: DeviceCondition;
   locationId: string | null;
   currency: Currency;
-  askingPrice: string | null;
+  askingPrice: Money | null;
   /**
    * The price it would sell at, or null where the resolution rule refuses
    * (FR-2.14). Null is the counter's cue that someone must price it — it is
    * never zero and never the catalog price of a used handset.
    */
-  resolvedPrice: string | null;
-  resolvedPriceMinor: number | null;
+  resolvedPrice: Money | null;
   createdAt: string;
   /** --- Permission.Cost.View only --- */
-  acquisitionCost?: string | null;
-  acquisitionCostMinor?: number | null;
+  acquisitionCost?: Money | null;
   cashPaid?: string | null;
 };
 
@@ -286,11 +283,8 @@ export type PriceChange = {
   id: string;
   occurredAt: string;
   /** Null on the first row: where pricing started, not a gap. */
-  oldPrice: string | null;
-  newPrice: string;
-  oldPriceMinor: number | null;
-  newPriceMinor: number;
-  currency: Currency;
+  oldPrice: Money | null;
+  newPrice: Money;
   reason: string | null;
   userId: string;
 };
@@ -329,14 +323,10 @@ export type SalesInvoiceLine = {
   quantity: number;
   trackingType: TrackingType;
   currency: Currency;
-  resolvedPrice: string | null;
-  resolvedPriceMinor: number | null;
-  chargedPrice: string | null;
-  chargedPriceMinor: number | null;
-  lineTotal: string | null;
-  lineTotalMinor: number | null;
-  overridePrice: string | null;
-  overridePriceMinor: number | null;
+  resolvedPrice: Money | null;
+  chargedPrice: Money | null;
+  lineTotal: Money | null;
+  overridePrice: Money | null;
   /** Whoever last overrode the price, stamped then and not at confirm. */
   priceApprovedBy: string | null;
   priceNote: string | null;
@@ -360,23 +350,28 @@ export type SalesInvoice = {
   cancellationReason: string | null;
   lines: SalesInvoiceLine[];
   /** Empty on a draft, because a draft holds no prices. */
-  subtotals: CurrencySubtotal[];
+  subtotals: Money[];
   /** --- M5b: how this sale is paid for. Every debt figure is som. --- */
   paymentType: PaymentType;
   creditCompanyId: string | null;
   contractRef: string | null;
   /** The som total the seller wrote. Null unless this is store credit. */
-  debt: string | null;
-  debtMinor: number | null;
-  paidMinor: number;
+  debt: Money | null;
+  /**
+   * What physically changed hands, one figure per currency. A sale priced in
+   * dollars and paid for in som carries both, side by side and never netted:
+   * nothing converts one into the other (§4.5 rule 1).
+   */
+  tendered: Money[];
+  paid: Money;
   /** Som written off by confirmed customer returns against this sale (FR-4.9d). */
-  relievedMinor: number;
+  relieved: Money;
   /**
    * `debt − Σ payments − Σ return relief`, recomputed on every read and never
    * stored. Zero on a cancelled sale, whose debt is void while its payments
-   * stand (FR-11.11) — which makes `paidMinor` the refund figure at that point.
+   * stand (FR-11.11) — which makes `paid` the refund figure at that point.
    */
-  remainingMinor: number;
+  remaining: Money;
   payments: Payment[];
   /** Populated only on the confirm response; empty on every GET. */
   belowCostAlerts: BelowCostAlert[];
@@ -389,8 +384,7 @@ export type SalesInvoice = {
 export type InvoiceScanResult = {
   line: SalesInvoiceLine;
   lineCount: number;
-  resolvedPrice: string;
-  resolvedPriceMinor: number;
+  resolvedPrice: Money;
   productId: string;
   deviceUnitId: string | null;
 };
@@ -411,6 +405,8 @@ export type PaymentMethod = "cash" | "transfer" | "card";
 
 export const PAYMENT_METHODS: PaymentMethod[] = ["cash", "transfer", "card"];
 
+export const CURRENCIES: Currency[] = ["UZS", "USD"];
+
 export type CreditCompany = {
   id: string;
   name: string;
@@ -421,18 +417,16 @@ export type CreditCompany = {
 };
 
 /**
- * Money received against a store-credit sale. Always som, so `amount` and
- * `amountMinor` carry the same number — UZS has exponent 0.
+ * Money received against a store-credit sale. Always som.
  *
- * `amountMinor` is **signed**: a negative row is the compensating entry that
+ * `amount` is **signed**: a negative row is the compensating entry that
  * reverses an earlier payment (FR-11.8), and the original stays beside it.
  */
 export type Payment = {
   id: string;
   salesInvoiceId: string;
   occurredAt: string;
-  amount: string;
-  amountMinor: number;
+  amount: Money;
   method: PaymentMethod;
   userId: string;
   note: string | null;
@@ -448,12 +442,15 @@ export type CreditInvoiceDebt = {
   paymentType: PaymentType;
   confirmedAt: string | null;
   /** Null on a financed sale: it opened no debt at all. */
-  debt: string | null;
-  debtMinor: number | null;
-  paid: string;
-  paidMinor: number;
-  remaining: string;
-  remainingMinor: number;
+  debt: Money | null;
+  /**
+   * What physically changed hands, one figure per currency. A sale priced in
+   * dollars and paid for in som carries both, side by side and never netted:
+   * nothing converts one into the other (§4.5 rule 1).
+   */
+  tendered: Money[];
+  paid: Money;
+  remaining: Money;
   creditCompanyId: string | null;
   contractRef: string | null;
   daysSinceSale: number | null;
@@ -468,8 +465,7 @@ export type CustomerAccount = {
   customerId: string;
   fullName: string;
   phone: string | null;
-  balance: string;
-  balanceMinor: number;
+  balance: Money;
   openDebts: CreditInvoiceDebt[];
   financedSales: CreditInvoiceDebt[];
 };
@@ -479,8 +475,7 @@ export type Debtor = {
   customerId: string;
   fullName: string;
   phone: string | null;
-  balance: string;
-  balanceMinor: number;
+  balance: Money;
   oldestOpenAt: string;
   daysSinceOldest: number;
   openInvoiceCount: number;
@@ -589,10 +584,9 @@ export type CustomerReturnLine = {
   currency: Currency;
   trackingType: TrackingType;
   /** The ceiling: a refund never goes above what the sale charged. */
-  chargedPriceMinor: number;
-  refundPriceMinor: number;
-  refundPrice: string;
-  lineTotalMinor: number;
+  chargedPrice: Money;
+  refundPrice: Money;
+  lineTotal: Money;
   isReduced: boolean;
   refundApprovedBy: string | null;
   refundNote: string | null;
@@ -611,7 +605,7 @@ export type CustomerReturn = {
    * Som, and never a conversion of the subtotals: a store-credit debt is
    * written directly in som, so the relief against it is too (§4.7).
    */
-  debtReliefMinor: number | null;
+  debtRelief: Money | null;
   note: string | null;
   createdBy: string;
   createdAt: string;
@@ -619,7 +613,7 @@ export type CustomerReturn = {
   cancelledAt: string | null;
   cancellationReason: string | null;
   lines: CustomerReturnLine[];
-  subtotals: CurrencySubtotal[];
+  subtotals: Money[];
   lineCount: number;
 };
 
@@ -660,8 +654,7 @@ export type StockCountUnit = {
   /** Unknown to the store entirely — confirming has to create it (FR-6.4b). */
   isSurprise: boolean;
   /** --- Permission.Cost.View only --- */
-  acquisitionCost?: string | null;
-  acquisitionCostMinor?: number | null;
+  acquisitionCost?: Money | null;
 };
 
 /**
@@ -734,12 +727,9 @@ export type PriceDeviation = {
   productName: string;
   imei: string | null;
   currency: Currency;
-  resolvedPrice: string;
-  resolvedPriceMinor: number;
-  chargedPrice: string;
-  chargedPriceMinor: number;
-  difference: string;
-  differenceMinor: number;
+  resolvedPrice: Money;
+  chargedPrice: Money;
+  difference: Money;
   priceApprovedBy: string | null;
   priceApprovedByName: string | null;
   priceNote: string | null;
@@ -765,15 +755,25 @@ export type MovementType =
   | "count_adjustment"
   | "write_off";
 
-export type TransactionType =
-  | "purchase"
-  | "sale_revenue"
-  | "cogs"
-  | "write_off_loss"
-  | "supplier_return_credit"
-  | "sales_return_refund"
-  | "count_adjustment"
-  | "payment_received";
+/**
+ * The array is the source of truth and the type is derived from it, so a
+ * new category cannot be added as a type alone: the ledger filter and the
+ * label check both read this list (see `labels.test.ts`).
+ */
+export const TRANSACTION_TYPES = [
+  "purchase",
+  "sale_revenue",
+  "cogs",
+  "write_off_loss",
+  "supplier_return_credit",
+  "sales_return_refund",
+  "count_adjustment",
+  "payment_received",
+  "tender_received",
+  "tender_paid",
+] as const;
+
+export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
 export type StockGroupBy = "location" | "product" | "brand";
 
@@ -790,7 +790,7 @@ export type StockOnHandRow = {
   sku?: string | null;
   quantity: number;
   /** --- Permission.Cost.View only --- */
-  costValue?: CurrencySubtotal[] | null;
+  costValue?: Money[] | null;
 };
 
 export type AgeingSort = "age" | "markdowns";
@@ -808,15 +808,11 @@ export type AgeingRow = {
   locationName: string | null;
   since: string;
   daysInStock: number;
-  currency: Currency;
-  askingPrice: string | null;
-  askingPriceMinor: number | null;
+  askingPrice: Money | null;
   markdownCount: number;
   /** --- Permission.Cost.View only --- */
-  acquisitionCost?: string | null;
-  acquisitionCostMinor?: number | null;
-  impliedMargin?: string | null;
-  impliedMarginMinor?: number | null;
+  acquisitionCost?: Money | null;
+  impliedMargin?: Money | null;
 };
 
 /** Why FR-2.14 refuses to price the unit: its own price is missing, or the model's. */
@@ -870,24 +866,18 @@ export type DeviceInventoryRow = {
   locationName: string | null;
   since: string;
   daysInStock: number;
-  currency: Currency;
-  askingPrice: string | null;
-  askingPriceMinor: number | null;
-  resolvedPrice: string | null;
-  resolvedPriceMinor: number | null;
+  askingPrice: Money | null;
+  resolvedPrice: Money | null;
   sourceDocumentType: DocumentType | null;
   sourceDocumentId: string | null;
   /** --- Permission.Cost.View only --- */
-  acquisitionCost?: string | null;
-  acquisitionCostMinor?: number | null;
-  impliedMargin?: string | null;
-  impliedMarginMinor?: number | null;
+  acquisitionCost?: Money | null;
+  impliedMargin?: Money | null;
 };
 
 /**
  * One row of the below-cost report: an accessory whose average unit cost has
- * caught up with its catalog price. The decimal fields arrive pre-formatted
- * as strings; `*Minor` fields plus `currency` drive `formatMoney`.
+ * caught up with its catalog price.
  */
 export type BelowCostRow = {
   productId: string;
@@ -896,13 +886,9 @@ export type BelowCostRow = {
   locationId: string;
   locationName: string;
   quantity: number;
-  currency: Currency;
-  catalogPrice: string;
-  catalogPriceMinor: number;
-  averageUnitCost: string;
-  averageUnitCostMinor: number;
-  shortfall: string;
-  shortfallMinor: number;
+  catalogPrice: Money;
+  averageUnitCost: Money;
+  shortfall: Money;
 };
 
 /** One row of FR-9.5's stock ledger. `quantityDelta` is signed. */
@@ -937,8 +923,7 @@ export type FinancialLedgerRow = {
   txnType: TransactionType;
   currency: Currency;
   /** Signed per 4.6: negative is money out. */
-  amount: string;
-  amountMinor: number;
+  amount: Money;
   productId: string | null;
   productName: string | null;
   deviceUnitId: string | null;
@@ -959,11 +944,11 @@ export type FinancialLedgerRow = {
  */
 export type SalesFigures = {
   unitsSold: number;
-  revenue: CurrencySubtotal[];
-  costOfGoods: CurrencySubtotal[];
+  revenue: Money[];
+  costOfGoods: Money[];
   /** Negative: money handed back to customers on returns (FR-4.9). */
-  returns: CurrencySubtotal[];
-  margin: CurrencySubtotal[];
+  returns: Money[];
+  margin: Money[];
 };
 
 export type LocationSales = {
@@ -1006,17 +991,17 @@ export type MarginPercent = {
  * negative `salesReturns`) plus cost, with nothing flipped.
  */
 export type AccrualFigures = {
-  openingInventory: CurrencySubtotal[];
-  purchases: CurrencySubtotal[];
-  costOfGoods: CurrencySubtotal[];
-  revenue: CurrencySubtotal[];
+  openingInventory: Money[];
+  purchases: Money[];
+  costOfGoods: Money[];
+  revenue: Money[];
   /** Negative: money refunded to customers for goods brought back (FR-4.9). */
-  salesReturns: CurrencySubtotal[];
-  writeOffs: CurrencySubtotal[];
-  supplierReturnCredits: CurrencySubtotal[];
-  countAdjustments: CurrencySubtotal[];
-  closingInventory: CurrencySubtotal[];
-  margin: CurrencySubtotal[];
+  salesReturns: Money[];
+  writeOffs: Money[];
+  supplierReturnCredits: Money[];
+  countAdjustments: Money[];
+  closingInventory: Money[];
+  margin: Money[];
   marginPercent: MarginPercent[];
 };
 
@@ -1025,7 +1010,7 @@ export type LocationInventoryValue = {
   locationId: string;
   locationName: string | null;
   quantity: number;
-  value: CurrencySubtotal[];
+  value: Money[];
 };
 
 /**
@@ -1035,14 +1020,13 @@ export type LocationInventoryValue = {
  * do not add up.
  */
 export type DebtMovement = {
-  openingMinor: number;
-  bookedMinor: number;
-  collectedMinor: number;
-  voidedMinor: number;
+  opening: Money;
+  booked: Money;
+  collected: Money;
+  voided: Money;
   /** Debt written off by confirmed customer returns against the sale (FR-4.9d). */
-  relievedMinor: number;
-  closingMinor: number;
-  currency: Currency;
+  relieved: Money;
+  closing: Money;
 };
 
 /** FR-10.5's last line: how the store actually sells. */
@@ -1051,7 +1035,7 @@ export type FinancingSplit = {
   creditCompanyId: string | null;
   creditCompanyName: string | null;
   invoiceCount: number;
-  revenue: CurrencySubtotal[];
+  revenue: Money[];
 };
 
 /** One thing that does not add up (FR-10.7, FR-10.7b). */
@@ -1074,13 +1058,17 @@ export type MonthEndReport = {
   discrepancies: Discrepancy[];
 };
 
-export type TraceEventKind =
-  | "received"
-  | "priced"
-  | "sold"
-  | "returned_to_supplier"
-  | "written_off"
-  | "count_adjustment";
+export const TRACE_EVENT_KINDS = [
+  "received",
+  "priced",
+  "sold",
+  "returned_by_customer",
+  "returned_to_supplier",
+  "written_off",
+  "count_adjustment",
+] as const;
+
+export type TraceEventKind = (typeof TRACE_EVENT_KINDS)[number];
 
 /** Where the handset came from - a supplier, or a walk-in (FR-3.3b). */
 export type TraceOrigin = {
@@ -1097,10 +1085,8 @@ export type TraceSale = {
   invoiceNumber: string;
   customerId: string | null;
   customerName: string | null;
-  resolvedPrice: string | null;
-  resolvedPriceMinor: number | null;
-  chargedPrice: string | null;
-  chargedPriceMinor: number | null;
+  resolvedPrice: Money | null;
+  chargedPrice: Money | null;
   priceApprovedBy: string | null;
   priceApprovedByName: string | null;
   priceNote: string | null;
@@ -1122,10 +1108,8 @@ export type TraceEvent = {
   locationId: string | null;
   locationName: string | null;
   /** PRICED only. A null `oldPrice` is the first pricing, not a cut. */
-  oldPrice: string | null;
-  oldPriceMinor: number | null;
-  newPrice: string | null;
-  newPriceMinor: number | null;
+  oldPrice: Money | null;
+  newPrice: Money | null;
   origin: TraceOrigin | null;
   sale: TraceSale | null;
 };

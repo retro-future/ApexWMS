@@ -13,17 +13,9 @@ import { useLocationLookup } from "@/hooks/use-lookup";
 import { makePageReset, useResourceList } from "@/hooks/use-resource";
 import { formatMoney } from "@/lib/money";
 import type { DocumentType, FinancialLedgerRow, TransactionType } from "@/lib/types";
+import { TRANSACTION_TYPES } from "@/lib/types";
 
-const TXN_TYPES: TransactionType[] = [
-  "purchase",
-  "sale_revenue",
-  "cogs",
-  "write_off_loss",
-  "supplier_return_credit",
-  "sales_return_refund",
-  "count_adjustment",
-  "payment_received",
-];
+const TXN_TYPES: readonly TransactionType[] = TRANSACTION_TYPES;
 
 const DOCUMENT_TYPES: DocumentType[] = [
   "goods_receipt",
@@ -167,8 +159,8 @@ export function FinancialLedgerList() {
           </Table.Td>
           <Table.Td>
             {/* Signed per §4.6: negative is money out, and it stays negative. */}
-            <Text size="sm" fw={600} c={row.amountMinor < 0 ? "red" : "teal"}>
-              {formatMoney(row.amountMinor, row.currency)}
+            <Text size="sm" fw={600} c={row.amount.minor < 0 ? "red" : "teal"}>
+              {formatMoney(row.amount)}
             </Text>
           </Table.Td>
           <Table.Td>

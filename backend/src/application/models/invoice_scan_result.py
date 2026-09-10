@@ -15,10 +15,10 @@ number is a quote, never a reservation.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
+from application.models.money import MoneyData
 from application.models.sales_invoice import SalesInvoiceLineData
 from domain.entities import SalesInvoice, SalesInvoiceLine
 from domain.value_objects import Money
@@ -29,8 +29,7 @@ class InvoiceScanResultData(CamelModel):
     # How many lines the invoice holds now — the running count §6 wants
     # after every beep, so the operator never has to look away to check.
     line_count: int
-    resolved_price: Decimal
-    resolved_price_minor: int
+    resolved_price: MoneyData
     product_id: UUID
     device_unit_id: UUID | None
 
@@ -41,8 +40,7 @@ class InvoiceScanResultData(CamelModel):
         return cls(
             line=SalesInvoiceLineData.from_entity(line),
             line_count=len(invoice.lines),
-            resolved_price=resolved.as_major(),
-            resolved_price_minor=resolved.amount_minor,
+            resolved_price=MoneyData.from_entity(resolved),
             product_id=line.product_id,
             device_unit_id=line.device_unit_id,
         )

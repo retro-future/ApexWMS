@@ -134,11 +134,11 @@ export default function ProductsPage() {
             </Badge>
           </Table.Td>
           <Table.Td>
-            {product.defaultSalePriceMinor === null ? (
+            {product.defaultSalePrice === null ? (
               <Text c="dimmed">{tCommon("none")}</Text>
             ) : (
               <Text size="sm">
-                {formatMoney(product.defaultSalePriceMinor, product.currency)}
+                {formatMoney(product.defaultSalePrice)}
               </Text>
             )}
           </Table.Td>

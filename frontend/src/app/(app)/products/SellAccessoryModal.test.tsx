@@ -29,7 +29,7 @@ const product = {
   sku: "CASE-CLR",
   trackingType: "quantity",
   isActive: true,
-  defaultSalePriceMinor: 50000,
+  defaultSalePrice: { minor: 50000, currency: "USD" },
 } as unknown as Product;
 
 beforeEach(() => {

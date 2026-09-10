@@ -6,12 +6,11 @@ trimming its figures would leave an empty table.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID
 
 from application.core import CamelModel
 from application.dtos import BelowCostRow
-from domain.value_objects import Currency
+from application.models.money import MoneyData
 
 
 class BelowCostRowData(CamelModel):
@@ -21,13 +20,9 @@ class BelowCostRowData(CamelModel):
     location_id: UUID
     location_name: str
     quantity: int
-    currency: Currency
-    catalog_price: Decimal
-    catalog_price_minor: int
-    average_unit_cost: Decimal
-    average_unit_cost_minor: int
-    shortfall: Decimal
-    shortfall_minor: int
+    catalog_price: MoneyData
+    average_unit_cost: MoneyData
+    shortfall: MoneyData
 
     @classmethod
     def from_entity(cls, row: BelowCostRow) -> BelowCostRowData:
@@ -38,11 +33,7 @@ class BelowCostRowData(CamelModel):
             location_id=row.location_id,
             location_name=row.location_name,
             quantity=row.quantity,
-            currency=row.currency,
-            catalog_price=row.catalog_price.as_major(),
-            catalog_price_minor=row.catalog_price.amount_minor,
-            average_unit_cost=row.average_unit_cost.as_major(),
-            average_unit_cost_minor=row.average_unit_cost.amount_minor,
-            shortfall=row.shortfall.as_major(),
-            shortfall_minor=row.shortfall.amount_minor,
+            catalog_price=MoneyData.from_entity(row.catalog_price),
+            average_unit_cost=MoneyData.from_entity(row.average_unit_cost),
+            shortfall=MoneyData.from_entity(row.shortfall),
         )

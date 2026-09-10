@@ -29,6 +29,7 @@ class TraceEventKind(StrEnum):
     RECEIVED = "received"
     PRICED = "priced"
     SOLD = "sold"
+    RETURNED_BY_CUSTOMER = "returned_by_customer"
     RETURNED_TO_SUPPLIER = "returned_to_supplier"
     WRITTEN_OFF = "written_off"
     COUNT_ADJUSTMENT = "count_adjustment"

@@ -24,7 +24,7 @@ import { ErrorAlert } from "@/components/ErrorAlert";
 import { useCan } from "@/components/MeProvider";
 import { useResourceCreate, useResourceUpdate } from "@/hooks/use-resource";
 import { ApiError } from "@/lib/api";
-import { isValidPriceInput, minorToInput } from "@/lib/money";
+import { isValidPriceInput, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
 import type { Currency, Product, TrackingType } from "@/lib/types";
@@ -76,7 +76,7 @@ export function ProductForm({ product }: { product?: Product }) {
       currency: initialCurrency,
       barcode: product?.barcode ?? "",
       generateBarcode: false,
-      price: minorToInput(product?.defaultSalePriceMinor, initialCurrency),
+      price: moneyToInput(product?.defaultSalePrice),
       isActive: product?.isActive ?? true,
     },
     validate: {

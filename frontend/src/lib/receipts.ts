@@ -87,8 +87,8 @@ export function referenceCosts(
 ): Map<string, ReferenceCost> {
   const map = new Map<string, ReferenceCost>();
   for (const line of order?.lines ?? []) {
-    if (line.unitCostMinor !== null) {
-      map.set(line.productId, { minor: line.unitCostMinor, currency: line.currency });
+    if (line.unitCost) {
+      map.set(line.productId, line.unitCost);
     }
   }
   return map;

@@ -176,9 +176,9 @@ export function AgeingList() {
             </Table.Td>
             <Table.Td>
               <Text size="sm">
-                {row.askingPriceMinor === null
+                {row.askingPrice === null
                   ? tCommon("none")
-                  : formatMoney(row.askingPriceMinor, row.currency)}
+                  : formatMoney(row.askingPrice)}
               </Text>
             </Table.Td>
             <Table.Td>
@@ -190,21 +190,21 @@ export function AgeingList() {
               <>
                 <Table.Td>
                   <Text size="sm" c="dimmed">
-                    {row.acquisitionCostMinor === null ||
-                    row.acquisitionCostMinor === undefined
+                    {row.acquisitionCost === null ||
+                    row.acquisitionCost === undefined
                       ? tCommon("none")
-                      : formatMoney(row.acquisitionCostMinor, row.currency)}
+                      : formatMoney(row.acquisitionCost)}
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  {row.impliedMarginMinor === null ||
-                  row.impliedMarginMinor === undefined ? (
+                  {row.impliedMargin === null ||
+                  row.impliedMargin === undefined ? (
                     <Text size="sm" c="dimmed">
                       {tCommon("none")}
                     </Text>
                   ) : (
-                    <Text size="sm" c={row.impliedMarginMinor < 0 ? "red" : "teal"}>
-                      {formatMoney(row.impliedMarginMinor, row.currency)}
+                    <Text size="sm" c={row.impliedMargin.minor < 0 ? "red" : "teal"}>
+                      {formatMoney(row.impliedMargin)}
                     </Text>
                   )}
                 </Table.Td>

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SalesSummaryReport } from "@/app/(app)/reports/sales-summary/SalesSummaryReport";
 import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
-import type { CurrencySubtotal, SalesFigures, SalesSummary } from "@/lib/types";
+import type { Money, SalesFigures, SalesSummary } from "@/lib/types";
 
 const { apiGet } = vi.hoisted(() => ({ apiGet: vi.fn() }));
 
@@ -13,11 +13,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiGet,
 }));
 
-const usd = (amountMinor: number): CurrencySubtotal => ({
-  currency: "USD",
-  amount: String(amountMinor / 100),
-  amountMinor,
-});
+const usd = (minor: number): Money => ({ currency: "USD", minor });
 
 const figures = (over: Partial<SalesFigures> = {}): SalesFigures => ({
   unitsSold: 5,

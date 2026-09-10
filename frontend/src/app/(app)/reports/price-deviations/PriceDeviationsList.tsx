@@ -158,20 +158,20 @@ export function PriceDeviationsList() {
           </Table.Td>
           <Table.Td>
             <Text size="sm" c="dimmed">
-              {formatMoney(row.resolvedPriceMinor, row.currency)}
+              {formatMoney(row.resolvedPrice)}
             </Text>
           </Table.Td>
           <Table.Td>
             <Text size="sm" fw={600}>
-              {formatMoney(row.chargedPriceMinor, row.currency)}
+              {formatMoney(row.chargedPrice)}
             </Text>
           </Table.Td>
           <Table.Td>
             {/* Both directions: a discount is red, a sale above the asking
                 price is teal, and neither is hidden. */}
-            <Text size="sm" c={row.differenceMinor < 0 ? "red" : "teal"}>
-              {row.differenceMinor > 0 ? "+" : ""}
-              {formatMoney(row.differenceMinor, row.currency)}
+            <Text size="sm" c={row.difference.minor < 0 ? "red" : "teal"}>
+              {row.difference.minor > 0 ? "+" : ""}
+              {formatMoney(row.difference)}
             </Text>
           </Table.Td>
           <Table.Td>

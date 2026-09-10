@@ -81,7 +81,7 @@ class TestAddingAnAccessoryByCatalogPick:
         assert added.status_code == 201, added.text
         data = added.json()["data"]
         assert data["line"]["quantity"] == 3
-        assert data["resolvedPriceMinor"] == 50000
+        assert data["resolvedPrice"]["minor"] == 50000
         assert data["lineCount"] == 1
 
     async def test_the_same_product_again_merges_into_the_line(self, client, owner):
