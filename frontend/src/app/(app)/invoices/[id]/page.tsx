@@ -36,7 +36,6 @@ import {
   useProductLookup,
 } from "@/hooks/use-lookup";
 import { useResourceItem } from "@/hooks/use-resource";
-import { useRunsTill } from "@/hooks/use-tenant-settings";
 import { isEditable } from "@/lib/documents";
 import { confirmBlockers, quoteSubtotals } from "@/lib/invoices";
 import { errorMessage, notifySuccess } from "@/lib/notify";
@@ -57,7 +56,6 @@ export default function InvoicePage() {
   const { formatDateTime } = useDateFormat();
   const { id } = useParams<{ id: string }>();
   const can = useCan();
-  const runsTill = useRunsTill();
   const queryClient = useQueryClient();
 
   const query = useResourceItem<SalesInvoice>("invoices", id);
@@ -299,9 +297,9 @@ export default function InvoicePage() {
         <CreditPanel invoice={invoice} />
       )}
 
-      {/* Only a store that balances a drawer records what crossed the
-          counter; without one the sale is complete as it stands (§4.5b). */}
-      {invoice.paymentType === "paid_in_full" && !draft && runsTill && (
+      {/* Every store, not only one that balances a drawer: a dollar-priced
+          handset paid for in som leaves no som figure anywhere else (W9 B1). */}
+      {invoice.paymentType === "paid_in_full" && !draft && (
         <TenderPanel invoice={invoice} />
       )}
 

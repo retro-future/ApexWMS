@@ -16,6 +16,7 @@ reason (§2.1, FR-7.2):
 
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from application.core import CamelModel
@@ -41,6 +42,10 @@ class ReceivedUnitData(CamelModel):
     # "paid 4 200 000 so'm" — a string, never a number, so no caller can
     # add it to anything (§4.5b, FR-3.4d).
     cash_paid: str | None = None
+    # Som per dollar this handset actually worked out at, for reading beside
+    # the rate the store was quoting (W9 B2). A string for the same reason
+    # as ``cash_paid``, and absent unless both halves are som over dollars.
+    implied_rate: str | None = None
 
     @classmethod
     def from_entity(
@@ -66,5 +71,25 @@ class ReceivedUnitData(CamelModel):
             update={
                 "acquisition_cost": MoneyData.from_entity(unit.acquisition_cost),
                 "cash_paid": cash_paid,
+                "implied_rate": cls._implied_rate(unit),
             }
         )
+
+    @staticmethod
+    def _implied_rate(unit: ReceivedUnit) -> str | None:
+        """The som handed over divided by the dollars it was valued at.
+
+        Only that one shape: som against another currency's valuation is
+        the only case where a single rate is what happened, and inventing
+        one for any other pair would be the cross-currency arithmetic §4.5
+        exists to prevent.
+        """
+        cost = unit.acquisition_cost
+        if cost is None or cost.currency is not Currency.USD or cost.is_zero:
+            return None
+        if unit.cash_paid_minor is None or unit.cash_paid_currency is not Currency.UZS:
+            return None
+        rate = Decimal(unit.cash_paid_minor) / (
+            Decimal(cost.amount_minor) / Decimal(10**cost.currency.exponent)
+        )
+        return str(rate.quantize(Decimal("1"), rounding=ROUND_HALF_UP))

@@ -16,6 +16,7 @@ from presentation.routers import (
     customer_returns,
     customers,
     device_units,
+    exchange_rates,
     goods_receipts,
     health,
     locations,
@@ -77,4 +78,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(write_offs.router, prefix=API_PREFIX)
     app.include_router(stock_counts.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
+    app.include_router(exchange_rates.router, prefix=API_PREFIX)
     return app

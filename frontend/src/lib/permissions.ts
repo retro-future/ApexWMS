@@ -37,6 +37,11 @@ export const Permission = {
   Cost: {
     View: "Permission.Cost.View",
   },
+  /** The rate the store quotes: everyone reads it, Owner and Manager set it. */
+  ExchangeRate: {
+    View: "Permission.ExchangeRate.View",
+    Manage: "Permission.ExchangeRate.Manage",
+  },
   PurchaseOrder: {
     View: "Permission.PurchaseOrder.View",
     Manage: "Permission.PurchaseOrder.Manage",

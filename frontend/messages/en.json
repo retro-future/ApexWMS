@@ -382,7 +382,7 @@
       "acquisitionCost": "Cost",
       "askingPrice": "Asking price",
       "cashPaid": "Cash paid",
-      "cashPaidHint": "What actually changed hands, when that differs from the booked cost. It enters no total.",
+      "cashPaidHint": "The som that left the drawer. Required on a trade-in: it is the only record of what the store paid out.",
       "poReferenceHint": "From the order: {price}. Change it if this handset costs something else.",
       "accepted": "{imei} accepted — {scanned} of {expected}",
       "unscan": "Remove",
@@ -394,7 +394,9 @@
       "readOnly": "This receipt is closed — nothing more can be scanned onto it.",
       "allScanned": "Every line is fully scanned — there is nothing left to scan.",
       "empty": "Nothing scanned yet.",
-      "cameraTrigger": "Scan with camera"
+      "cameraTrigger": "Scan with camera",
+      "needsCashPaid": "Needs the som paid",
+      "needsCashPaidHint": "A handset bought off a walk-in cannot be confirmed until the som handed over is recorded."
     }
   },
   "invoices": {
@@ -469,7 +471,7 @@
     "contractRef": "Contract number",
     "contractRefHint": "Their reference, so the sale can be matched later.",
     "debt": "Debt",
-    "debtHint": "The som total the customer agreed to. No rate is stored anywhere — this figure is the agreement.",
+    "debtHint": "The som total the customer agreed to. This figure is the agreement, not a conversion of the price.",
     "downPayment": "Down payment",
     "downPaymentHint": "What they are paying now. It is recorded as the first payment.",
     "somOnly": "A whole number of som.",
@@ -481,6 +483,7 @@
       "debtRequired": "Enter the som debt the customer agreed to.",
       "downPaymentTooLarge": "The down payment is larger than the debt.",
       "overpayment": "That is more than the customer still owes.",
+      "tenderTooLarge": "That is more than the sale charges.",
       "tenderMalformed": "State the amount in the currency you picked."
     },
     "panelTitle": "Payments",
@@ -519,6 +522,7 @@
     "financedSalesHint": "Sold through a credit company. The company paid the store in full — the customer owes the store nothing on these.",
     "tenderTitle": "Money taken at the counter",
     "tenderHint": "What the customer handed over, in the currency they paid in. Recorded beside the sale total, never converted into it.",
+    "tenderCorrectHint": "Recorded in both currencies. To correct a figure, reverse the row below and record it again.",
     "recordTender": "Record what was taken",
     "tendered": "Taken",
     "tenderAmountHint": "The amount that actually changed hands.",
@@ -958,6 +962,43 @@
       "returned_to_supplier": "Returned to supplier",
       "written_off": "Written off",
       "receipt_cancelled": "Receipt cancelled"
-    }
+    },
+    "inSomTitle": "The month in so'm",
+    "rateGain": "Rate gain",
+    "instalmentIncome": "Instalment income",
+    "profit": "Profit on goods",
+    "profitHint": "The one line to read. The three below are what it is made of.",
+    "inSomBasis": "Converted at the selling rate of each day: {opening} at the start of the period, {closing} at the end. Rate gain and profit come from the money that really crossed the counter, not from the conversion.",
+    "inSomBeforeTheLog": "Part of this period is earlier than the first rate the store recorded, and takes that earliest rate.",
+    "inSomNoRate": "No rate has been quoted yet, so there is nothing to convert at."
+  },
+  "rates": {
+    "title": "Rate of the day",
+    "hint": "The store's rate, som per dollar. The month-end report reads every dollar figure in som at the rate of the day it happened, so a day without one is read at an older figure.",
+    "sale": "Selling rate",
+    "saleHint": "Som comes in. A customer paying som for a dollar-priced handset. Usually your higher rate.",
+    "buyback": "Buying rate",
+    "buybackHint": "Som goes out. Paying a walk-in som for a used handset you valued in dollars. Usually your lower rate.",
+    "save": "Save rate",
+    "confirmToday": "Confirm today's rate",
+    "malformed": "Som per dollar, a positive number",
+    "stale": "Last quoted on {date}. Update it for today.",
+    "neverSet": "No rate has been quoted yet.",
+    "staleTitle": "The rate is out of date",
+    "staleBody": "Quote today's rate on the dashboard.",
+    "onSale": "Quoted rate",
+    "struckAt": "Rate struck",
+    "kind": {
+      "sale": "Selling",
+      "buyback": "Buying"
+    },
+    "atRate": "{amount} at {rate}",
+    "historyTitle": "Rate history",
+    "historyHint": "Every rate the store has quoted. A day can appear twice: a correction is a new row, and the newer one was in force.",
+    "effectiveOn": "Applies to",
+    "rate": "Som per dollar",
+    "setAt": "Entered",
+    "example": "Buying dollars at 12 000 and selling at 12 500 means 12 500 on the left and 12 000 on the right.",
+    "onBuy": "Buying rate"
   }
 }

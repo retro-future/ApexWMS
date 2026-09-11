@@ -33,6 +33,7 @@ class GoodsReceiptMapper:
             customer_id=model.customer_id,
             purchase_order_id=model.purchase_order_id,
             location_id=model.location_id,
+            buyback_rate_id=model.buyback_rate_id,
             note=model.note,
             created_by=model.created_by,
             created_at=model.created_at,
@@ -100,6 +101,9 @@ class GoodsReceiptMapper:
         model.cancelled_by = entity.cancelled_by
         model.cancelled_at = entity.cancelled_at
         model.cancellation_reason = entity.cancellation_reason
+        # Stamped at confirm, so it belongs with status rather than the
+        # fields fixed when the receipt was opened.
+        model.buyback_rate_id = entity.buyback_rate_id
         if fresh:
             model.number = entity.number
             model.acquisition_source = entity.acquisition_source.value

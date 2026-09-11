@@ -45,6 +45,8 @@ class TenantRolePermissionProvider:
                 Permission.CATALOG_VIEW,
                 Permission.LOCATION_VIEW,
                 Permission.SCAN_LOOKUP,
+                # A seller quotes the som figure off it, so everyone sees it.
+                Permission.EXCHANGE_RATE_VIEW,
             }
         )
 
@@ -96,6 +98,7 @@ class TenantRolePermissionProvider:
                     Permission.PAYMENT_REVERSE,
                     Permission.CUSTOMER_ACCOUNT_VIEW_ALL,
                     Permission.DOCUMENT_CANCEL,
+                    Permission.EXCHANGE_RATE_MANAGE,
                 }
             )
         )

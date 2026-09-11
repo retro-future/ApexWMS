@@ -34,7 +34,15 @@ from application.dtos.ledger_log import (
 )
 from application.dtos.letterhead import Letterhead
 from application.dtos.line_input import LineInput
-from application.dtos.month_end import AccrualFigures, DebtMovement, MonthEndReport
+from application.dtos.month_end import (
+    AccrualFigures,
+    ConversionBasis,
+    DebtMovement,
+    MonthEndReport,
+    SettledSale,
+    SomFigures,
+    TradeInPayout,
+)
 from application.dtos.needs_pricing import NeedsPricingReason, NeedsPricingRow
 from application.dtos.owner_seed import OwnerSeed
 from application.dtos.period import Period
@@ -68,6 +76,7 @@ from application.dtos.unit_trace import (
 __all__ = [
     "AccessoryOnHand",
     "AccrualFigures",
+    "ConversionBasis",
     "AgeingRow",
     "AuthTokens",
     "BelowCostAlert",
@@ -106,6 +115,9 @@ __all__ = [
     "SalesFigures",
     "SalesSummary",
     "SalesTotalsRow",
+    "SettledSale",
+    "SomFigures",
+    "TradeInPayout",
     "StockGroupBy",
     "StockOnHandGroup",
     "TenantLogo",

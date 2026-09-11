@@ -8,7 +8,6 @@ import {
   Group,
   Image,
   Stack,
-  Switch,
   Text,
   TextInput,
   Textarea,
@@ -33,6 +32,9 @@ type Values = {
   timezone: string;
   businessName: string;
   address: string;
+  // Carried through the form without a control of its own: the setting
+  // gates nothing until the shift screens exist (W9 B5), and a PUT that
+  // dropped it would silently turn it off.
   runsTill: boolean;
 };
 
@@ -190,15 +192,6 @@ export default function SettingsPage() {
                 {...form.getInputProps("address")}
               />
             </Stack>
-          </Card>
-
-          <Card withBorder radius="md" padding="lg">
-            <Switch
-              label={t("runsTill")}
-              description={t("runsTillHint")}
-              disabled={!manage}
-              {...form.getInputProps("runsTill", { type: "checkbox" })}
-            />
           </Card>
 
           {manage && (

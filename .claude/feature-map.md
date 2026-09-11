@@ -345,6 +345,37 @@ past instant" and "The month-end close".
   timezone rather than the
   browser's (FR-10.8). The PDF reuses `components/OpenPdfButton.tsx`
 
+## The quoted exchange rate (W9 B1 to B3)
+
+The rate a store quotes, som per dollar. Recorded on the documents it was
+struck against, and read back by the month-end report to state the month in
+som. See [prd-v2-money-and-rate.md](../docs/prd-v2-money-and-rate.md) for
+why §4.5's "no exchange rate" was reopened, and for what is deliberately
+left to B7.
+
+- Commands: `commands/set_exchange_rate.py`
+- Queries: `queries/get_current_rates.py`, `list_exchange_rates.py`
+- Models: `models/exchange_rate.py`, `current_rates.py`; `saleRate` on
+  `models/sales_invoice.py` and `buybackRate` on `models/goods_receipt.py`
+  (both populated only by the matching detail query); `impliedRate` on
+  `models/received_unit.py`; `SomFiguresData` in `models/month_end.py`
+- Specs: `specs/exchange_rate.py` (`LatestRateFor`, `RateHistory`)
+- Services: the sale snapshot is taken in `services/invoice_posting.py`'s
+  `sell` and the trade-in one in `services/receipt_posting.py`'s `receive`,
+  both beside the price snapshot; `services/period.py`'s `today` resolves
+  the store's own date; `services/som_conversion.py`'s `SomConverter` is
+  what the month-end report converts through
+- Domain: `domain/entities/exchange_rate.py`, `domain/enums/rate_kind.py`,
+  `sale_rate_id` on `domain/entities/sales_invoice.py`, `buyback_rate_id`
+  on `domain/entities/goods_receipt.py`
+- Routers: `presentation/routers/exchange_rates.py`
+- Frontend: `app/(app)/RatesCard.tsx` (the dashboard entry card),
+  `app/(app)/settings/rates/page.tsx` (history),
+  `components/shell/StaleRateReminder.tsx`, `hooks/use-exchange-rates.ts`,
+  `lib/rates.ts` (`somAtRate` for the confirm and intake hints,
+  `impliedRate` for the rate a sale was actually struck at),
+  `app/(app)/reports/month-end/MonthEndInSom.tsx` (the converted block)
+
 ## Scanning & lookup
 
 One endpoint resolving a scanned string to a handset or a catalog row

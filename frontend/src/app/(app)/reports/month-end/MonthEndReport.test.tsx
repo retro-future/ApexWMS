@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MonthEndReportScreen } from "@/app/(app)/reports/month-end/MonthEndReport";
 import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
-import type { Money, MonthEndReport } from "@/lib/types";
+import type { Money, MonthEndReport, SomFigures } from "@/lib/types";
 
 /**
  * The accrual block is a grid of figures against currencies, and a grid is
@@ -48,6 +48,7 @@ function report(overrides: Partial<MonthEndReport> = {}): MonthEndReport {
       margin: [usd(22000)],
       marginPercent: [{ currency: "USD", percent: "36.7" }],
     },
+    som: null,
     closingByLocation: [
       {
         locationId: "location-1",
@@ -281,6 +282,76 @@ describe("the period", () => {
     const period = await screen.findByText(/Asia\/Tashkent/);
     expect(period).toBeInTheDocument();
     expect(period.textContent).not.toContain("Dec");
+  });
+});
+
+function somFigures(overrides: Partial<SomFigures> = {}): SomFigures {
+  return {
+    openingInventory: som(2_280_000),
+    purchases: som(-912_000),
+    costOfGoods: som(-456_000),
+    revenue: som(750_000),
+    salesReturns: som(0),
+    writeOffs: som(0),
+    supplierReturnCredits: som(0),
+    countAdjustments: som(0),
+    closingInventory: som(2_112_000),
+    margin: som(294_000),
+    marginPercent: "39.2",
+    rateGain: som(0),
+    instalmentIncome: som(0),
+    profit: som(294_000),
+    openingRate: "12000",
+    closingRate: "12500",
+    beforeTheFirstQuote: false,
+    ...overrides,
+  };
+}
+
+describe("the month read in som", () => {
+  it("says there is nothing to convert at until a rate is quoted", async () => {
+    renderScreen(report());
+
+    expect(await screen.findByText(/no rate has been quoted yet/i)).toBeInTheDocument();
+  });
+
+  it("prints the converted figures and the rates they were read at", async () => {
+    renderScreen(report({ som: somFigures() }));
+
+    expect(await screen.findByText(/the month in so'm/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/12000 at the start of the period, 12500 at the end/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("39.2%")).toBeInTheDocument();
+  });
+
+  it("prints the profit an owner would count, not only the converted margin", async () => {
+    renderScreen(
+      report({
+        som: somFigures({
+          rateGain: som(645_000),
+          instalmentIncome: som(300_000),
+          profit: som(1_239_000),
+        }),
+      }),
+    );
+
+    expect(await screen.findByText("Rate gain")).toBeInTheDocument();
+    expect(screen.getByText(/645[\s ]000/)).toBeInTheDocument();
+    // The two are never one line: one is set by a percentage the shop
+    // agreed, the other by how the counter rounded a rate.
+    expect(screen.getByText("Instalment income")).toBeInTheDocument();
+    expect(screen.getByText(/300[\s ]000/)).toBeInTheDocument();
+    expect(screen.getByText("Profit on goods")).toBeInTheDocument();
+    expect(screen.getByText(/1[\s ]239[\s ]000/)).toBeInTheDocument();
+  });
+
+  it("says so when the period predates the first rate on file", async () => {
+    renderScreen(report({ som: somFigures({ beforeTheFirstQuote: true }) }));
+
+    expect(
+      await screen.findByText(/earlier than the first rate the store recorded/i),
+    ).toBeInTheDocument();
   });
 });
 

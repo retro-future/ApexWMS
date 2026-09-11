@@ -44,7 +44,12 @@ import { isEditable } from "@/lib/documents";
 import { formatMoney } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
-import { confirmBlockers, isSerial, referenceCosts } from "@/lib/receipts";
+import {
+  confirmBlockers,
+  isSerial,
+  referenceCosts,
+  unitsNeedingCashPaid,
+} from "@/lib/receipts";
 import type {
   BelowCostAlert,
   GoodsReceipt,
@@ -56,6 +61,7 @@ import type {
 export default function ReceiptPage() {
   const t = useTranslations("receipts");
   const tScan = useTranslations("receipts.scan");
+  const tRates = useTranslations("rates");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
   const { formatDateTime } = useDateFormat();
@@ -137,6 +143,12 @@ export default function ReceiptPage() {
   }
 
   const draft = isEditable(receipt.status);
+  const isTradeIn = receipt.acquisitionSource === "trade_in";
+  // Gated on the cost permission because the som is absent from everyone
+  // else's payload, which would read as "missing" rather than "hidden".
+  const missingCash = can(Permission.Cost.View)
+    ? new Set(unitsNeedingCashPaid(receipt).map((unit) => unit.id))
+    : new Set<string>();
   const blockers = confirmBlockers(receipt);
   const refCosts = referenceCosts(purchaseOrder.data);
   const from =
@@ -195,6 +207,12 @@ export default function ReceiptPage() {
             {t("location")}: {locations.get(receipt.locationId) ?? tCommon("none")}
             {" · "}
             {tDoc("created")}: {formatDateTime(receipt.createdAt)}
+            {receipt.buybackRate && (
+              <>
+                {" · "}
+                {tRates("onBuy")}: {receipt.buybackRate.somPerUsd}
+              </>
+            )}
           </Text>
           {receipt.note && <Text size="sm">{receipt.note}</Text>}
         </Stack>
@@ -380,6 +398,11 @@ export default function ReceiptPage() {
                               {tScan("needsPrice")}
                             </Badge>
                           )}
+                          {missingCash.has(unit.id) && (
+                            <Badge size="xs" variant="light" color="yellow">
+                              {tScan("needsCashPaid")}
+                            </Badge>
+                          )}
                         </Group>
                       </Table.Td>
                       <Table.Td>
@@ -395,6 +418,12 @@ export default function ReceiptPage() {
                         {unit.cashPaid && (
                           <Text size="xs" c="dimmed">
                             {tScan("cashPaid")}: {unit.cashPaid}
+                            {unit.impliedRate && (
+                              <>
+                                {" · "}
+                                {tRates("struckAt")}: {unit.impliedRate}
+                              </>
+                            )}
                           </Text>
                         )}
                       </Table.Td>
@@ -434,6 +463,12 @@ export default function ReceiptPage() {
               {tScan("needsPriceHint")}
             </Text>
           )}
+
+          {missingCash.size > 0 && (
+            <Text size="sm" c="dimmed">
+              {tScan("needsCashPaidHint")}
+            </Text>
+          )}
         </Stack>
       </Card>
 
@@ -448,6 +483,7 @@ export default function ReceiptPage() {
           receiptId={receipt.id}
           unit={pricing.unit}
           reference={refCosts.get(pricing.productId)}
+          isTradeIn={isTradeIn}
           onClose={() => setPricing(null)}
         />
       )}

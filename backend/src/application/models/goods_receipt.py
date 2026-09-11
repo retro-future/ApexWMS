@@ -19,6 +19,7 @@ from uuid import UUID
 from application.core import CamelModel
 from application.dtos import BelowCostAlert
 from application.models.below_cost_alert import BelowCostAlertData
+from application.models.exchange_rate import ExchangeRateData
 from application.models.money import MoneyData
 from application.models.received_unit import ReceivedUnitData
 from domain.entities import GoodsReceipt, GoodsReceiptLine
@@ -85,6 +86,9 @@ class GoodsReceiptData(CamelModel):
     # Populated only by the confirm handler (see the below-cost design doc);
     # empty on get/list/create/cancel.
     below_cost_alerts: list[BelowCostAlertData] = []
+    # The buying rate this trade-in was struck at (W9 B2). Read back only by
+    # the detail query, which is the one screen that shows it.
+    buyback_rate: ExchangeRateData | None = None
 
     @classmethod
     def from_entity(
@@ -93,6 +97,7 @@ class GoodsReceiptData(CamelModel):
         *,
         show_cost: bool,
         below_cost_alerts: list[BelowCostAlert] | None = None,
+        buyback_rate: ExchangeRateData | None = None,
     ) -> GoodsReceiptData:
         alerts = [
             BelowCostAlertData.from_entity(one) for one in (below_cost_alerts or [])
@@ -116,6 +121,7 @@ class GoodsReceiptData(CamelModel):
                 for line in receipt.lines
             ],
             below_cost_alerts=alerts,
+            buyback_rate=buyback_rate,
         )
         if not show_cost:
             return data

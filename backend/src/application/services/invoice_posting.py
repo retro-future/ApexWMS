@@ -24,6 +24,10 @@ Per line, in this order and for a reason:
 4. Both ledgers are written by ``LedgerPoster``: ``SALE_REVENUE`` from the
    snapshot and ``COGS`` against the same movement, together or not at all.
 
+The rate the store was quoting is stamped on the invoice here too (W9 B1),
+for the same reason the price is snapshotted: a report reading the sale
+months later needs what was true at confirm, not today's quote.
+
 COGS follows §4.6's two rules. A phone costs what *that* phone cost —
 specific identification, a fact rather than a model. An accessory costs its
 share of a weighted-average pool replayed from the ledger
@@ -35,17 +39,29 @@ FR-4.5b2's "nothing is written to either ledger" true: a tenth line that
 will not resolve rolls back the nine before it.
 """
 
-from application.common.repository import TenantDbRepository
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import NotFoundError
 from application.services.cost_pools import CostPoolReader
 from application.services.ledger import LedgerPoster
-from application.specs import DeviceUnitById, StockLevelForPair
-from domain.entities import DeviceUnit, Product, SalesInvoice, SalesInvoiceLine, StockLevel
-from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
+from application.specs import DeviceUnitById, LatestRateFor, StockLevelForPair
+from domain.entities import (
+    DeviceUnit,
+    ExchangeRate,
+    Product,
+    SalesInvoice,
+    SalesInvoiceLine,
+    StockLevel,
+)
+from domain.enums import DeviceStatus, DocumentType, MovementType, RateKind, TransactionType
 from domain.errors import InsufficientStockError, UnitNotSellableError, WrongLocationError
 from domain.services import PriceResolver
-from infrastructure.persistence.tenant.models import DeviceUnitModel, ProductModel, StockLevelModel
+from infrastructure.persistence.tenant.models import (
+    DeviceUnitModel,
+    ExchangeRateModel,
+    ProductModel,
+    StockLevelModel,
+)
 
 
 class InvoicePoster:
@@ -56,14 +72,22 @@ class InvoicePoster:
         levels: TenantDbRepository[StockLevel, StockLevelModel],
         pools: CostPoolReader,
         poster: LedgerPoster,
+        rates: TenantAppendOnlyRepository[ExchangeRate, ExchangeRateModel],
     ) -> None:
         self._units = units
         self._products = products
         self._levels = levels
         self._pools = pools
         self._poster = poster
+        self._rates = rates
 
     async def sell(self, invoice: SalesInvoice) -> None:
+        # Stamped here rather than in the handler because it is the same
+        # kind of fact as the price snapshot beside it: what was true at
+        # confirm, fixed so a later quote cannot move a closed month.
+        quoted = await self._rates.find_one(LatestRateFor(RateKind.SALE))
+        invoice.sale_rate_id = None if quoted is None else quoted.id
+
         entries: list[PostingEntry] = []
         for line in invoice.lines:
             if line.is_serial:

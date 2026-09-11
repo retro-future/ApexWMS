@@ -7,6 +7,7 @@ import { MeProvider } from "@/components/MeProvider";
 import { LanguageSwitcher } from "@/components/shell/LanguageSwitcher";
 import { NavLinks } from "@/components/shell/NavLinks";
 import { ScanBar } from "@/components/shell/ScanBar";
+import { StaleRateReminder } from "@/components/shell/StaleRateReminder";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { UserMenu } from "@/components/shell/UserMenu";
 import type { Me } from "@/lib/types";
@@ -24,6 +25,7 @@ export function AppShellFrame({
 
   return (
     <MeProvider me={me}>
+      <StaleRateReminder />
       <AppShell
         header={{ height: 60 }}
         navbar={{

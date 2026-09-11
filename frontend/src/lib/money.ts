@@ -87,3 +87,18 @@ export function minorToInput(
 export function moneyToInput(money: Money | null | undefined): string {
   return money ? minorToInput(money.minor, money.currency) : "";
 }
+
+/**
+ * A typed price back into a `Money`, or null when it is not one.
+ *
+ * The digits are assembled as an integer rather than multiplied through a
+ * float: 4.35 * 100 is 434.99999999999994, and a cent lost here is a cent
+ * the ledger never balances.
+ */
+export function inputToMoney(value: string, currency: Currency): Money | null {
+  const trimmed = value.trim();
+  if (!isValidPriceInput(trimmed, currency)) return null;
+  const [major, fraction = ""] = trimmed.split(".");
+  const places = exponentOf(currency);
+  return { minor: Number(major + fraction.padEnd(places, "0")), currency };
+}

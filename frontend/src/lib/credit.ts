@@ -16,7 +16,7 @@
  * a DOM.
  */
 
-import { isValidPriceInput } from "@/lib/money";
+import { inputToMoney, isValidPriceInput } from "@/lib/money";
 import type { Currency, Payment, PaymentType, SalesInvoice } from "@/lib/types";
 
 /** What the confirm dialog has collected so far. */
@@ -54,7 +54,8 @@ export type TermsBlocker =
   | "debtRequired"
   | "companyRequired"
   | "downPaymentTooLarge"
-  | "tenderMalformed";
+  | "tenderMalformed"
+  | "tenderTooLarge";
 
 /**
  * Why this sale cannot be confirmed on these terms yet.
@@ -72,8 +73,10 @@ export function termsBlockers(
   }
   if (terms.paymentType === "paid_in_full") {
     const tendered = terms.tendered.trim();
-    return tendered && !isValidPriceInput(tendered, terms.tenderedCurrency)
-      ? ["tenderMalformed"]
+    if (!tendered) return [];
+    if (!isValidPriceInput(tendered, terms.tenderedCurrency)) return ["tenderMalformed"];
+    return overTheSale(invoice, tendered, terms.tenderedCurrency)
+      ? ["tenderTooLarge"]
       : [];
   }
   if (terms.paymentType !== "store_credit") return [];
@@ -90,6 +93,24 @@ export function termsBlockers(
     blockers.push("downPaymentTooLarge");
   }
   return blockers;
+}
+
+/**
+ * More money than the sale asks for, when the two can be compared at all.
+ *
+ * Only a sale priced in this one currency can be: a dollar handset and a som
+ * case on one invoice can be settled together in either currency, and no
+ * column would mean anything without a rate. Mirrors the server's own rule.
+ */
+export function overTheSale(
+  invoice: SalesInvoice,
+  tendered: string,
+  currency: Currency,
+): boolean {
+  const charged = invoice.subtotals;
+  if (charged.length !== 1 || charged[0].currency !== currency) return false;
+  const amount = inputToMoney(tendered, currency);
+  return amount !== null && amount.minor > charged[0].minor;
 }
 
 /** What `POST /invoices/{id}/confirm` is sent. Omits what does not apply. */
@@ -142,5 +163,21 @@ export function reversedPaymentIds(payments: Payment[]): Set<string> {
     payments
       .map((payment) => payment.reversesPaymentId)
       .filter((id): id is string => id !== null),
+  );
+}
+
+/**
+ * The currencies whose rows have not been reversed away.
+ *
+ * A counter sale takes one tender per currency: half in dollars and half in
+ * som is two true facts, a second som row is a doubled figure. The server
+ * keeps the same rule, so this only decides what the screen offers.
+ */
+export function standingCurrencies(payments: Payment[]): Set<Currency> {
+  const undone = reversedPaymentIds(payments);
+  return new Set(
+    payments
+      .filter((payment) => !payment.isReversal && !undone.has(payment.id))
+      .map((payment) => payment.amount.currency),
   );
 }

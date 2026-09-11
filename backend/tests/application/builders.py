@@ -80,6 +80,7 @@ from application.commands.scan_write_off_line import ScanWriteOffLineHandler
 from application.commands.set_customer_return_refund import (
     SetCustomerReturnRefundHandler,
 )
+from application.commands.set_exchange_rate import SetExchangeRateHandler
 from application.commands.unscan_customer_return_line import (
     UnscanCustomerReturnLineHandler,
 )
@@ -97,6 +98,7 @@ from application.commands.update_product import UpdateProductHandler
 from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
 from application.dtos import CurrentUser, RequestedTenant
+from application.queries.get_current_rates import GetCurrentRatesHandler
 from application.queries.get_customer import GetCustomerHandler
 from application.queries.get_customer_account import GetCustomerAccountHandler
 from application.queries.get_customer_return import GetCustomerReturnHandler
@@ -119,6 +121,7 @@ from application.queries.list_credit_companies import ListCreditCompaniesHandler
 from application.queries.list_customer_returns import ListCustomerReturnsHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
+from application.queries.list_exchange_rates import ListExchangeRatesHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
 from application.queries.list_products import ListProductsHandler
@@ -173,6 +176,7 @@ from tests.application.fakes import (
     FakeDeviceUnitRepository,
     FakeDocumentNumberAllocator,
     FakeEmployeeRepository,
+    FakeExchangeRateRepository,
     FakeFinancialTransactionQueries,
     FakeFinancialTransactionRepository,
     FakeGoodsReceiptQueries,
@@ -239,6 +243,7 @@ class World:
     invoices: FakeSalesInvoiceRepository
     credit_companies: FakeCreditCompanyRepository
     payments: FakePaymentRepository
+    exchange_rates: FakeExchangeRateRepository
     returns: FakeSupplierReturnRepository
     customer_returns: FakeCustomerReturnRepository
     write_offs: FakeWriteOffRepository
@@ -501,7 +506,7 @@ class World:
             self.unit_repricer(actor),
             self.poster(actor),
             self.clock,
-            self.tenant_settings,
+            self.exchange_rates,
         )
 
     def create_purchase_order(self, actor: UUID | None = None) -> CreatePurchaseOrderHandler:
@@ -609,7 +614,13 @@ class World:
     def get_goods_receipt(
         self, actor: UUID | None = None, *permissions: Permission
     ) -> GetGoodsReceiptHandler:
-        return GetGoodsReceiptHandler(self.receipts, self._as(actor, *permissions))
+        return GetGoodsReceiptHandler(
+            self.receipts,
+            self.exchange_rates,
+            self.period_resolver(),
+            self.clock,
+            self._as(actor, *permissions),
+        )
 
     def list_goods_receipts(
         self, actor: UUID | None = None, *permissions: Permission
@@ -729,7 +740,12 @@ class World:
 
     def invoice_poster(self, actor: UUID | None = None) -> InvoicePoster:
         return InvoicePoster(
-            self.units, self.products, self.levels, self.cost_pools(), self.poster(actor)
+            self.units,
+            self.products,
+            self.levels,
+            self.cost_pools(),
+            self.poster(actor),
+            self.exchange_rates,
         )
 
     def create_sales_invoice(self, actor: UUID | None = None) -> CreateSalesInvoiceHandler:
@@ -796,11 +812,39 @@ class World:
         )
 
     def get_sales_invoice(self) -> GetSalesInvoiceHandler:
-        return GetSalesInvoiceHandler(self.invoices, self.payments, self.customer_returns)
+        return GetSalesInvoiceHandler(
+            self.invoices,
+            self.payments,
+            self.customer_returns,
+            self.exchange_rates,
+            self.period_resolver(),
+            self.clock,
+        )
 
     def list_sales_invoices(self) -> ListSalesInvoicesHandler:
         return ListSalesInvoicesHandler(
             self.invoices, self.payments, self.customer_returns
+        )
+
+    # --- W9 exchange rate ---
+
+    def set_exchange_rate(self, actor: UUID | None = None) -> SetExchangeRateHandler:
+        return SetExchangeRateHandler(
+            self.exchange_rates,
+            self.period_resolver(),
+            self.clock,
+            self._as(actor),
+            self.uow,
+        )
+
+    def get_current_rates(self) -> GetCurrentRatesHandler:
+        return GetCurrentRatesHandler(
+            self.exchange_rates, self.period_resolver(), self.clock
+        )
+
+    def list_exchange_rates(self) -> ListExchangeRatesHandler:
+        return ListExchangeRatesHandler(
+            self.exchange_rates, self.period_resolver(), self.clock
         )
 
     # --- M5b credit sales & customer debt ---
@@ -812,7 +856,6 @@ class World:
             self.poster(actor),
             self.clock,
             self._as(actor),
-            self.tenant_settings,
         )
 
     def create_credit_company(self) -> CreateCreditCompanyHandler:
@@ -1110,6 +1153,7 @@ class World:
             self.credit_companies,
             self.transactions,
             self.customer_returns,
+            self.receipts,
         )
 
     def period_resolver(self) -> PeriodResolver:
@@ -1125,6 +1169,7 @@ class World:
             self.month_end_queries,
             self.inventory_valuer(),
             self.balance_verifier(),
+            self.exchange_rates,
         )
 
     def month_end_report(self) -> GetMonthEndReportHandler:
@@ -1148,6 +1193,7 @@ def make_world(provisioner_fails: bool = False) -> World:
     tenants.by_id[tenant.id] = tenant
     invoices = FakeSalesInvoiceRepository()
     payments = FakePaymentRepository()
+    exchange_rates = FakeExchangeRateRepository()
     return World(
         clock=clock,
         hasher=FakeHasher(),
@@ -1168,6 +1214,7 @@ def make_world(provisioner_fails: bool = False) -> World:
         invoices=invoices,
         credit_companies=FakeCreditCompanyRepository(),
         payments=payments,
+        exchange_rates=exchange_rates,
         returns=FakeSupplierReturnRepository(),
         customer_returns=FakeCustomerReturnRepository(),
         write_offs=FakeWriteOffRepository(),

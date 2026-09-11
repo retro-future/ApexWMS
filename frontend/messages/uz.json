@@ -382,7 +382,7 @@
       "acquisitionCost": "Tannarx",
       "askingPrice": "Sotuv narxi",
       "cashPaid": "Naqd to'langan",
-      "cashPaidHint": "Hisobdagi tannarxdan farq qilsa, aslida qancha berilgani. Hech qanday jamiga kirmaydi.",
+      "cashPaidHint": "Kassadan chiqqan so'm. Sotib olishda majburiy: do'kon qancha to'laganining yagona yozuvi shu.",
       "poReferenceHint": "Buyurtmadan: {price}. Bu apparat boshqacha tursa, o'zgartiring.",
       "accepted": "{imei} qabul qilindi — {expected} tadan {scanned} ta",
       "unscan": "Olib tashlash",
@@ -394,7 +394,9 @@
       "readOnly": "Bu kirim yopilgan — boshqa skanerlab bo'lmaydi.",
       "allScanned": "Barcha qatorlar to'liq skanerlandi — boshqa skanerlaydigan narsa yo'q.",
       "empty": "Hali hech narsa skanerlanmagan.",
-      "cameraTrigger": "Kamera bilan skanerlash"
+      "cameraTrigger": "Kamera bilan skanerlash",
+      "needsCashPaid": "So'mdagi summa kerak",
+      "needsCashPaidHint": "Mijozdan sotib olishni qancha so'm berilgani yozilmaguncha tasdiqlab bo'lmaydi."
     }
   },
   "invoices": {
@@ -469,7 +471,7 @@
     "contractRef": "Shartnoma raqami",
     "contractRefHint": "Ularning raqami, keyin sotuvni solishtirish uchun.",
     "debt": "Qarz",
-    "debtHint": "Mijoz rozi bo'lgan so'mdagi summa. Hech qayerda kurs saqlanmaydi — kelishuv shu summaning o'zi.",
+    "debtHint": "Mijoz rozi bo'lgan so'mdagi summa. Bu kelishuvning o'zi, narxning kurs bo'yicha hisobi emas.",
     "downPayment": "Boshlang'ich to'lov",
     "downPaymentHint": "Hozir to'lanadigan summa. Birinchi to'lov sifatida yoziladi.",
     "somOnly": "Butun so'm miqdori.",
@@ -481,6 +483,7 @@
       "debtRequired": "Mijoz rozi bo'lgan qarz summasini so'mda kiriting.",
       "downPaymentTooLarge": "Boshlang'ich to'lov qarzdan katta.",
       "overpayment": "Bu mijozning qolgan qarzidan ko'p.",
+      "tenderTooLarge": "Bu savdo summasidan ko‘p.",
       "tenderMalformed": "Summani tanlangan valyutada kiriting."
     },
     "panelTitle": "To'lovlar",
@@ -519,6 +522,7 @@
     "financedSalesHint": "Kredit kompaniyasi orqali sotilgan. Kompaniya do'konga to'liq to'lagan — mijoz bular bo'yicha do'konga qarzdor emas.",
     "tenderTitle": "Kassada olingan pul",
     "tenderHint": "Mijoz qancha va qaysi valyutada bergani. Savdo summasi yonida yoziladi, unga hech qachon aylantirilmaydi.",
+    "tenderCorrectHint": "Ikkala valyutada ham yozilgan. Summani tuzatish uchun quyidagi yozuvni bekor qiling va qaytadan kiriting.",
     "recordTender": "To'lovni yozish",
     "tendered": "Olingan",
     "tenderAmountHint": "Haqiqatda qo'ldan qo'lga o'tgan summa.",
@@ -958,6 +962,43 @@
       "returned_to_supplier": "Yetkazib beruvchiga qaytarilgan",
       "written_off": "Hisobdan chiqarilgan",
       "receipt_cancelled": "Kirim bekor qilingan"
-    }
+    },
+    "inSomTitle": "Oy so'mda",
+    "rateGain": "Kurs farqi",
+    "instalmentIncome": "Bo‘lib to‘lashdan daromad",
+    "profit": "Tovardan foyda",
+    "profitHint": "O‘qish kerak bo‘lgan yagona qator. Quyidagi uchtasi u nimadan tashkil topganini ko‘rsatadi.",
+    "inSomBasis": "Har kunning sotuv kursi bo‘yicha qayta hisob: davr boshida {opening}, oxirida {closing}. Kurs farqi va foyda qayta hisobdan emas, kassadan haqiqatan o‘tgan puldan hisoblanadi.",
+    "inSomBeforeTheLog": "Davrning bir qismi do'kon yozgan birinchi kursdan oldin va o'sha eng birinchi kurs bo'yicha hisoblangan.",
+    "inSomNoRate": "Kurs hali kiritilmagan, hisoblash uchun asos yo'q."
+  },
+  "rates": {
+    "title": "Kunlik kurs",
+    "hint": "Do‘kon kursi, dollar uchun so‘m. Oylik hisobot har bir dollar raqamini o‘sha kun kursi bo‘yicha so‘mda o‘qiydi, shuning uchun kursi yo‘q kun eskiroq kurs bilan o‘qiladi.",
+    "sale": "Sotish kursi",
+    "saleHint": "So'm sizga keladi. Mijoz dollarda narxlangan telefon uchun so'm to'laydi. Odatda sizning yuqoriroq kursingiz.",
+    "buyback": "Sotib olish kursi",
+    "buybackHint": "So'm sizdan chiqadi. Dollarda baholangan ishlatilgan telefon uchun so'm berasiz. Odatda sizning pastroq kursingiz.",
+    "save": "Kursni saqlash",
+    "confirmToday": "Bugungi kursni tasdiqlash",
+    "malformed": "Dollar uchun so'm, musbat son",
+    "stale": "Oxirgi kurs {date} sanasidan. Bugungisini kiriting.",
+    "neverSet": "Kurs hali kiritilmagan.",
+    "staleTitle": "Kurs eskirgan",
+    "staleBody": "Bosh sahifada bugungi kursni kiriting.",
+    "onSale": "Do'kon kursi",
+    "struckAt": "Haqiqiy kurs",
+    "kind": {
+      "sale": "Sotish",
+      "buyback": "Sotib olish"
+    },
+    "atRate": "{amount}, kurs {rate}",
+    "historyTitle": "Kurslar tarixi",
+    "historyHint": "Do'kon kiritgan barcha kurslar. Bir sana ikki marta uchrashi mumkin: tuzatish yangi qator bo'ladi va keyingisi kuchda bo'lgan.",
+    "effectiveOn": "Sanaga",
+    "rate": "Dollar uchun so'm",
+    "setAt": "Kiritilgan",
+    "example": "Dollarni 12 000 ga sotib olib, 12 500 ga sotsangiz, chapda 12 500, o'ngda 12 000 bo'ladi.",
+    "onBuy": "Sotib olish kursi"
   }
 }

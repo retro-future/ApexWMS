@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { MonthEndDebtAndFinancing } from "@/app/(app)/reports/month-end/MonthEndDebtAndFinancing";
+import { MonthEndInSom } from "@/app/(app)/reports/month-end/MonthEndInSom";
 import { MonthEndStockAndSales } from "@/app/(app)/reports/month-end/MonthEndStockAndSales";
 import { OpenPdfButton } from "@/components/OpenPdfButton";
 import { Subtotals } from "@/components/Subtotals";
@@ -124,6 +125,8 @@ export function MonthEndReportScreen() {
           <Reconciliation report={report} />
 
           <MonthEndStockAndSales report={report} />
+
+          <MonthEndInSom report={report} />
 
           <Stack gap="3xs">
             <Title order={4}>{t("closingByLocation")}</Title>

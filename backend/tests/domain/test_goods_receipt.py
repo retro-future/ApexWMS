@@ -115,7 +115,14 @@ class TestWhereTheGoodsCameFrom:
     def test_a_trade_in_needs_no_supplier(self):
         doc = receipt(AcquisitionSource.TRADE_IN)
         line = serial_line(doc)
-        scan(line, condition=DeviceCondition.USED, cost=usd("330"), asking=usd("420"))
+        scan(
+            line,
+            condition=DeviceCondition.USED,
+            cost=usd("330"),
+            asking=usd("420"),
+            cash_paid_minor=4_000_000,
+            cash_paid_currency=Currency.UZS,
+        )
 
         doc.confirm(NOW, uuid4())
 
@@ -160,11 +167,47 @@ class TestUsedStockIsIndependentOfTheSource:
 
     def test_a_walk_in_can_bring_in_a_sealed_handset(self):
         doc = receipt(AcquisitionSource.TRADE_IN, customer_id=uuid4())
-        scan(serial_line(doc), condition=DeviceCondition.NEW, cost=usd("650"))
+        scan(
+            serial_line(doc),
+            condition=DeviceCondition.NEW,
+            cost=usd("650"),
+            cash_paid_minor=8_000_000,
+            cash_paid_currency=Currency.UZS,
+        )
 
         doc.confirm(NOW, uuid4())
 
         assert doc.status is DocumentStatus.CONFIRMED
+
+
+class TestWhatWasHandedOverForATradeIn:
+    """W9 B2: the som leaves no trace anywhere else, so it is required."""
+
+    def test_a_trade_in_without_the_som_cannot_be_confirmed(self):
+        doc = receipt(AcquisitionSource.TRADE_IN)
+        scan(serial_line(doc), condition=DeviceCondition.USED,
+             cost=usd("330"), asking=usd("420"))
+
+        with pytest.raises(UnpricedUnitError, match="no cash paid"):
+            doc.confirm(NOW, uuid4())
+
+    def test_a_supplier_receipt_never_asks_for_it(self):
+        doc = receipt(AcquisitionSource.SUPPLIER)
+        scan(serial_line(doc), cost=usd("700"))
+
+        doc.confirm(NOW, uuid4())
+
+        assert doc.status is DocumentStatus.CONFIRMED
+
+    def test_the_message_names_every_handset_missing_it(self):
+        doc = receipt(AcquisitionSource.TRADE_IN)
+        line = serial_line(doc, quantity=2)
+        scan(line, IMEIS[0], DeviceCondition.USED, usd("330"), usd("420"),
+             cash_paid_minor=4_000_000, cash_paid_currency=Currency.UZS)
+        scan(line, IMEIS[1], DeviceCondition.USED, usd("300"), usd("390"))
+
+        with pytest.raises(UnpricedUnitError, match=IMEIS[1]):
+            doc.confirm(NOW, uuid4())
 
 
 class TestEveryHandsetIsAccountedFor:

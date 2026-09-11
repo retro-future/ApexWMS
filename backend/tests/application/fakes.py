@@ -13,8 +13,9 @@ import operator
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.sql.operators import in_op
 
@@ -28,7 +29,9 @@ from application.dtos import (
     PriceDeviation,
     RefreshTokenParts,
     SalesTotalsRow,
+    SettledSale,
     TenantLogo,
+    TradeInPayout,
     UnitOrigin,
     UnitSale,
 )
@@ -85,6 +88,7 @@ from domain.entities import (
     DeviceUnit,
     DeviceUnitPriceChange,
     Employee,
+    ExchangeRate,
     FinancialTransaction,
     GoodsReceipt,
     Invitation,
@@ -107,6 +111,7 @@ from domain.entities import (
     WriteOff,
 )
 from domain.enums import (
+    AcquisitionSource,
     AppRole,
     CatalogCodeKind,
     DocumentStatus,
@@ -550,6 +555,28 @@ class FakeFinancialTransactionQueries:
             totals[key] = txn.amount if running is None else running + txn.amount
         return totals
 
+    async def totals_by_type_and_day(
+        self,
+        *,
+        timezone: str,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> dict[tuple[TransactionType, Currency, date], Money]:
+        zone = ZoneInfo(timezone)
+        totals: dict[tuple[TransactionType, Currency, date], Money] = {}
+        for txn in self._rows:
+            if since is not None and txn.occurred_at < since:
+                continue
+            if until is not None and txn.occurred_at >= until:
+                continue
+            if location_id is not None and txn.location_id != location_id:
+                continue
+            key = (txn.txn_type, txn.currency, txn.occurred_at.astimezone(zone).date())
+            running = totals.get(key)
+            totals[key] = txn.amount if running is None else running + txn.amount
+        return totals
+
     async def sales_totals(
         self,
         from_date: datetime | None = None,
@@ -962,12 +989,14 @@ class FakeMonthEndQueries:
         companies: FakeCreditCompanyRepository,
         transactions: FakeFinancialTransactionRepository,
         returns: FakeCustomerReturnRepository,
+        receipts: FakeGoodsReceiptRepository,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
         self._companies = companies
         self._transactions = transactions
         self._returns = returns
+        self._receipts = receipts
 
     async def debt_at(self, as_of: datetime) -> Money:
         total = Money.zero(Currency.UZS)
@@ -1071,6 +1100,81 @@ class FakeMonthEndQueries:
             )
         ]
 
+    async def settled_sales(
+        self,
+        *,
+        timezone: str,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[SettledSale]:
+        zone = ZoneInfo(timezone)
+        settled: list[SettledSale] = []
+        for invoice in self._invoices.by_id.values():
+            if invoice.confirmed_at is None or invoice.cancelled_at is not None:
+                continue
+            if not since <= invoice.confirmed_at < until:
+                continue
+            if location_id is not None and invoice.location_id != location_id:
+                continue
+            on_credit = invoice.payment_type is PaymentType.STORE_CREDIT
+            if on_credit:
+                # A payment against the debt is that same debt arriving.
+                received = [invoice.debt] if invoice.debt else []
+            else:
+                received = [
+                    payment.amount
+                    for payment in self._payments.rows
+                    if payment.sales_invoice_id == invoice.id
+                ]
+            settled.append(
+                SettledSale(
+                    day=invoice.confirmed_at.astimezone(zone).date(),
+                    charged=tuple(invoice.subtotals().values()),
+                    received=tuple(received),
+                    on_credit=on_credit,
+                )
+            )
+        return settled
+
+    async def trade_in_payouts(
+        self,
+        *,
+        timezone: str,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[TradeInPayout]:
+        zone = ZoneInfo(timezone)
+        payouts: list[TradeInPayout] = []
+        for receipt in self._receipts.by_id.values():
+            if receipt.acquisition_source is not AcquisitionSource.TRADE_IN:
+                continue
+            if receipt.confirmed_at is None or receipt.cancelled_at is not None:
+                continue
+            if not since <= receipt.confirmed_at < until:
+                continue
+            if location_id is not None and receipt.location_id != location_id:
+                continue
+            units = list(receipt.units())
+            payouts.append(
+                TradeInPayout(
+                    day=receipt.confirmed_at.astimezone(zone).date(),
+                    valued=tuple(
+                        unit.acquisition_cost
+                        for unit in units
+                        if unit.acquisition_cost is not None
+                    ),
+                    paid=tuple(
+                        Money(unit.cash_paid_minor, unit.cash_paid_currency)
+                        for unit in units
+                        if unit.cash_paid_minor is not None
+                        and unit.cash_paid_currency is not None
+                    ),
+                )
+            )
+        return payouts
+
     @staticmethod
     def _open_debt_at(invoice: SalesInvoice, as_of: datetime) -> bool:
         return (
@@ -1136,6 +1240,24 @@ class FakePaymentRepository(FakeAppendOnlyRepository[Payment]):
 
     async def find_one(self, spec: object) -> Payment | None:
         return next((p for p in self.rows if _spec_matches(p, spec)), None)
+
+
+class FakeExchangeRateRepository(FakeAppendOnlyRepository[ExchangeRate]):
+    """Spec-based, plus ``get`` by id. Arrival order is quote order, so
+    ``find_one`` (``LatestRateFor``) is the last match."""
+
+    async def get(self, rate_id: UUID) -> ExchangeRate | None:
+        return next((r for r in self.rows if r.id == rate_id), None)
+
+    async def find(self, spec: object) -> list[ExchangeRate]:
+        return [r for r in self.rows if _spec_matches(r, spec)]
+
+    async def find_one(self, spec: object) -> ExchangeRate | None:
+        found = [r for r in self.rows if _spec_matches(r, spec)]
+        return found[-1] if found else None
+
+    async def count(self, spec: object) -> int:
+        return len([r for r in self.rows if _spec_matches(r, spec)])
 
 
 class FakeTenantSettingsRepository:

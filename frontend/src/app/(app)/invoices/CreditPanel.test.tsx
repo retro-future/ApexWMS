@@ -58,6 +58,7 @@ function sale(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     remaining: { minor: 7000000, currency: "UZS" },
     tendered: [{ minor: 200000, currency: "UZS" }],
     payments: [payment("a", 200000)],
+    saleRate: null,
     belowCostAlerts: [],
     ...overrides,
   };

@@ -25,6 +25,7 @@ from application.dtos import (
     MonthEndReport,
 )
 from application.localization.locale import Locale
+from application.models.exchange_rate import ExchangeRateData
 from application.services.cost_pools import INVENTORY_SIGN
 from domain.enums import PaymentType, TransactionType
 from domain.value_objects import Currency, CurrencyTotals, Money
@@ -96,6 +97,7 @@ class PdfMonthEndReportRenderer:
             (_LABEL, 25.0, 75.0),
             self._financing_rows(page, report.financing),
         )
+        self._in_som(page, report)
         self._reconciliation(page, report)
         return page.output()
 
@@ -231,6 +233,56 @@ class PdfMonthEndReportRenderer:
             )
             for row in rows
         ]
+
+    @staticmethod
+    def _in_som(page: DocumentPage, report: MonthEndReport) -> None:
+        """The same month read in som, with the rates it was read at (W9 B3).
+
+        A block of its own rather than a column beside the others: the som
+        column already means "what actually crossed the counter in som",
+        and one table holding both senses of the word would mislead.
+        """
+        som = report.som
+        if som is None:
+            return
+        basis = page.t(
+            "me_som_basis",
+            opening=ExchangeRateData.plain(som.basis.opening_rate),
+            closing=ExchangeRateData.plain(som.basis.closing_rate),
+        )
+        if som.basis.before_the_first_quote:
+            basis = f"{basis} {page.t('me_som_before_the_log')}"
+        page.title(page.t("me_in_som"), basis)
+        # Profit last of its own four lines, then the month's movement: the
+        # figure an owner reads sits with its working, not among the stock.
+        page.table(
+            ("", page.t("me_amount")),
+            (_LABEL, 75.0),
+            [
+                (page.t("me_gross_margin"), som.margin.format()),
+                (page.t("me_rate_gain"), som.rate_gain.format()),
+                (page.t("me_instalment_income"), som.instalment_income.format()),
+                (page.t("me_profit"), som.profit.format()),
+            ],
+        )
+        page.table(
+            ("", page.t("me_amount")),
+            (_LABEL, 75.0),
+            [
+                (page.t("me_opening_inventory"), som.opening_inventory.format()),
+                (page.t("me_purchases"), som.purchases.format()),
+                (page.t("me_sales_revenue"), som.revenue.format()),
+                (page.t("me_sales_returns"), som.sales_returns.format()),
+                (page.t("me_cogs"), som.cost_of_goods.format()),
+                (page.t("me_closing_inventory"), som.closing_inventory.format()),
+                (
+                    page.t("me_margin_percent"),
+                    page.t("me_na")
+                    if som.margin_percent is None
+                    else f"{som.margin_percent}%",
+                ),
+            ],
+        )
 
     @staticmethod
     def _reconciliation(page: DocumentPage, report: MonthEndReport) -> None:

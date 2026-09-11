@@ -11,6 +11,7 @@ here and ``CurrencyTotals`` everywhere else.
 """
 
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -79,6 +80,100 @@ class AccrualFigures:
 
 
 @dataclass(frozen=True, slots=True)
+class SomFigures:
+    """Every figure above, read in som (W9 B3).
+
+    A conversion, not a record of what crossed the counter: each dollar
+    total was converted at the selling rate in force on the day it
+    happened, and the som totals passed through untouched. It sits beside
+    ``AccrualFigures`` rather than inside it, because ``CurrencyTotals``
+    structurally cannot hold a mixed sum and that is worth keeping.
+    """
+
+    opening_inventory: Money
+    purchases: Money
+    cost_of_goods: Money
+    revenue: Money
+    sales_returns: Money
+    write_offs: Money
+    supplier_return_credits: Money
+    count_adjustments: Money
+    closing_inventory: Money
+    # What the counter really took and paid out, less what the same deals
+    # convert to. A sale settled in som at 12 700 while the store quoted
+    # 12 500 earned that spread (W9 B7).
+    rate_gain: Money
+    # The same gap on a store-credit sale, kept apart because it answers a
+    # different question: the seller named a som debt above the day's price
+    # and that difference is what the shop earns for waiting (W9 B4).
+    instalment_income: Money
+    basis: ConversionBasis
+
+    @property
+    def net_revenue(self) -> Money:
+        return self.revenue + self.sales_returns
+
+    @property
+    def margin(self) -> Money:
+        return self.net_revenue + self.cost_of_goods
+
+    @property
+    def profit(self) -> Money:
+        """The figure an owner works out on paper: money in less money out."""
+        return self.margin + self.rate_gain + self.instalment_income
+
+    @property
+    def margin_percent(self) -> Decimal | None:
+        """``None`` where nothing was sold; 0.0 would read as breaking even."""
+        revenue = self.net_revenue
+        if revenue.amount_minor == 0:
+            return None
+        return (
+            Decimal(self.margin.amount_minor) * 100 / Decimal(revenue.amount_minor)
+        ).quantize(Decimal("0.1"))
+
+
+@dataclass(frozen=True, slots=True)
+class SettledSale:
+    """One sale, as charged and as settled.
+
+    ``received`` is the money the counter really took: the tenders on a sale
+    settled there, and on a store-credit sale the som debt agreed instead,
+    because a payment against that debt is the same money arriving, not more
+    of it. Empty where nothing was recorded, and such a sale is left out
+    rather than counted as a total loss.
+    """
+
+    day: date
+    charged: tuple[Money, ...]
+    received: tuple[Money, ...]
+    # A store-credit sale's gap is the markup the seller named, not a rate
+    # they applied: no money crossed the counter to apply one to.
+    on_credit: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class TradeInPayout:
+    """One handset bought off a walk-in: what it was valued at, what was paid."""
+
+    day: date
+    valued: tuple[Money, ...]
+    paid: tuple[Money, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ConversionBasis:
+    """What the som column was worked out at, for printing beside it."""
+
+    opening_rate: Decimal
+    closing_rate: Decimal
+    # True when part of the period predates the first rate ever quoted and
+    # took that earliest rate. The report says so rather than implying the
+    # store was quoting a rate it had not recorded yet.
+    before_the_first_quote: bool
+
+
+@dataclass(frozen=True, slots=True)
 class DebtMovement:
     """FR-10.5's debt/cash view (§4.7). Always som, never a currency pair.
 
@@ -102,6 +197,8 @@ class MonthEndReport:
     period: Period
     location_id: UUID | None
     figures: AccrualFigures
+    # None until the store has quoted a rate at least once.
+    som: SomFigures | None
     closing_by_location: list[LocationInventoryValue]
     debt: DebtMovement
     financing: list[FinancingSplitRow]

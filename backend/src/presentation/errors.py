@@ -50,6 +50,8 @@ from domain.errors import (
     PaymentAlreadyReversedError,
     PriceNotSetError,
     RefundExceedsChargeError,
+    TenderAlreadyRecordedError,
+    TenderExceedsSaleError,
     UnitNotFromSupplierError,
     UnitNotRemovableError,
     UnitNotReturnableError,
@@ -100,6 +102,8 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (OverpaymentError, 409),
     (NotACreditSaleError, 409),
     (PaymentAlreadyReversedError, 409),
+    (TenderAlreadyRecordedError, 409),
+    (TenderExceedsSaleError, 409),
     # A customer return is the same shape of conflict throughout: goods
     # somebody else already took back, a sale that is no longer confirmed,
     # relief against a balance that has moved, or a refund the sale never

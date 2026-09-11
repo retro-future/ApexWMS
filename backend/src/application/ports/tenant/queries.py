@@ -6,7 +6,7 @@ needs such a read it goes in a query service (`.claude/rules/backend/
 query-services.md`); this is its port. `GoodsReceiptQueries` is the reference.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -26,7 +26,9 @@ from application.dtos import (
     OnHandBucket,
     PriceDeviation,
     SalesTotalsRow,
+    SettledSale,
     StockGroupBy,
+    TradeInPayout,
     UnitOrigin,
     UnitSale,
 )
@@ -274,6 +276,22 @@ class FinancialTransactionQueries(Protocol):
         """Every category's net, per currency; *until* exclusive (FR-10.8)."""
         ...
 
+    async def totals_by_type_and_day(
+        self,
+        *,
+        timezone: str,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> dict[tuple[TransactionType, Currency, date], Money]:
+        """The same nets, split by the store's own calendar day (W9 B3).
+
+        The split exists so a report can convert each figure at the rate
+        that was in force when it happened, rather than at one rate for the
+        whole month.
+        """
+        ...
+
     async def sales_totals(
         self,
         from_date: datetime | None = None,
@@ -325,6 +343,31 @@ class MonthEndQueries(Protocol):
         """Debt written off by customer returns confirmed in the window
         (FR-4.9d) — the fifth line, and the other way debt leaves without
         anybody paying it."""
+        ...
+
+    async def settled_sales(
+        self,
+        *,
+        timezone: str,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[SettledSale]:
+        """Every sale confirmed in the window: what it charged, what settled
+        it. The gap between the two, once both are read in som, is the rate
+        the store actually traded at (W9 B7)."""
+        ...
+
+    async def trade_in_payouts(
+        self,
+        *,
+        timezone: str,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[TradeInPayout]:
+        """Every handset bought off a walk-in in the window: what it was
+        valued at, and what was handed over for it."""
         ...
 
     async def sales_by_financing(

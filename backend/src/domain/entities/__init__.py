@@ -13,6 +13,7 @@ from domain.entities.device_unit import DeviceUnit
 from domain.entities.device_unit_price_change import DeviceUnitPriceChange
 from domain.entities.document import Document
 from domain.entities.employee import Employee
+from domain.entities.exchange_rate import ExchangeRate
 from domain.entities.financial_transaction import FinancialTransaction
 from domain.entities.goods_receipt import GoodsReceipt, GoodsReceiptLine, ReceivedUnit
 from domain.entities.invitation import Invitation, InvitationKind
@@ -44,6 +45,7 @@ __all__ = [
     "DeviceUnitPriceChange",
     "Document",
     "Employee",
+    "ExchangeRate",
     "FinancialTransaction",
     "GoodsReceipt",
     "GoodsReceiptLine",

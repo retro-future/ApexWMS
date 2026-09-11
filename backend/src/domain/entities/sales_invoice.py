@@ -155,6 +155,11 @@ class SalesInvoice(Document):
     # Always som, whatever the lines are priced in, and never derived from
     # them: the seller writes the figure the customer agreed to pay (§4.7).
     debt: Money | None = None
+    # The rate the store was quoting when this sale was confirmed (W9 B1).
+    # A pointer rather than a copied number, because the rate log is
+    # append-only: the row it names cannot change under a closed month.
+    # Null for every sale confirmed before the rate log existed.
+    sale_rate_id: UUID | None = None
 
     def __post_init__(self) -> None:
         self._assert_terms()

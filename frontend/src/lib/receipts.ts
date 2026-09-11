@@ -57,6 +57,18 @@ export function unitsNeedingPrice(receipt: GoodsReceipt): ReceivedUnit[] {
   );
 }
 
+/**
+ * A trade-in's handsets with no som figure against them (W9 B2).
+ *
+ * Only ever called for someone holding `Permission.Cost.View`: the som is
+ * absent from everyone else's payload, so to a Storekeeper every handset
+ * would look like it was missing one.
+ */
+export function unitsNeedingCashPaid(receipt: GoodsReceipt): ReceivedUnit[] {
+  if (receipt.acquisitionSource !== "trade_in") return [];
+  return receipt.lines.flatMap((line) => line.units.filter((unit) => !unit.cashPaid));
+}
+
 export type ConfirmBlockers = {
   shortLines: GoodsReceiptLine[];
   unpricedUnits: ReceivedUnit[];

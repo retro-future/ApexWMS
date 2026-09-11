@@ -9,25 +9,53 @@ a mismatch is reported beside the numbers, never folded into them.
 The debt and cash block is store-wide even when the report is scoped to one
 location. Debt belongs to a customer, not a shelf, and a payment records no
 location at all — a per-location debt figure would be a fiction.
+
+Beside the per-currency figures sits one more set read in som (W9 B3),
+converted day by day at the rate that was in force, and two lines that are
+not conversions at all: the gap between the money that really crossed the
+counter and what the same deals convert to, split into the rate the counter
+traded at and the markup a store-credit sale carries. Adding both to the
+converted margin gives the figure an owner works out on paper. The
+per-currency figures stay exactly what they were, down to the last minor
+unit.
 """
 
+from dataclasses import dataclass
+from datetime import date, timedelta
 from uuid import UUID
 
+from application.common.repository import TenantAppendOnlyRepository
 from application.dtos import (
     AccrualFigures,
+    ConversionBasis,
     DebtMovement,
     Discrepancy,
     LocationInventoryValue,
     MonthEndReport,
     Period,
+    SomFigures,
 )
 from application.ports import FinancialTransactionQueries, MonthEndQueries
 from application.services.cost_pools import inventory_effect
 from application.services.inventory_value import InventoryValuer
 from application.services.period import PeriodResolver
+from application.services.som_conversion import SomConverter
 from application.services.verification.balances import BalanceVerifier
-from domain.enums import TransactionType
+from application.specs import RateHistory
+from domain.entities import ExchangeRate
+from domain.enums import RateKind, TransactionType
 from domain.value_objects import Currency, CurrencyTotals, Money
+from infrastructure.persistence.tenant.models import ExchangeRateModel
+
+_DayTotals = dict[tuple[TransactionType, Currency, date], Money]
+
+
+@dataclass(frozen=True, slots=True)
+class _Earned:
+    """The two gaps between real money and the converted figures."""
+
+    on_the_rate: Money
+    on_credit: Money
 
 
 class MonthEndReporter:
@@ -38,12 +66,14 @@ class MonthEndReporter:
         debts: MonthEndQueries,
         inventory: InventoryValuer,
         balances: BalanceVerifier,
+        rates: TenantAppendOnlyRepository[ExchangeRate, ExchangeRateModel],
     ) -> None:
         self._periods = periods
         self._transactions = transactions
         self._debts = debts
         self._inventory = inventory
         self._balances = balances
+        self._rates = rates
 
     async def report(
         self, year: int, month: int, location_id: UUID | None = None
@@ -56,6 +86,7 @@ class MonthEndReporter:
             period=period,
             location_id=location_id,
             figures=figures,
+            som=await self._som(period, location_id),
             closing_by_location=by_location,
             debt=debt,
             financing=await self._debts.sales_by_financing(
@@ -95,6 +126,121 @@ class MonthEndReporter:
             count_adjustments=category(TransactionType.COUNT_ADJUSTMENT),
             closing_inventory=opening.merge(inventory_effect(moved)),
         )
+
+    async def _som(self, period: Period, location_id: UUID | None) -> SomFigures | None:
+        """The same month read in som, each day at its own rate.
+
+        The *selling* rate throughout: it is what the store quotes the
+        customer, so it is the one figure a dollar price was ever meant to
+        be read at.
+        """
+        converter = SomConverter(await self._rates.find(RateHistory(RateKind.SALE)))
+        if converter.is_empty:
+            return None
+
+        before = await self._transactions.totals_by_type_and_day(
+            timezone=period.timezone, until=period.start, location_id=location_id
+        )
+        during = await self._transactions.totals_by_type_and_day(
+            timezone=period.timezone,
+            since=period.start,
+            until=period.end,
+            location_id=location_id,
+        )
+        opening = self._in_som(before, converter)
+        moved = self._in_som(during, converter)
+
+        def category(txn_type: TransactionType) -> Money:
+            return moved.get((txn_type, Currency.UZS), Money.zero(Currency.UZS))
+
+        earned = await self._earned_beyond_the_rate(period, location_id, converter)
+        opening_value = inventory_effect(opening).of(Currency.UZS)
+        first = period.start.astimezone(period.start.tzinfo).date()
+        last = period.end.date() - timedelta(days=1)
+        return SomFigures(
+            opening_inventory=opening_value,
+            purchases=category(TransactionType.PURCHASE),
+            cost_of_goods=category(TransactionType.COGS),
+            revenue=category(TransactionType.SALE_REVENUE),
+            sales_returns=category(TransactionType.SALES_RETURN_REFUND),
+            write_offs=category(TransactionType.WRITE_OFF_LOSS),
+            supplier_return_credits=category(TransactionType.SUPPLIER_RETURN_CREDIT),
+            count_adjustments=category(TransactionType.COUNT_ADJUSTMENT),
+            closing_inventory=opening_value
+            + inventory_effect(moved).of(Currency.UZS),
+            rate_gain=earned.on_the_rate,
+            instalment_income=earned.on_credit,
+            basis=ConversionBasis(
+                opening_rate=converter.on(first),
+                closing_rate=converter.on(last),
+                before_the_first_quote=any(
+                    day < converter.starts_on
+                    for _, _, day in (*before, *during)
+                ),
+            ),
+        )
+
+    async def _earned_beyond_the_rate(
+        self, period: Period, location_id: UUID | None, converter: SomConverter
+    ) -> _Earned:
+        """Real money in and out, less what the same deals convert to.
+
+        Two figures, not one. A sale settled at the counter is money the
+        seller took at their own rate, and the gap is a rate gain. A
+        store-credit sale is a som debt the seller named out of the air, so
+        the gap is the shop's markup for waiting. A sale nobody recorded a
+        settlement for is skipped: an unknown figure is not a loss.
+        """
+        on_the_rate = Money.zero(Currency.UZS)
+        on_credit = Money.zero(Currency.UZS)
+        for sale in await self._debts.settled_sales(
+            timezone=period.timezone,
+            since=period.start,
+            until=period.end,
+            location_id=location_id,
+        ):
+            if not sale.received:
+                continue
+            gap = self._som_of(sale.received, sale.day, converter) - self._som_of(
+                sale.charged, sale.day, converter
+            )
+            if sale.on_credit:
+                on_credit += gap
+            else:
+                on_the_rate += gap
+        for bought in await self._debts.trade_in_payouts(
+            timezone=period.timezone,
+            since=period.start,
+            until=period.end,
+            location_id=location_id,
+        ):
+            if not bought.paid:
+                continue
+            on_the_rate += self._som_of(
+                bought.valued, bought.day, converter
+            ) - self._som_of(bought.paid, bought.day, converter)
+        return _Earned(on_the_rate=on_the_rate, on_credit=on_credit)
+
+    @staticmethod
+    def _som_of(
+        amounts: tuple[Money, ...], day: date, converter: SomConverter
+    ) -> Money:
+        total = Money.zero(Currency.UZS)
+        for amount in amounts:
+            total += converter.convert(amount, day)
+        return total
+
+    @staticmethod
+    def _in_som(
+        totals: _DayTotals, converter: SomConverter
+    ) -> dict[tuple[TransactionType, Currency], Money]:
+        """Collapse the daily split back to one som figure per category."""
+        running: dict[tuple[TransactionType, Currency], Money] = {}
+        for (txn_type, _, day), amount in totals.items():
+            key = (txn_type, Currency.UZS)
+            in_som = converter.convert(amount, day)
+            running[key] = running.get(key, Money.zero(Currency.UZS)) + in_som
+        return running
 
     async def _debt(self, period: Period) -> DebtMovement:
         """Store-wide (see the module docstring), and always som (§4.7)."""

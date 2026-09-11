@@ -6,9 +6,10 @@ import { useState } from "react";
 import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useDocumentAction } from "@/hooks/use-document";
-import { useRunsTill } from "@/hooks/use-tenant-settings";
-import { formatMoney, moneyToInput } from "@/lib/money";
+import { useCurrentRates } from "@/hooks/use-exchange-rates";
+import { formatMoney, inputToMoney, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
+import { somAtRate } from "@/lib/rates";
 import type { ReferenceCost } from "@/lib/receipts";
 import type { ReceivedUnit } from "@/lib/types";
 
@@ -17,21 +18,29 @@ export function PriceUnitModal({
   receiptId,
   unit,
   reference,
+  isTradeIn,
   onClose,
 }: {
   receiptId: string;
   unit: ReceivedUnit;
   reference: ReferenceCost | undefined;
+  isTradeIn: boolean;
   onClose: () => void;
 }) {
   const tScan = useTranslations("receipts.scan");
   const tCommon = useTranslations("common");
-  const runsTill = useRunsTill();
+  const tRates = useTranslations("rates");
+  const rates = useCurrentRates();
 
   const [cost, setCost] = useState(moneyToInput(unit.acquisitionCost ?? reference));
   const [asking, setAsking] = useState(moneyToInput(unit.askingPrice));
   const [cash, setCash] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const valued = inputToMoney(cost, unit.currency);
+  const atRate = somAtRate(
+    valued ? [valued] : [],
+    rates.data?.buyback?.somPerUsd ?? null,
+  );
 
   const price = useDocumentAction<
     ReceivedUnit,
@@ -92,17 +101,23 @@ export function PriceUnitModal({
         onChange={setAsking}
         currency={unit.currency}
       />
-      {/* The som handed to a walk-in is only recorded by a store that
-          balances a drawer (§4.5b); the server refuses it otherwise. */}
-      {runsTill && (
-        <MoneyInput
-          label={tScan("cashPaid")}
-          description={tScan("cashPaidHint")}
-          value={cash}
-          onChange={setCash}
-          currency="UZS"
-        />
-      )}
+      {/* A trade-in cannot be confirmed without it (W9 B2): the som is the
+          only record of what the store actually paid out. */}
+      <MoneyInput
+        label={tScan("cashPaid")}
+        description={
+          isTradeIn && atRate !== null
+            ? tRates("atRate", {
+                amount: formatMoney({ minor: atRate, currency: "UZS" }),
+                rate: rates.data?.buyback?.somPerUsd ?? "",
+              })
+            : tScan("cashPaidHint")
+        }
+        value={cash}
+        onChange={setCash}
+        currency="UZS"
+        required={isTradeIn}
+      />
     </FormModal>
   );
 }

@@ -6,9 +6,9 @@ at the end of a shift. The tender is the som figure, sitting beside the
 dollar revenue and never netted against it — there is still no rate in the
 system, and the two numbers are two independent facts about one sale.
 
-All of it is behind ``runsTill``, off until a store says it balances a
-drawer. The last class here is the off state, which has to be exactly the
-system V1 shipped.
+It is recorded for every store (W9 B1): a figure not written down at the
+counter cannot be recovered afterwards. ``runsTill`` is left for the shift
+screens B5 will build, and the last class here is that off state.
 """
 
 from infrastructure.cli import _verify
@@ -160,6 +160,90 @@ class TestASomTenderAgainstADollarSale:
         ]
 
 
+class TestTheCapOnTheAmount:
+    """A tender owes nothing, so only the sale's own total can cap it."""
+
+    async def test_more_than_the_sale_charges_is_refused(
+        self, client, settings, owner
+    ):
+        invoice_id = await a_scanned_invoice(client, settings, owner)
+        await confirm(client, owner, invoice_id)
+
+        refused = await tender(client, owner, invoice_id, "6000.00", currency="USD")
+
+        assert refused.status_code == 409, refused.text
+
+    async def test_a_som_tender_on_a_dollar_sale_is_not_capped(
+        self, client, settings, owner
+    ):
+        """No rate is involved anywhere in this rule, so there is no som
+        column to compare a som figure against."""
+        invoice_id = await a_scanned_invoice(client, settings, owner)
+        await confirm(client, owner, invoice_id)
+
+        taken = await tender(client, owner, invoice_id, "99000000")
+
+        assert taken.status_code == 201, taken.text
+
+
+class TestOneRowPerCurrency:
+    """A tender has no cap, so the row count is the only thing guarding it."""
+
+    async def test_a_second_som_row_is_refused(self, client, settings, owner):
+        invoice_id = await a_scanned_invoice(client, settings, owner)
+        await confirm(client, owner, invoice_id)
+        await tender(client, owner, invoice_id, "7620000")
+
+        again = await tender(client, owner, invoice_id, "7620000")
+
+        assert again.status_code == 409, again.text
+
+    async def test_the_other_currency_is_still_free(self, client, settings, owner):
+        invoice_id = await a_scanned_invoice(client, settings, owner)
+        await confirm(client, owner, invoice_id)
+        await tender(client, owner, invoice_id, "3810000")
+
+        rest = await tender(client, owner, invoice_id, "300.00", currency="USD")
+
+        assert rest.status_code == 201, rest.text
+
+    async def test_reversing_frees_the_currency_again(self, client, settings, owner):
+        invoice_id = await a_scanned_invoice(client, settings, owner)
+        await confirm(client, owner, invoice_id)
+        first = await tender(client, owner, invoice_id, "7000000")
+        payment_id = first.json()["data"]["payments"][0]["id"]
+
+        undone = await client.post(
+            f"{API}/payments/{payment_id}/reverse", headers=owner.auth
+        )
+        assert undone.status_code == 200, undone.text
+
+        corrected = await tender(client, owner, invoice_id, "7620000")
+
+        assert corrected.status_code == 201, corrected.text
+
+    async def test_a_down_payment_does_not_block_the_next_instalment(
+        self, client, settings, owner
+    ):
+        """The rule is the tender's alone; a debt is paid down in instalments."""
+        customer_id = await a_customer(client, owner)
+        invoice_id = await a_scanned_invoice(
+            client, settings, owner, customer_id=customer_id
+        )
+        await confirm(
+            client,
+            owner,
+            invoice_id,
+            paymentType="store_credit",
+            debt="7620000",
+            downPayment="1000000",
+        )
+
+        again = await tender(client, owner, invoice_id, "1000000")
+
+        assert again.status_code == 201, again.text
+
+
 class TestTenderingAtConfirm:
     async def test_the_confirm_records_what_was_taken(self, client, settings, owner):
         await keep_a_till(client, owner)
@@ -276,7 +360,7 @@ class TestTheAuditsStillReconcile:
 
 class TestWithoutATillNothingChanges:
     """The default. A store that was never asked whether it balances a
-    drawer sees exactly the system V1 shipped."""
+    drawer still records what crossed its counter, and nothing else."""
 
     async def test_the_flag_is_off_until_somebody_turns_it_on(self, client, owner):
         read = await client.get(f"{API}/settings/tenant", headers=owner.auth)
@@ -284,49 +368,56 @@ class TestWithoutATillNothingChanges:
         assert read.status_code == 200, read.text
         assert read.json()["data"]["runsTill"] is False
 
-    async def test_a_tender_is_refused(self, client, settings, owner):
+    async def test_a_tender_is_recorded_anyway(self, client, settings, owner):
+        """W9 B1: the som a customer handed over is the only som figure a
+        dollar-priced sale ever has, so it is written down whether or not
+        the store balances a drawer."""
         invoice_id = await a_scanned_invoice(client, settings, owner)
         await confirm(client, owner, invoice_id)
 
-        refused = await tender(client, owner, invoice_id, "7620000")
+        taken = await tender(client, owner, invoice_id, "7620000")
 
-        assert refused.status_code == 409, refused.text
+        assert taken.status_code == 201, taken.text
+        assert taken.json()["data"]["tendered"] == [
+            {"currency": "UZS", "minor": 7_620_000}
+        ]
 
-    async def test_a_confirm_that_states_a_tender_is_refused_rather_than_ignored(
+    async def test_a_confirm_that_states_a_tender_records_it(
         self, client, settings, owner
     ):
-        """Silently dropping the figure would be worse: the seller would
-        think the till had it."""
         invoice_id = await a_scanned_invoice(client, settings, owner)
 
-        refused = await client.post(
+        confirmed = await client.post(
             f"{API}/invoices/{invoice_id}/confirm",
             headers=owner.auth,
             json={"tendered": "7620000"},
         )
 
-        assert refused.status_code == 409, refused.text
+        assert confirmed.status_code == 200, confirmed.text
+        assert confirmed.json()["data"]["tendered"] == [
+            {"currency": "UZS", "minor": 7_620_000}
+        ]
 
-    async def test_a_som_paid_trade_in_books_nothing_but_its_purchase(
+    async def test_a_som_paid_trade_in_books_the_payout_anyway(
         self, client, settings, owner
     ):
-        """FR-3.4c holds while the till is off: the som handed to the
-        walk-in is a note, and no ledger row equals it."""
+        """W9 B2, the buying side of B1's rule: the som handed to the
+        walk-in is the only som figure the purchase ever has."""
         await a_trade_in(client, settings, owner, cost="330", cash="4200000")
 
         rows = await client.get(f"{API}/reports/financial-ledger", headers=owner.auth)
         booked = [
-            (row["txnType"], row["amount"]["minor"]) for row in rows.json()["data"]
+            (row["txnType"], row["amount"]["minor"], row["amount"]["currency"])
+            for row in rows.json()["data"]
         ]
 
-        assert ("purchase", -33000) in booked
-        assert not [row for row in booked if row[0].startswith("tender")]
-        assert not [row for row in booked if abs(row[1]) == 4_200_000]
+        assert ("purchase", -33000, "USD") in booked
+        assert ("tender_paid", -4_200_000, "UZS") in booked
 
-    async def test_turning_the_till_on_books_what_leaves_the_drawer(
+    async def test_the_till_changes_nothing_about_the_payout(
         self, client, settings, owner
     ):
-        """The other half of the till: buying a handset takes cash out."""
+        """The flag now gates the shift screens, not the recording."""
         await keep_a_till(client, owner)
 
         await a_trade_in(client, settings, owner, cost="330", cash="4200000")

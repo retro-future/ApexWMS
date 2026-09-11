@@ -33,6 +33,11 @@ class GoodsReceiptModel(TenantBase):
         ForeignKey("purchase_orders.id"), nullable=True, index=True
     )
     location_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("locations.id"))
+    # The buying rate in force at confirm (W9 B2). Null on a supplier
+    # receipt, and on every trade-in confirmed before the rate log existed.
+    buyback_rate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("exchange_rates.id"), nullable=True
+    )
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

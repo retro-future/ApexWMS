@@ -20,7 +20,7 @@ import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
 import { Subtotals } from "@/components/Subtotals";
 import { useResourceList } from "@/hooks/use-resource";
-import { useRunsTill } from "@/hooks/use-tenant-settings";
+import { useCurrentRates } from "@/hooks/use-exchange-rates";
 import {
   confirmBody,
   EMPTY_TERMS,
@@ -30,6 +30,7 @@ import {
 } from "@/lib/credit";
 import { formatMoney, isValidPriceInput } from "@/lib/money";
 import { Permission } from "@/lib/permissions";
+import { somAtRate } from "@/lib/rates";
 import type {
   CreditCompany,
   Currency,
@@ -48,9 +49,10 @@ import { CURRENCIES } from "@/lib/types";
  * payment is whatever the customer has on them.
  *
  * The quote is shown alongside, because that conversion is the whole
- * transaction and the seller is doing it while looking at this dialog.
- * Nothing here converts anything — no rate is recorded anywhere in the
- * system, by design.
+ * transaction and the seller is doing it while looking at this dialog. The
+ * day's rate turns it into a som figure *under* the tender field and never
+ * into it: what the customer handed over is a fact, and a number the screen
+ * guessed is not (W9 B1).
  *
  * `termsBlockers` renders inline rather than as a toast, for the same reason
  * the confirm refusal does: a refusal after the customer has walked away
@@ -75,8 +77,9 @@ export function ConfirmSaleModal({
   const tInvoices = useTranslations("invoices");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const tRates = useTranslations("rates");
   const can = useCan();
-  const runsTill = useRunsTill();
+  const rates = useCurrentRates();
 
   const [terms, setTerms] = useState<CreditTerms>({
     ...EMPTY_TERMS,
@@ -91,6 +94,10 @@ export function ConfirmSaleModal({
   );
 
   const blockers = termsBlockers(invoice, terms);
+  const atRate =
+    terms.tenderedCurrency === "UZS"
+      ? somAtRate(quote, rates.data?.sale?.somPerUsd ?? null)
+      : null;
   const debtMinor = somMinor(terms.debt);
   const downMinor = somMinor(terms.downPayment) ?? 0;
 
@@ -170,23 +177,33 @@ export function ConfirmSaleModal({
         </>
       )}
 
-      {terms.paymentType === "paid_in_full" && runsTill && (
-        <Group grow align="flex-start">
-          <Select
-            label={t("currency")}
-            value={terms.tenderedCurrency}
-            onChange={(value) => set("tenderedCurrency", (value as Currency) ?? "UZS")}
-            allowDeselect={false}
-            data={[...CURRENCIES]}
-          />
-          <MoneyInput
-            label={`${t("tendered")} (${tCommon("optional")})`}
-            description={t("tenderAmountHint")}
-            value={terms.tendered}
-            onChange={(value) => set("tendered", value)}
-            currency={terms.tenderedCurrency}
-          />
-        </Group>
+      {terms.paymentType === "paid_in_full" && (
+        <Stack gap="3xs">
+          <Group grow align="flex-start">
+            <Select
+              label={t("currency")}
+              value={terms.tenderedCurrency}
+              onChange={(value) => set("tenderedCurrency", (value as Currency) ?? "UZS")}
+              allowDeselect={false}
+              data={[...CURRENCIES]}
+            />
+            <MoneyInput
+              label={`${t("tendered")} (${tCommon("optional")})`}
+              description={t("tenderAmountHint")}
+              value={terms.tendered}
+              onChange={(value) => set("tendered", value)}
+              currency={terms.tenderedCurrency}
+            />
+          </Group>
+          {atRate !== null && (
+            <Text size="sm" c="dimmed">
+              {tRates("atRate", {
+                amount: formatMoney({ minor: atRate, currency: "UZS" }),
+                rate: rates.data?.sale?.somPerUsd ?? "",
+              })}
+            </Text>
+          )}
+        </Stack>
       )}
 
       {terms.paymentType === "store_credit" && (

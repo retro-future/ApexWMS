@@ -153,6 +153,40 @@ export type Money = {
   currency: Currency;
 };
 
+/** The two rates a store quotes: one to sell at, one to buy used stock at. */
+export const RATE_KINDS = ["sale", "buyback"] as const;
+
+export type RateKind = (typeof RATE_KINDS)[number];
+
+/**
+ * One quoted rate, som per dollar (W9 B1).
+ *
+ * `somPerUsd` is a string, not a number, for the reason every price input
+ * is: it multiplies money, and a JS number is a float.
+ *
+ * Nothing in the app converts with it yet. It is recorded beside the money
+ * so a report can, once B7 lands.
+ */
+export type ExchangeRate = {
+  id: string;
+  kind: RateKind;
+  somPerUsd: string;
+  /** The business day the rate applies to, in the store's timezone. */
+  effectiveOn: string;
+  setAt: string;
+  userId: string;
+  /** Quoted for a day before today: the counter is working off yesterday. */
+  isStale: boolean;
+};
+
+/** Both rates in force. Either is null while the store has never quoted one. */
+export type CurrentRates = {
+  sale: ExchangeRate | null;
+  buyback: ExchangeRate | null;
+  /** The store's own date, so staleness is not decided in the browser. */
+  today: string;
+};
+
 /**
  * Cost fields are typed optional because the server *omits* them without
  * `Permission.Cost.View` (FR-1.7) — it does not send them as null.
@@ -199,6 +233,8 @@ export type ReceivedUnit = {
   acquisitionCost?: Money | null;
   /** A formatted string, never a number: it enters no total (FR-3.4d). */
   cashPaid?: string | null;
+  /** Som per dollar this handset actually worked out at, or null. */
+  impliedRate?: string | null;
 };
 
 /**
@@ -243,6 +279,8 @@ export type GoodsReceipt = {
   subtotals: Money[];
   /** Populated only on the confirm response; empty on every GET. */
   belowCostAlerts: BelowCostAlert[];
+  /** The buying rate a trade-in was struck at. Null on a supplier receipt. */
+  buybackRate?: ExchangeRate | null;
 };
 
 /** What one beep of the scanner returns (PRD §6). */
@@ -373,6 +411,13 @@ export type SalesInvoice = {
    */
   remaining: Money;
   payments: Payment[];
+  /**
+   * The rate the store was quoting when this sale was confirmed. Sent only
+   * on the detail read, and null for a draft or a sale confirmed before the
+   * rate log existed. Compare it against `tendered` over `subtotals` to see
+   * the rate the sale was actually struck at.
+   */
+  saleRate: ExchangeRate | null;
   /** Populated only on the confirm response; empty on every GET. */
   belowCostAlerts: BelowCostAlert[];
 };
@@ -1005,6 +1050,37 @@ export type AccrualFigures = {
   marginPercent: MarginPercent[];
 };
 
+/**
+ * The same month read in som, converted day by day at the selling rate that
+ * was in force (W9 B3). A conversion, never what crossed the counter, which
+ * is why the rates behind it travel with it.
+ */
+export type SomFigures = {
+  openingInventory: Money;
+  purchases: Money;
+  costOfGoods: Money;
+  revenue: Money;
+  salesReturns: Money;
+  writeOffs: Money;
+  supplierReturnCredits: Money;
+  countAdjustments: Money;
+  closingInventory: Money;
+  margin: Money;
+  marginPercent: string | null;
+  /** Not a conversion: real money taken and paid out, less what the same
+      deals convert to. The spread the store actually traded at. */
+  rateGain: Money;
+  /** The same gap on a store-credit sale: the som markup the seller named
+      above the day's price, which is what the shop earns for waiting. */
+  instalmentIncome: Money;
+  /** Margin plus both gains: money in less money out, in som. */
+  profit: Money;
+  openingRate: string;
+  closingRate: string;
+  /** Part of the period predates the first rate the store ever quoted. */
+  beforeTheFirstQuote: boolean;
+};
+
 /** FR-10.6: where the closing value physically sits. */
 export type LocationInventoryValue = {
   locationId: string;
@@ -1049,6 +1125,8 @@ export type MonthEndReport = {
   period: Period;
   locationId: string | null;
   figures: AccrualFigures;
+  /** Null until the store has quoted a rate at least once. */
+  som: SomFigures | null;
   closingByLocation: LocationInventoryValue[];
   debt: DebtMovement;
   financing: FinancingSplit[];
