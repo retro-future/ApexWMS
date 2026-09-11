@@ -71,6 +71,9 @@ export function CreditPanel({ invoice }: { invoice: SalesInvoice }) {
         <Group gap="xl" wrap="wrap">
           <Figure label={t("debt")} value={formatMoneyOrDash(invoice.debt)} />
           <Figure label={t("paid")} value={formatMoney(invoice.paid)} />
+          {invoice.relieved.minor > 0 && (
+            <Figure label={t("relieved")} value={formatMoney(invoice.relieved)} />
+          )}
           <Figure
             label={t("remaining")}
             value={formatMoney(invoice.remaining)}

@@ -490,6 +490,7 @@
     "panelHint": "The debt is what was agreed. Paid and remaining are counted from the payments below.",
     "recordPayment": "Record payment",
     "paid": "Paid",
+    "relieved": "Relieved by returns",
     "remaining": "Remaining",
     "settled": "This sale is paid off.",
     "refundDue": "This sale was cancelled, but {amount} is still with the store. Refund it by hand.",

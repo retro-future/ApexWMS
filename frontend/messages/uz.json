@@ -490,6 +490,7 @@
     "panelHint": "Qarz — kelishilgan summa. To'langan va qolgan quyidagi to'lovlardan hisoblanadi.",
     "recordPayment": "To'lovni yozish",
     "paid": "To'langan",
+    "relieved": "Qaytarishlar bilan yopilgan",
     "remaining": "Qolgan",
     "settled": "Bu sotuv to'liq to'langan.",
     "refundDue": "Sotuv bekor qilindi, lekin {amount} do'konda qolgan. Uni qo'lda qaytaring.",
