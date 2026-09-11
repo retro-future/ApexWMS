@@ -911,8 +911,9 @@ export type DeviceInventoryRow = {
   locationName: string | null;
   since: string;
   daysInStock: number;
-  askingPrice: Money | null;
-  resolvedPrice: Money | null;
+  /** Omitted by the API (not `null`) when the unit has no resolvable price. */
+  askingPrice?: Money | null;
+  resolvedPrice?: Money | null;
   sourceDocumentType: DocumentType | null;
   sourceDocumentId: string | null;
   /** --- Permission.Cost.View only --- */
