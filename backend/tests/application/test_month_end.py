@@ -16,8 +16,17 @@ from uuid import UUID, uuid4
 from application.commands.cancel_sales_invoice import CancelSalesInvoiceCommand
 from application.commands.confirm_sales_invoice import ConfirmSalesInvoiceCommand
 from application.commands.record_payment import RecordPaymentCommand
+from application.commands.set_exchange_rate import SetExchangeRateCommand
 from domain.entities import FinancialTransaction, Location
-from domain.enums import DocumentType, PaymentType, TrackingType, TransactionType
+from domain.enums import (
+    AcquisitionSource,
+    DeviceCondition,
+    DocumentType,
+    PaymentType,
+    RateKind,
+    TrackingType,
+    TransactionType,
+)
 from domain.value_objects import Currency, Money
 from tests.application.builders import World, make_world
 from tests.application.test_credit_sales import (
@@ -29,6 +38,8 @@ from tests.application.test_credit_sales import (
     som,
     usd,
 )
+from tests.application.test_goods_receipt import confirm as confirm_receipt
+from tests.application.test_goods_receipt import opened, scan
 from tests.application.test_sales_invoice import (
     CASE_BARCODE,
     stocked_accessory,
@@ -58,6 +69,16 @@ async def a_bought_and_sold_phone(world: World, sold_at: datetime) -> Location:
         ConfirmSalesInvoiceCommand(sales_invoice_id=invoice.id)
     )
     return location
+
+
+async def quoted(world: World, at: datetime, rate: str) -> None:
+    """A selling rate the store put up on the day *at* falls on."""
+    was = world.clock.current
+    world.clock.current = at
+    await world.set_exchange_rate().handle(
+        SetExchangeRateCommand(kind=RateKind.SALE, som_per_usd=rate)
+    )
+    world.clock.current = was
 
 
 async def a_credit_sale(world: World, location: Location | None = None) -> UUID:
@@ -223,6 +244,191 @@ class TestTheAccrualView:
 
         assert january.closing_by_location == []
         assert january.figures.closing_inventory.of(Currency.USD) == usd("0")
+
+
+class TestTheSomView:
+    """W9 B3: the same month read in som, each day at its own rate."""
+
+    async def test_a_store_that_never_quoted_a_rate_gets_no_som_view(self):
+        world = make_world()
+        await a_bought_and_sold_phone(world, LAST_NIGHT_OF_JANUARY)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is None
+        # And the per-currency figures are exactly what they always were.
+        assert report.figures.revenue.of(Currency.USD) == usd("600")
+
+    async def test_dollars_convert_at_the_rate_of_their_own_day(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        await quoted(world, LAST_NIGHT_OF_JANUARY, "12500")
+        await a_bought_and_sold_phone(world, LAST_NIGHT_OF_JANUARY)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        # Bought mid-January at 12 000, sold on the 31st at 12 500.
+        assert report.som.purchases == som("-4560000")
+        assert report.som.revenue == som("7500000")
+
+    async def test_the_latest_rate_is_not_applied_to_the_whole_month(self):
+        """The trap this exists to avoid: one rate over a month that moved."""
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        await quoted(world, LAST_NIGHT_OF_JANUARY, "12500")
+        await a_bought_and_sold_phone(world, LAST_NIGHT_OF_JANUARY)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.purchases != som("-4750000")
+
+    async def test_a_day_before_the_first_quote_takes_the_earliest_rate(self):
+        world = make_world()
+        await a_bought_and_sold_phone(world, LAST_NIGHT_OF_JANUARY)
+        await quoted(world, MID_FEBRUARY, "12500")
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.revenue == som("7500000")
+        assert report.som.basis.before_the_first_quote is True
+
+    async def test_a_month_inside_the_log_says_so(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        world.clock.current = MID_JANUARY
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.basis.before_the_first_quote is False
+        assert str(report.som.basis.opening_rate) == "12000"
+
+    async def test_som_figures_pass_through_untouched(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        world.clock.current = MID_JANUARY
+        location = a_place(world)
+        case = catalogued_full(
+            world,
+            sku="CASE-BLK",
+            price="50000",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            barcode=CASE_BARCODE,
+        )
+        await stocked_accessory(world, case, location, 10, som("300000"))
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        # Bought in som already; converting it again would multiply a som
+        # figure by a rate.
+        assert report.som.purchases == som("-300000")
+
+    async def test_margin_reads_in_som_too(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        await a_bought_and_sold_phone(world, MID_JANUARY)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.margin == som("2640000")
+        assert str(report.som.margin_percent) == "36.7"
+
+
+class TestTheProfitAnOwnerCountsOnPaper:
+    """W9 B7: the gap between the converted figures and the real money.
+
+    A store buys a handset off a walk-in for som and sells it for som. The
+    owner's arithmetic is one subtraction. Until the rate gain existed, the
+    report could not reach that number from either side: the books value
+    the handset in dollars, and the two conversions swallow the spread the
+    store actually earned.
+    """
+
+    async def test_it_matches_the_money_in_less_the_money_out(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12500")
+        world.clock.current = MID_JANUARY
+
+        # Bought off a walk-in: valued at $330, 3 600 000 som handed over.
+        receipt, product, location = await opened(
+            world, source=AcquisitionSource.TRADE_IN
+        )
+        await scan(
+            world,
+            receipt,
+            condition=DeviceCondition.USED,
+            acquisition_cost="330",
+            asking_price="600",
+            cash_paid="3600000",
+            cash_paid_currency=Currency.UZS,
+        )
+        await confirm_receipt(world, receipt)
+
+        # Sold the same day for $600, settled with 7 620 000 som.
+        invoice = await a_scanned_invoice(world, location, a_customer(world))
+        assert invoice is not None
+        await world.confirm_sales_invoice().handle(
+            ConfirmSalesInvoiceCommand(sales_invoice_id=invoice.id)
+        )
+        await world.record_payment().handle(
+            RecordPaymentCommand(sales_invoice_id=invoice.id, amount="7620000")
+        )
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        # 4 125 000 - 3 600 000 on the buy, 7 620 000 - 7 500 000 on the sale.
+        assert report.som.rate_gain == som("645000")
+        assert report.som.margin == som("3375000")
+        # And the one number: 7 620 000 taken, 3 600 000 paid out.
+        assert report.som.profit == som("4020000")
+
+    async def test_a_sale_nobody_settled_is_left_out_rather_than_counted_lost(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12500")
+        await a_bought_and_sold_phone(world, MID_JANUARY)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.rate_gain == som("0")
+
+    async def test_the_markup_on_a_debt_is_its_own_line(self):
+        """W9 B4: the seller named 7 800 000 on a phone worth 7 500 000 at
+        the day's rate. No rate was applied to reach it, so the 300 000 is
+        what the shop earns for waiting, not a rate gain."""
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12500")
+        world.clock.current = MID_JANUARY
+        await a_credit_sale(world)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.instalment_income == som("300000")
+        assert report.som.rate_gain == som("0")
+
+    async def test_a_payment_on_a_debt_is_not_counted_a_second_time(self):
+        """The 800 000 down payment is that debt arriving, not more money.
+        Counting both would read 1 100 000 where the shop earned 300 000."""
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12500")
+        world.clock.current = MID_JANUARY
+        sale_id = await a_credit_sale(world)
+        await world.record_payment().handle(
+            RecordPaymentCommand(sales_invoice_id=sale_id, amount="1000000")
+        )
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.instalment_income == som("300000")
 
 
 class TestClosingValueReconciles:

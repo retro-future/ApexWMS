@@ -20,6 +20,7 @@ from domain.enums.label_layout import LabelLayout
 from domain.enums.movement_type import MovementType
 from domain.enums.payment_method import PaymentMethod
 from domain.enums.payment_type import PaymentType
+from domain.enums.rate_kind import RateKind
 from domain.enums.supplier_return_reason import SupplierReturnReason
 from domain.enums.tenant_role import TENANT_PREFIX, TenantRole
 from domain.enums.tenant_status import TenantStatus
@@ -43,6 +44,7 @@ __all__ = [
     "MovementType",
     "PaymentMethod",
     "PaymentType",
+    "RateKind",
     "SupplierReturnReason",
     "TENANT_PREFIX",
     "TenantRole",

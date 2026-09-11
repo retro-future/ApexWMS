@@ -333,9 +333,12 @@ class TestConfirming:
 
 
 class TestTheSomPaidTradeIn:
-    async def test_the_ledger_books_the_dollars_and_never_the_som(self):
-        """FR-3.4c's stated test: received at $330 with 4 200 000 so'm
-        handed over. No figure anywhere equals or contains 4 200 000."""
+    async def test_the_purchase_is_dollars_and_the_payout_is_som(self):
+        """Received at $330 with 4 200 000 so'm handed over.
+
+        Two rows, never one: the purchase is what the handset is worth, the
+        payout is what left the drawer, and no figure is their sum (W9 B2).
+        """
         world = make_world()
         receipt, _, _ = await opened(world, source=AcquisitionSource.TRADE_IN)
         await scan(
@@ -351,15 +354,38 @@ class TestTheSomPaidTradeIn:
 
         await confirm(world, receipt)
 
-        assert [t.amount for t in world.transactions.rows] == [-usd("330")]
+        booked = {(t.txn_type, t.amount) for t in world.transactions.rows}
+        assert booked == {
+            (TransactionType.PURCHASE, -usd("330")),
+            (TransactionType.TENDER_PAID, -Money(4_200_000, Currency.UZS)),
+        }
         unit = await world.units.find_one(DeviceUnitByImei(IMEIS[0]))
         assert unit is not None
         assert unit.acquisition_cost == usd("330")
         assert unit.cash_paid_minor == 4_200_000
         assert unit.cash_paid_currency is Currency.UZS
-        assert all(
-            t.amount.amount_minor != 4_200_000 for t in world.transactions.rows
+
+    async def test_the_som_never_touches_the_purchase(self):
+        world = make_world()
+        receipt, _, _ = await opened(world, source=AcquisitionSource.TRADE_IN)
+        await scan(
+            world,
+            receipt,
+            IMEIS[0],
+            condition=DeviceCondition.USED,
+            acquisition_cost="330",
+            asking_price="420",
+            cash_paid="4200000",
+            cash_paid_currency=Currency.UZS,
         )
+
+        await confirm(world, receipt)
+
+        purchases = [
+            t for t in world.transactions.rows
+            if t.txn_type is TransactionType.PURCHASE
+        ]
+        assert [t.amount for t in purchases] == [-usd("330")]
 
 
 class TestCancelling:

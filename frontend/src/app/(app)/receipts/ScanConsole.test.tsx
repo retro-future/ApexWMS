@@ -8,8 +8,9 @@ import { Permission } from "@/lib/permissions";
 import { makeMe, renderWithProviders } from "@/test/render";
 import type { GoodsReceipt, ScanResult } from "@/lib/types";
 
-const { apiSend, apiGetPaged, scannerProps } = vi.hoisted(() => ({
+const { apiSend, apiGet, apiGetPaged, scannerProps } = vi.hoisted(() => ({
   apiSend: vi.fn(),
+  apiGet: vi.fn(),
   apiGetPaged: vi.fn(),
   scannerProps: { onScan: undefined as ((codes: { rawValue: string }[]) => void) | undefined },
 }));
@@ -18,6 +19,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   // ApiError is a real class the console's error handling depends on.
   ...(await importOriginal<typeof import("@/lib/api")>()),
   apiSend,
+  apiGet,
   apiGetPaged,
 }));
 
@@ -86,8 +88,28 @@ async function scan(user: ReturnType<typeof userEvent.setup>, code: string) {
   return input as HTMLInputElement;
 }
 
+const tradeIn: GoodsReceipt = {
+  ...receipt,
+  acquisitionSource: "trade_in",
+  supplierId: null,
+  customerId: "customer-1",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  apiGet.mockResolvedValue({
+    sale: null,
+    buyback: {
+      id: "rate-1",
+      kind: "buyback",
+      somPerUsd: "11500",
+      effectiveOn: "2026-08-14",
+      setAt: "2026-08-14T06:00:00Z",
+      userId: "user-1",
+      isStale: false,
+    },
+    today: "2026-08-14",
+  });
   apiGetPaged.mockResolvedValue({
     items: [],
     pageIndex: 1,
@@ -300,6 +322,34 @@ describe("ScanConsole", () => {
     expect(screen.queryByLabelText("Cost")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Asking price")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Cash paid")).not.toBeInTheDocument();
+  });
+
+  it("asks what was paid out on a supplier receipt too, without requiring it", () => {
+    renderWithProviders(
+      <ScanConsole receipt={receipt} referenceCosts={new Map()} onScanned={vi.fn()} />,
+      { me: makeMe([Permission.Receiving.Manage, Permission.Pricing.Set]) },
+    );
+
+    const field = screen.getByLabelText("Cash paid");
+    expect(field).toBeInTheDocument();
+    expect(field).not.toBeRequired();
+  });
+
+  it("requires it on a trade-in and shows the cost at the buying rate", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ScanConsole receipt={tradeIn} referenceCosts={new Map()} onScanned={vi.fn()} />,
+      { me: makeMe([Permission.Receiving.Manage, Permission.Pricing.Set]) },
+    );
+
+    expect(screen.getByLabelText(/cash paid/i)).toBeRequired();
+
+    await user.type(screen.getByLabelText("Cost"), "330.00");
+
+    // $330 at 11 500, as a hint. It is never written into the field.
+    expect(await screen.findByText(/3\s795\s000/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("");
   });
 
   it("sends cost and price when the scanner does hold the pricing permission", async () => {

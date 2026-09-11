@@ -29,6 +29,8 @@ import { useResourceList } from "@/hooks/use-resource";
 import { useScanLookup } from "@/hooks/use-scan-lookup";
 import { Permission } from "@/lib/permissions";
 
+import { RatesCard } from "./RatesCard";
+
 /**
  * Deliberately modest: counts of what exists and a way into it. Anything
  * resembling a real figure — stock value, margin, what sold today — is
@@ -99,6 +101,8 @@ export default function DashboardPage() {
           {t("subtitle")}
         </Text>
       </Stack>
+
+      <RatesCard />
 
       <MobileScanCard />
 

@@ -92,4 +92,17 @@ describe("the device inventory list", () => {
     expect(screen.queryByText("$380.00")).not.toBeInTheDocument();
     expect(screen.queryByText("$120.00")).not.toBeInTheDocument();
   });
+
+  it("shows the price as none when the API omits resolvedPrice, instead of crashing", async () => {
+    const priceless: DeviceInventoryRow = {
+      ...base,
+      askingPrice: undefined,
+      resolvedPrice: undefined,
+    };
+    render([priceless]);
+
+    await screen.findByText("iPhone 15 Pro");
+    expect(screen.queryByText("$500.00")).not.toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
 });

@@ -15,6 +15,7 @@ import pytest
 
 from tests.api.ledger_helpers import PHONE_IMEI, receive_phone
 from tests.api.pdf_helpers import pdf_text
+from tests.api.test_tender_api import TRADE_IN_IMEI, a_trade_in
 
 API = "/api/v1"
 
@@ -303,3 +304,84 @@ def _minor(subtotals: list[dict], currency: str) -> int:
         if subtotal["currency"] == currency:
             return subtotal["minor"]
     return 0
+
+class TestTheProfitAnOwnerCountsOnPaper:
+    """W9 B7 over a real database: bought for som, sold for som.
+
+    The fakes cannot prove this one. The rate gain is built from two joined
+    reads (payments against revenue, received units against their receipt),
+    and a join that returns nothing shows up as a plausible zero rather than
+    an error.
+    """
+
+    async def test_it_matches_the_money_in_less_the_money_out(
+        self, client, settings, owner
+    ):
+        quoted = await client.post(
+            f"{API}/exchange-rates",
+            headers=owner.auth,
+            json={"kind": "sale", "somPerUsd": "12500"},
+        )
+        assert quoted.status_code == 200, quoted.text
+
+        # Valued at $330, 4 200 000 som handed over the counter.
+        await a_trade_in(client, settings, owner)
+        invoice_id = await sell(client, owner, await _where(client, owner), TRADE_IN_IMEI)
+        taken = await client.post(
+            f"{API}/invoices/{invoice_id}/payments",
+            headers=owner.auth,
+            json={"amount": "5400000", "currency": "UZS"},
+        )
+        assert taken.status_code == 201, taken.text
+
+        body = await month_end(client, owner.auth, **await this_month(client, owner.auth))
+
+        som = body["som"]
+        assert som is not None
+        # -75 000 on the buy (paid above the quoted rate), +150 000 on the
+        # sale (took above it).
+        assert som["rateGain"]["minor"] == 75_000
+        # 5 400 000 taken, 4 200 000 paid out.
+        assert som["profit"]["minor"] == 1_200_000
+
+
+    async def test_a_debt_markup_is_its_own_line_and_its_payment_is_not_money_twice(
+        self, client, settings, owner
+    ):
+        """W9 B4. The down payment is the same debt arriving; counting it
+        beside the debt reads 1 100 000 where the shop earned 300 000."""
+        quoted = await client.post(
+            f"{API}/exchange-rates",
+            headers=owner.auth,
+            json={"kind": "sale", "somPerUsd": "12500"},
+        )
+        assert quoted.status_code == 200, quoted.text
+        _, _, location_id = await a_priced_handset(client, settings, owner)
+        customer = await client.post(
+            f"{API}/customers", headers=owner.auth, json={"fullName": "Aziz"}
+        )
+        assert customer.status_code == 201, customer.text
+        await sell(
+            client,
+            owner,
+            location_id,
+            customer_id=customer.json()["data"]["id"],
+            paymentType="store_credit",
+            debt="7800000",
+            downPayment="800000",
+        )
+
+        body = await month_end(client, owner.auth, **await this_month(client, owner.auth))
+
+        som = body["som"]
+        assert som is not None
+        # $600 at 12 500 is 7 500 000; the seller named 7 800 000.
+        assert som["instalmentIncome"]["minor"] == 300_000
+        assert som["rateGain"]["minor"] == 0
+
+
+async def _where(client, owner) -> str:
+    """The store's only location."""
+    listed = await client.get(f"{API}/locations", headers=owner.auth)
+    assert listed.status_code == 200, listed.text
+    return listed.json()["data"][0]["id"]

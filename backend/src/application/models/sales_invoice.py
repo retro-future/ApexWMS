@@ -35,6 +35,7 @@ from uuid import UUID
 from application.core import CamelModel
 from application.dtos import BelowCostAlert
 from application.models.below_cost_alert import BelowCostAlertData
+from application.models.exchange_rate import ExchangeRateData
 from application.models.money import MoneyData
 from application.models.payment import PaymentData
 
@@ -115,6 +116,11 @@ class SalesInvoiceData(CamelModel):
     # side of the sale, never netted against the revenue above it.
     tendered: list[MoneyData] = []
     payments: list[PaymentData] = []
+    # The rate the store was quoting when this sale was confirmed (W9
+    # B1). Populated only on the detail read, and null for a draft or a
+    # sale confirmed before the rate log existed. Compare it against
+    # ``tendered`` over ``subtotals`` to see the rate actually struck.
+    sale_rate: ExchangeRateData | None = None
     # Populated only by the confirm handler (see the below-cost design doc);
     # empty on get/list/create/cancel.
     below_cost_alerts: list[BelowCostAlertData] = []
@@ -127,6 +133,7 @@ class SalesInvoiceData(CamelModel):
         returns: Sequence[CustomerReturn] = (),
         *,
         below_cost_alerts: list[BelowCostAlert] | None = None,
+        sale_rate: ExchangeRateData | None = None,
     ) -> SalesInvoiceData:
         # ``paid_on`` and not a plain sum: it counts only what settles the
         # som debt, so a tender in another currency cannot reduce it.
@@ -166,6 +173,7 @@ class SalesInvoiceData(CamelModel):
             remaining=MoneyData.from_entity(owing),
             tendered=MoneyData.from_entity(tendered),
             payments=[PaymentData.from_entity(payment) for payment in payments],
+            sale_rate=sale_rate,
             below_cost_alerts=[
                 BelowCostAlertData.from_entity(one)
                 for one in (below_cost_alerts or [])

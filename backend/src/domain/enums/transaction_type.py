@@ -21,8 +21,9 @@ every store-credit instalment would inflate the books — see §4.6's box.
 ``TENDER_RECEIVED`` and ``TENDER_PAID`` are the third thing money does:
 what physically crossed the counter, in the currency it crossed in. Taken
 on a sale that opened no debt, handed out for a handset bought from a
-walk-in. Both exist only for a store that balances a drawer (§4.5b);
-without one, the same facts stay the inert notes V1 made them. Separate from ``PAYMENT_RECEIVED``
+walk-in. The sale side is recorded for every store (W9 B1), because a
+dollar-priced handset paid for in som leaves no som figure anywhere else,
+and the trade-in payout for the same reason (W9 B2). Separate from ``PAYMENT_RECEIVED``
 because the month-end debt movement means *debt collected* by that name,
 and a till figure that included tenders would say a debt was settled that
 never existed. All three together are what a shift's cash actually is, and

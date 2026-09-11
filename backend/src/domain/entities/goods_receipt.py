@@ -155,6 +155,11 @@ class GoodsReceipt(Document):
     customer_id: UUID | None = None
     purchase_order_id: UUID | None = None
     location_id: UUID
+    # The buying rate in force when a trade-in was confirmed (W9 B2). A
+    # pointer rather than a copied number, because the rate log is
+    # append-only. Null on a supplier receipt, and on every trade-in
+    # confirmed before the rate log existed.
+    buyback_rate_id: UUID | None = None
     lines: list[GoodsReceiptLine] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -169,6 +174,7 @@ class GoodsReceipt(Document):
         self._assert_source_consistent()
         self._assert_lines_complete()
         self._assert_priced()
+        self._assert_paid_out()
         super().confirm(now, user_id)
 
     def units(self) -> list[ReceivedUnit]:
@@ -247,6 +253,29 @@ class GoodsReceipt(Document):
                 key="unpriced_no_unit_cost",
                 number=self.number,
                 items=", ".join(unpriced_lines),
+            )
+
+    def _assert_paid_out(self) -> None:
+        """A handset bought off a walk-in states what was handed over for it.
+
+        The dollar valuation and the som paid are two independent figures
+        (§4.5b), and only the first is required of a supplier receipt. A
+        trade-in needs both, because the som never appears anywhere else and
+        without it nobody can say afterwards what the store's own buying
+        rate really was (W9 B2).
+        """
+        if self.acquisition_source is not AcquisitionSource.TRADE_IN:
+            return
+        unpaid = sorted(
+            str(unit.imei) for unit in self.units() if unit.cash_paid_minor is None
+        )
+        if unpaid:
+            raise UnpricedUnitError(
+                f"{self.number} cannot be confirmed: no cash paid recorded on "
+                f"{', '.join(unpaid)}",
+                key="unpriced_no_cash_paid",
+                number=self.number,
+                items=", ".join(unpaid),
             )
 
     def _assert_priced(self) -> None:

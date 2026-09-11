@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import en from "@/../messages/en.json";
 import ru from "@/../messages/ru.json";
 import uz from "@/../messages/uz.json";
-import { TRACE_EVENT_KINDS, TRANSACTION_TYPES } from "@/lib/types";
+import { RATE_KINDS, TRACE_EVENT_KINDS, TRANSACTION_TYPES } from "@/lib/types";
 
 /**
  * Every value the server can send has a label, in every locale.
@@ -23,6 +23,7 @@ const LOCALES = { en, ru, uz };
 describe.each([
   ["reports.txnType", TRANSACTION_TYPES, (m: typeof en) => m.reports.txnType],
   ["reports.traceKind", TRACE_EVENT_KINDS, (m: typeof en) => m.reports.traceKind],
+  ["rates.kind", RATE_KINDS, (m: typeof en) => m.rates.kind],
 ] as const)("%s", (_name, values, pick) => {
   it.each(Object.keys(LOCALES))("has a label for every value in %s", (locale) => {
     const labels = pick(LOCALES[locale as keyof typeof LOCALES] as typeof en);

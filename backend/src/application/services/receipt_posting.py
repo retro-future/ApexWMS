@@ -18,11 +18,11 @@ Three things happen per scanned handset, in this order and for a reason:
    being seeded behind the log's back.
 3. Both ledgers are written by ``LedgerPoster``, together or not at all.
 
-A store that balances a drawer also books what it physically handed the
-walk-in (``TENDER_PAID``), which is money out of the till and nothing to do
-with the ``PURCHASE`` beside it: the purchase is what the handset is worth
-in the product's currency, the tender is the som that left the box. Without
-the till the som stays the inert note FR-3.4c made it.
+What the store physically handed the walk-in is booked as ``TENDER_PAID``,
+which has nothing to do with the ``PURCHASE`` beside it: the purchase is
+what the handset is worth in the product's currency, the tender is the som
+that left the box. It is booked for every store, drawer or no drawer (W9
+B2), because the som appears nowhere else and cannot be recovered later.
 
 Nothing here commits. The handler owns the transaction, so a duplicate
 IMEI found on the tenth phone rolls back the nine before it.
@@ -30,17 +30,30 @@ IMEI found on the tenth phone rolls back the nine before it.
 
 from datetime import datetime
 
-from application.common.repository import TenantDbRepository
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.dtos import MoneyEffect, Posting, PostingEntry
 from application.errors import DuplicateImeiError
-from application.ports import Clock, TenantSettingsRepository
+from application.ports import Clock
 from application.services.device_unit_repricer import DeviceUnitRepricer
 from application.services.ledger import LedgerPoster
-from application.specs import DeviceUnitByImei
-from domain.entities import DeviceUnit, GoodsReceipt, GoodsReceiptLine, ReceivedUnit
-from domain.enums import DeviceStatus, DocumentType, MovementType, TransactionType
+from application.specs import DeviceUnitByImei, LatestRateFor
+from domain.entities import (
+    DeviceUnit,
+    ExchangeRate,
+    GoodsReceipt,
+    GoodsReceiptLine,
+    ReceivedUnit,
+)
+from domain.enums import (
+    AcquisitionSource,
+    DeviceStatus,
+    DocumentType,
+    MovementType,
+    RateKind,
+    TransactionType,
+)
 from domain.value_objects import Money
-from infrastructure.persistence.tenant.models import DeviceUnitModel
+from infrastructure.persistence.tenant.models import DeviceUnitModel, ExchangeRateModel
 
 
 class ReceiptPoster:
@@ -50,16 +63,17 @@ class ReceiptPoster:
         repricer: DeviceUnitRepricer,
         poster: LedgerPoster,
         clock: Clock,
-        settings: TenantSettingsRepository,
+        rates: TenantAppendOnlyRepository[ExchangeRate, ExchangeRateModel],
     ) -> None:
         self._units = units
         self._repricer = repricer
         self._poster = poster
         self._clock = clock
-        self._settings = settings
+        self._rates = rates
 
     async def receive(self, receipt: GoodsReceipt) -> None:
         now = self._clock.now()
+        await self._stamp_rate(receipt)
         entries: list[PostingEntry] = []
         to_price: list[tuple[DeviceUnit, Money]] = []
 
@@ -90,10 +104,15 @@ class ReceiptPoster:
             await self._repricer.set_price(unit, asking, "priced at intake")
             await self._units.update(unit)
 
-    async def _pay_out(self, receipt: GoodsReceipt) -> None:
-        """Cash handed to a walk-in, when the store runs a till (§4.5b)."""
-        if not await self._settings.runs_till():
+    async def _stamp_rate(self, receipt: GoodsReceipt) -> None:
+        """What the store was buying dollars at when this walk-in came in."""
+        if receipt.acquisition_source is not AcquisitionSource.TRADE_IN:
             return
+        quoted = await self._rates.find_one(LatestRateFor(RateKind.BUYBACK))
+        receipt.buyback_rate_id = None if quoted is None else quoted.id
+
+    async def _pay_out(self, receipt: GoodsReceipt) -> None:
+        """Cash handed to a walk-in (§4.5b)."""
         effects = [
             MoneyEffect(
                 TransactionType.TENDER_PAID,

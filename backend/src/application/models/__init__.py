@@ -20,6 +20,7 @@ from application.models.count_scan_result import CountScanResultData
 from application.models.create_superadmin import CreateSuperAdminData
 from application.models.create_tenant import CreateTenantData
 from application.models.credit_company import CreditCompanyData
+from application.models.current_rates import CurrentRatesData
 from application.models.customer import CustomerData
 from application.models.customer_account import (
     CreditInvoiceDebtData,
@@ -39,6 +40,7 @@ from application.models.device_trace import (
 )
 from application.models.device_unit import DeviceUnitData
 from application.models.employee import EmployeeListItem
+from application.models.exchange_rate import ExchangeRateData
 from application.models.financial_ledger import FinancialLedgerRowData
 from application.models.goods_receipt import GoodsReceiptData, GoodsReceiptLineData
 from application.models.invite_user import InviteResultData
@@ -56,6 +58,7 @@ from application.models.month_end import (
     MarginPercentData,
     MonthEndReportData,
     PeriodData,
+    SomFiguresData,
 )
 from application.models.movement_log import MovementRowData
 from application.models.needs_pricing import NeedsPricingRowData
@@ -103,6 +106,7 @@ __all__ = [
     "CreateTenantData",
     "CreditCompanyData",
     "CreditInvoiceDebtData",
+    "CurrentRatesData",
     "CustomerAccountData",
     "CustomerData",
     "DebtMovementData",
@@ -112,6 +116,7 @@ __all__ = [
     "DeviceUnitData",
     "DiscrepancyData",
     "EmployeeListItem",
+    "ExchangeRateData",
     "FinancialLedgerRowData",
     "FinancingSplitData",
     "Fulfilment",
@@ -144,6 +149,7 @@ __all__ = [
     "ScanKind",
     "ScanLookupData",
     "ScanResultData",
+    "SomFiguresData",
     "StockCountData",
     "StockCountLineData",
     "StockCountUnitData",

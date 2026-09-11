@@ -31,6 +31,7 @@ from infrastructure.persistence.mappers.device_unit_price_change import (
     DeviceUnitPriceChangeMapper,
 )
 from infrastructure.persistence.mappers.employee import EmployeeMapper
+from infrastructure.persistence.mappers.exchange_rate import ExchangeRateMapper
 from infrastructure.persistence.mappers.financial_transaction import (
     FinancialTransactionMapper,
 )
@@ -78,6 +79,7 @@ COMMON_MAPPERS = (
     CustomerReturnMapper(),
     DeviceUnitMapper(),
     DeviceUnitPriceChangeMapper(),
+    ExchangeRateMapper(),
     PaymentMapper(),
     ProductMapper(),
     ProductPriceChangeMapper(),

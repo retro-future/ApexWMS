@@ -26,7 +26,9 @@ from application.dtos import (
     LocationInventoryValue,
     MonthEndReport,
     Period,
+    SomFigures,
 )
+from application.models.exchange_rate import ExchangeRateData
 from application.models.money import MoneyData
 from domain.enums import PaymentType
 from domain.value_objects import Currency
@@ -178,10 +180,64 @@ class DiscrepancyData(CamelModel):
         return cls(subject=found.subject, expected=found.expected, found=found.found)
 
 
+class SomFiguresData(CamelModel):
+    """The same month read in som (W9 B3).
+
+    A conversion, not what crossed the counter, so ``basis`` travels with
+    it and the screen prints both together.
+    """
+
+    opening_inventory: MoneyData
+    purchases: MoneyData
+    cost_of_goods: MoneyData
+    revenue: MoneyData
+    sales_returns: MoneyData
+    write_offs: MoneyData
+    supplier_return_credits: MoneyData
+    count_adjustments: MoneyData
+    closing_inventory: MoneyData
+    margin: MoneyData
+    margin_percent: Decimal | None
+    # Not a conversion: the money that really crossed the counter, less
+    # what the same deals convert to.
+    rate_gain: MoneyData
+    instalment_income: MoneyData
+    profit: MoneyData
+    opening_rate: str
+    closing_rate: str
+    # True when part of the period predates the first rate ever quoted.
+    before_the_first_quote: bool
+
+    @classmethod
+    def from_entity(cls, figures: SomFigures) -> SomFiguresData:
+        return cls(
+            opening_inventory=MoneyData.from_entity(figures.opening_inventory),
+            purchases=MoneyData.from_entity(figures.purchases),
+            cost_of_goods=MoneyData.from_entity(figures.cost_of_goods),
+            revenue=MoneyData.from_entity(figures.revenue),
+            sales_returns=MoneyData.from_entity(figures.sales_returns),
+            write_offs=MoneyData.from_entity(figures.write_offs),
+            supplier_return_credits=MoneyData.from_entity(
+                figures.supplier_return_credits
+            ),
+            count_adjustments=MoneyData.from_entity(figures.count_adjustments),
+            closing_inventory=MoneyData.from_entity(figures.closing_inventory),
+            margin=MoneyData.from_entity(figures.margin),
+            margin_percent=figures.margin_percent,
+            rate_gain=MoneyData.from_entity(figures.rate_gain),
+            instalment_income=MoneyData.from_entity(figures.instalment_income),
+            profit=MoneyData.from_entity(figures.profit),
+            opening_rate=ExchangeRateData.plain(figures.basis.opening_rate),
+            closing_rate=ExchangeRateData.plain(figures.basis.closing_rate),
+            before_the_first_quote=figures.basis.before_the_first_quote,
+        )
+
+
 class MonthEndReportData(CamelModel):
     period: PeriodData
     location_id: UUID | None
     figures: AccrualFiguresData
+    som: SomFiguresData | None
     closing_by_location: list[LocationInventoryValueData]
     debt: DebtMovementData
     financing: list[FinancingSplitData]
@@ -194,6 +250,9 @@ class MonthEndReportData(CamelModel):
             period=PeriodData.from_entity(report.period),
             location_id=report.location_id,
             figures=AccrualFiguresData.from_entity(report.figures),
+            som=(
+                None if report.som is None else SomFiguresData.from_entity(report.som)
+            ),
             closing_by_location=[
                 LocationInventoryValueData.from_entity(entry)
                 for entry in report.closing_by_location

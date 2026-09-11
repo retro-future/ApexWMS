@@ -200,7 +200,7 @@ export function DeviceInventoryList() {
           </Table.Td>
           <Table.Td>
             <Text size="sm">
-              {row.resolvedPrice === null
+              {row.resolvedPrice == null
                 ? tCommon("none")
                 : formatMoney(row.resolvedPrice)}
             </Text>

@@ -38,6 +38,7 @@ function invoice(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     remaining: { minor: 0, currency: "UZS" },
     tendered: [],
     payments: [],
+    saleRate: null,
     belowCostAlerts: [],
     ...overrides,
   };
@@ -280,5 +281,36 @@ describe("reversedPaymentIds", () => {
 
     expect(reversed.has("a")).toBe(true);
     expect(reversed.has("b")).toBe(false);
+  });
+});
+
+describe("a tender larger than the sale", () => {
+  const dollarSale = () =>
+    invoice({ subtotals: [{ currency: "USD", minor: 60000 }] });
+
+  it("is a blocker when the sale is priced in that one currency", () => {
+    const paid = terms({ tendered: "700", tenderedCurrency: "USD" });
+    expect(termsBlockers(dollarSale(), paid)).toEqual(["tenderTooLarge"]);
+  });
+
+  it("lets the exact total through", () => {
+    const paid = terms({ tendered: "600", tenderedCurrency: "USD" });
+    expect(termsBlockers(dollarSale(), paid)).toEqual([]);
+  });
+
+  it("does not compare a som figure against a dollar sale", () => {
+    const paid = terms({ tendered: "99000000", tenderedCurrency: "UZS" });
+    expect(termsBlockers(dollarSale(), paid)).toEqual([]);
+  });
+
+  it("caps nothing on a mixed sale, where either column could absorb the other", () => {
+    const mixed = invoice({
+      subtotals: [
+        { currency: "USD", minor: 60000 },
+        { currency: "UZS", minor: 50000 },
+      ],
+    });
+    const paid = terms({ tendered: "7650000", tenderedCurrency: "UZS" });
+    expect(termsBlockers(mixed, paid)).toEqual([]);
   });
 });

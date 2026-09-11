@@ -17,6 +17,7 @@ from .customer_return import CustomerReturnLineModel, CustomerReturnModel
 from .device_unit import DeviceUnitModel
 from .device_unit_price_change import DeviceUnitPriceChangeModel
 from .employee import EmployeeModel
+from .exchange_rate import ExchangeRateModel
 from .financial_transaction import FinancialTransactionModel
 from .goods_receipt import (
     DocumentSequenceModel,
@@ -46,6 +47,7 @@ __all__ = [
     "DeviceUnitPriceChangeModel",
     "DocumentSequenceModel",
     "EmployeeModel",
+    "ExchangeRateModel",
     "FinancialTransactionModel",
     "GoodsReceiptLineModel",
     "GoodsReceiptModel",

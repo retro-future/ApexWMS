@@ -70,6 +70,8 @@ class Permission(StrEnum):
     SCAN_LOOKUP = "Permission.Scan.Lookup"
     REPORTING_VIEW = "Permission.Reporting.View"
     FINANCIAL_LEDGER_VIEW = "Permission.FinancialLedger.View"
+    EXCHANGE_RATE_VIEW = "Permission.ExchangeRate.View"
+    EXCHANGE_RATE_MANAGE = "Permission.ExchangeRate.Manage"
 
     @classmethod
     def all(cls) -> frozenset[Permission]:

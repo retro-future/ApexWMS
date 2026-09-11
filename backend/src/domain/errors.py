@@ -52,6 +52,10 @@ class CurrencyMismatchError(DomainError):
     """Arithmetic or comparison attempted across two different currencies."""
 
 
+class InvalidExchangeRateError(DomainError):
+    """A quoted rate that is not a positive, finite Decimal of sane precision."""
+
+
 class InvalidIMEIError(DomainError):
     """A string that is not a structurally valid IMEI (length, digits, Luhn)."""
 
@@ -255,6 +259,26 @@ class OverpaymentError(DomainError):
     ``remaining = debt − Σ payments`` is a projection of append-only rows,
     so a balance can only stay non-negative if the rows that build it are
     refused at the point they would break it.
+    """
+
+
+class TenderAlreadyRecordedError(DomainError):
+    """A second tender in a currency the sale already records.
+
+    A tender is capped by nothing, because the sale owes nothing, so a
+    second row would silently double what the drawer is said to hold.
+    Correcting one is a reversal followed by a fresh row (FR-11.8). A
+    second *currency* is fine: settling half in dollars and half in som is
+    two true facts, the same way the sale's own subtotals are.
+    """
+
+
+class TenderExceedsSaleError(DomainError):
+    """A tender larger than what the sale charged in that same currency.
+
+    Only the matching column is compared, so no rate is involved and a
+    dollar sale settled in som is untouched. It catches the one mistake a
+    tender otherwise cannot catch: a zero too many.
     """
 
 

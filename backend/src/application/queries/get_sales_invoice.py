@@ -14,15 +14,18 @@ from uuid import UUID
 from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.errors import NotFoundError
-from application.models import SalesInvoiceData
+from application.models import ExchangeRateData, SalesInvoiceData
+from application.ports import Clock
+from application.services import PeriodResolver
 from application.specs import (
     CustomerReturnsForInvoice,
     PaymentsForInvoice,
     SalesInvoiceById,
 )
-from domain.entities import CustomerReturn, Payment, SalesInvoice
+from domain.entities import CustomerReturn, ExchangeRate, Payment, SalesInvoice
 from infrastructure.persistence.tenant.models import (
     CustomerReturnModel,
+    ExchangeRateModel,
     PaymentModel,
     SalesInvoiceModel,
 )
@@ -40,10 +43,16 @@ class GetSalesInvoiceHandler(
         invoices: TenantDbRepository[SalesInvoice, SalesInvoiceModel],
         payments: TenantAppendOnlyRepository[Payment, PaymentModel],
         returns: TenantDbRepository[CustomerReturn, CustomerReturnModel],
+        rates: TenantAppendOnlyRepository[ExchangeRate, ExchangeRateModel],
+        periods: PeriodResolver,
+        clock: Clock,
     ) -> None:
         self._invoices = invoices
         self._payments = payments
         self._returns = returns
+        self._rates = rates
+        self._periods = periods
+        self._clock = clock
 
     async def handle(
         self, request: GetSalesInvoiceQuery
@@ -62,5 +71,16 @@ class GetSalesInvoiceHandler(
                 invoice,
                 await self._payments.find(PaymentsForInvoice(invoice.id)),
                 await self._returns.find(CustomerReturnsForInvoice(invoice.id)),
+                sale_rate=await self._quoted_rate(invoice),
             )
+        )
+
+    async def _quoted_rate(self, invoice: SalesInvoice) -> ExchangeRateData | None:
+        if invoice.sale_rate_id is None:
+            return None
+        rate = await self._rates.get(invoice.sale_rate_id)
+        if rate is None:
+            return None
+        return ExchangeRateData.from_entity(
+            rate, await self._periods.today(self._clock.now())
         )

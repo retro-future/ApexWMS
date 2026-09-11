@@ -24,6 +24,12 @@ These V1 decisions are **closed**. V2 builds on top of them and does not revisit
 
 - **The seven money rules** (§4.6) and the per-currency model: no base currency, no
   exchange rate, two totals rather than one combined bottom line (§4.5).
+  **Reopened by W9**, in [prd-v2-money-and-rate.md](prd-v2-money-and-rate.md): a report
+  that refuses to convert cannot say what the month earned, and the owner converts it
+  anyway in their head, at a rate nobody wrote down. What that PRD keeps is the half of
+  §4.5 that holds: no converted amount is ever *stored* as a fact, and neither ledger
+  converts. What it changes is that a rate is recorded when a sale is struck, and a
+  report may use it and must print it.
 - **The two append-only ledgers** as the source of truth, with every other figure a
   projection written in the same transaction.
 - **Database-per-tenant** with split identity — `User` in MasterDB, `Employee` in each
@@ -51,9 +57,14 @@ MasterDB, never in a store's database.
 | **W6** | Inter-location transfers | — | `prd-v2-transfers.md` |
 | **W7** | Seller performance and audit log | — | `prd-v2-people.md` |
 | **W8** | Warranty, Excel, operations | — | `prd-v2-operations.md` |
+| **W9** | The exchange rate and the money picture | — | `prd-v2-money-and-rate.md` |
 
 W1 → W2 → W3 → W4 is a chain. W5–W8 are independent of it and of each other, and slot
 in wherever there is capacity.
+
+**W9 is in flight and partly overlaps W5.** Its B1 (a recorded rate of the day, and the
+som figure on every counter sale) has no dependencies and is being built now. Its B5 and
+B6 are W5's cash drawer and supplier debt, and ship as part of W5 rather than twice.
 
 ### W1 — Platform: `/admin/*` API and the SuperAdmin portal
 
@@ -177,12 +188,13 @@ The cash drawer is the second piece: how much cash is in the till, cash taken ou
 per-shift reconciliation per seller. This is the natural home for the thing §1.3
 sidestepped — the system records payments received but runs no till.
 
-The **som-paid USD sale** question (§4) is closed by the *tender*, gated on
-`tenant_settings.runs_till` and off until a store says it balances a drawer. With it on,
-both directions are recorded: what the customer handed over on a sale, and what was
-handed to a walk-in for a used handset. Off, neither is, and FR-3.4c's inert `cash_paid`
-stands. Nothing converts and no existing report moves either way. What remains here is
-the till and shift screens that read those rows and prove the drawer at end of shift.
+The **som-paid USD sale** question (§4) is closed by the *tender*: what the customer
+handed over on a sale, and what was handed to a walk-in for a used handset. W9's B1 takes
+the sale side off `tenant_settings.runs_till` and records it for every store, because a
+figure not recorded now cannot be recovered later; the receipt side is still gated until
+B2. Nothing converts and no existing report moves either way. What remains here is the
+till and shift screens that read those rows and prove the drawer at end of shift, and
+`runs_till` is what gates those.
 
 ### W6 — Inter-location transfers
 

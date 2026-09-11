@@ -43,6 +43,11 @@ class SalesInvoiceModel(TenantBase):
     contract_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Som, so exponent 0 and no currency column: all customer debt is som.
     debt_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # The quoted rate in force at confirm (W9 B1). Null for a draft, and for
+    # every sale confirmed before the rate log existed.
+    sale_rate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("exchange_rates.id"), nullable=True
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     confirmed_by: Mapped[uuid.UUID | None] = mapped_column(

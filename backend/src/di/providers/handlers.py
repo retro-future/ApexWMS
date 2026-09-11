@@ -77,6 +77,7 @@ from application.commands.scan_write_off_line import ScanWriteOffLineHandler
 from application.commands.set_customer_return_refund import (
     SetCustomerReturnRefundHandler,
 )
+from application.commands.set_exchange_rate import SetExchangeRateHandler
 from application.commands.set_tenant_logo import SetTenantLogoHandler
 from application.commands.unscan_customer_return_line import (
     UnscanCustomerReturnLineHandler,
@@ -95,6 +96,7 @@ from application.commands.update_product import UpdateProductHandler
 from application.commands.update_supplier import UpdateSupplierHandler
 from application.commands.update_tenant_settings import UpdateTenantSettingsHandler
 from application.queries.get_credit_company import GetCreditCompanyHandler
+from application.queries.get_current_rates import GetCurrentRatesHandler
 from application.queries.get_customer import GetCustomerHandler
 from application.queries.get_customer_account import GetCustomerAccountHandler
 from application.queries.get_customer_return import GetCustomerReturnHandler
@@ -132,6 +134,7 @@ from application.queries.list_customer_returns import ListCustomerReturnsHandler
 from application.queries.list_customers import ListCustomersHandler
 from application.queries.list_debtors import ListDebtorsHandler
 from application.queries.list_device_inventory import ListDeviceInventoryHandler
+from application.queries.list_exchange_rates import ListExchangeRatesHandler
 from application.queries.list_financial_ledger import ListFinancialLedgerHandler
 from application.queries.list_goods_receipts import ListGoodsReceiptsHandler
 from application.queries.list_locations import ListLocationsHandler
@@ -279,4 +282,8 @@ class HandlersProvider(Provider):
         GetMonthEndReportHandler,
         GetMonthEndReportPdfHandler,
         GetDeviceTraceHandler,
+        # --- W9 exchange rate ---
+        SetExchangeRateHandler,
+        GetCurrentRatesHandler,
+        ListExchangeRatesHandler,
     )

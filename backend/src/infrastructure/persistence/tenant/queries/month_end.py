@@ -7,21 +7,30 @@ one invoice. Both read ``sales_invoices``; they do not read it for the same
 reason.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Date, cast, func, select
 
-from application.dtos import FinancingSplitRow
-from domain.enums import DocumentType, PaymentType, TransactionType
+from application.dtos import FinancingSplitRow, SettledSale, TradeInPayout
+from domain.enums import (
+    AcquisitionSource,
+    DocumentType,
+    PaymentType,
+    TransactionType,
+)
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import (
     CreditCompanyModel,
     CustomerReturnModel,
     FinancialTransactionModel,
+    GoodsReceiptLineModel,
+    GoodsReceiptModel,
     PaymentModel,
+    ProductModel,
+    ReceivedUnitModel,
     SalesInvoiceModel,
 )
 from infrastructure.types import TenantSession
@@ -29,6 +38,9 @@ from infrastructure.types import TenantSession
 _I = SalesInvoiceModel
 _F = FinancialTransactionModel
 _R = CustomerReturnModel
+_G = GoodsReceiptModel
+_GL = GoodsReceiptLineModel
+_U = ReceivedUnitModel
 
 
 class SqlMonthEndQueries:
@@ -164,6 +176,142 @@ class SqlMonthEndQueries:
                 revenue=Money(int(revenue or 0), Currency(currency)),
             )
             for payment_type, company_id, company_name, currency, count, revenue in rows
+        ]
+
+    async def settled_sales(
+        self,
+        *,
+        timezone: str,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[SettledSale]:
+        """What each sale confirmed in the window charged, and what settled it.
+
+        Charged comes off the ``SALE_REVENUE`` rows rather than the lines, so
+        it adds back up to the report's own revenue figure. Settled is the
+        tender rows on a sale settled at the counter (a reversal is a
+        negative one, so the sum nets), and on a store-credit sale the debt
+        agreed instead: a payment against that debt is the same money
+        arriving, and counting both would state it twice.
+        """
+        day = cast(func.timezone(timezone, _I.confirmed_at), Date).label("day")
+        charged = (
+            select(_I.id, day, _F.currency, func.sum(_F.amount_minor))
+            .join(_F, _F.document_id == _I.id)
+            .where(
+                _F.txn_type == TransactionType.SALE_REVENUE.value,
+                _F.document_type == DocumentType.SALES_INVOICE.value,
+                _I.confirmed_at >= since,
+                _I.confirmed_at < until,
+                _I.cancelled_at.is_(None),
+            )
+            .group_by(_I.id, day, _F.currency)
+        )
+        if location_id is not None:
+            charged = charged.where(_I.location_id == location_id)
+
+        days: dict[UUID, date] = {}
+        billed: dict[UUID, list[Money]] = {}
+        for invoice_id, on, currency, total in await self._session.execute(charged):
+            days[invoice_id] = on
+            billed.setdefault(invoice_id, []).append(
+                Money(int(total or 0), Currency(currency))
+            )
+        if not days:
+            return []
+
+        on_credit: dict[UUID, Money] = {}
+        owed = select(_I.id, _I.debt_minor).where(
+            _I.id.in_(days),
+            _I.payment_type == PaymentType.STORE_CREDIT.value,
+            _I.debt_minor.is_not(None),
+        )
+        for invoice_id, debt in await self._session.execute(owed):
+            on_credit[invoice_id] = Money(int(debt), Currency.UZS)
+
+        tendered: dict[UUID, list[Money]] = {}
+        paid = (
+            select(
+                PaymentModel.sales_invoice_id,
+                PaymentModel.currency,
+                func.sum(PaymentModel.amount_minor),
+            )
+            .where(PaymentModel.sales_invoice_id.in_(set(days) - set(on_credit)))
+            .group_by(PaymentModel.sales_invoice_id, PaymentModel.currency)
+        )
+        for invoice_id, currency, total in await self._session.execute(paid):
+            amount = Money(int(total or 0), Currency(currency))
+            if not amount.is_zero:
+                tendered.setdefault(invoice_id, []).append(amount)
+
+        return [
+            SettledSale(
+                day=days[invoice_id],
+                charged=tuple(amounts),
+                received=(on_credit[invoice_id],)
+                if invoice_id in on_credit
+                else tuple(tendered.get(invoice_id, ())),
+                on_credit=invoice_id in on_credit,
+            )
+            for invoice_id, amounts in billed.items()
+        ]
+
+    async def trade_in_payouts(
+        self,
+        *,
+        timezone: str,
+        since: datetime,
+        until: datetime,
+        location_id: UUID | None = None,
+    ) -> list[TradeInPayout]:
+        """One handset bought off a walk-in in the window: valued, and paid for."""
+        day = cast(func.timezone(timezone, _G.confirmed_at), Date).label("day")
+        stmt = (
+            select(
+                _G.id,
+                day,
+                ProductModel.currency,
+                func.sum(_U.acquisition_cost_minor),
+                _U.cash_paid_currency,
+                func.sum(_U.cash_paid_minor),
+            )
+            .join(_GL, _GL.goods_receipt_id == _G.id)
+            .join(_U, _U.goods_receipt_line_id == _GL.id)
+            .join(ProductModel, ProductModel.id == _GL.product_id)
+            .where(
+                _G.acquisition_source == AcquisitionSource.TRADE_IN.value,
+                _G.confirmed_at >= since,
+                _G.confirmed_at < until,
+                _G.cancelled_at.is_(None),
+            )
+            .group_by(_G.id, day, ProductModel.currency, _U.cash_paid_currency)
+        )
+        if location_id is not None:
+            stmt = stmt.where(_G.location_id == location_id)
+
+        days: dict[UUID, date] = {}
+        valued: dict[UUID, list[Money]] = {}
+        paid: dict[UUID, list[Money]] = {}
+        for receipt_id, on, currency, cost, cash_currency, cash in (
+            await self._session.execute(stmt)
+        ):
+            days[receipt_id] = on
+            if cost is not None:
+                valued.setdefault(receipt_id, []).append(
+                    Money(int(cost), Currency(currency))
+                )
+            if cash is not None and cash_currency is not None:
+                paid.setdefault(receipt_id, []).append(
+                    Money(int(cash), Currency(cash_currency))
+                )
+        return [
+            TradeInPayout(
+                day=on,
+                valued=tuple(valued.get(receipt_id, ())),
+                paid=tuple(paid.get(receipt_id, ())),
+            )
+            for receipt_id, on in days.items()
         ]
 
     @staticmethod

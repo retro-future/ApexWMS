@@ -67,6 +67,8 @@ TENANT_TABLES = {
     "stock_counts": entities.StockCount,
     "stock_count_units": entities.StockCountUnit,
     "stock_count_lines": entities.StockCountLine,
+    # --- W9 the quoted rate ---
+    "exchange_rates": entities.ExchangeRate,
 }
 
 # Append-only tables: every row names its author (PRD §4.3 rule 3, §4.5b).
@@ -80,6 +82,7 @@ AUTHORED_TABLES = frozenset(
         "stock_movements",
         "financial_transactions",
         "payments",
+        "exchange_rates",
     }
 )
 

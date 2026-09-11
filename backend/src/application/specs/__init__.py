@@ -36,6 +36,10 @@ from application.specs.employee import (
     ActiveOwners,
     EmployeeForWrite,
 )
+from application.specs.exchange_rate import (
+    LatestRateFor,
+    RateHistory,
+)
 from application.specs.financial_transaction import (
     TransactionsForDocument,
     TransactionsForPair,
@@ -127,9 +131,11 @@ __all__ = [
     "InvitationForWrite",
     "LatestPriceChangeForProduct",
     "LatestPriceChangeForUnit",
+    "LatestRateFor",
     "MovementsForDocument",
     "MovementsForPair",
     "MovementsForUnit",
+    "RateHistory",
     "LiveTokensForUser",
     "LocationBrowse",
     "LocationForWrite",

@@ -34,6 +34,7 @@ class SalesInvoiceMapper:
             credit_company_id=model.credit_company_id,
             contract_ref=model.contract_ref,
             debt=self._debt(model.debt_minor),
+            sale_rate_id=model.sale_rate_id,
             created_by=model.created_by,
             created_at=model.created_at,
             confirmed_by=model.confirmed_by,
@@ -75,6 +76,7 @@ class SalesInvoiceMapper:
         model.credit_company_id = entity.credit_company_id
         model.contract_ref = entity.contract_ref
         model.debt_minor = self._minor(entity.debt)
+        model.sale_rate_id = entity.sale_rate_id
         model.confirmed_by = entity.confirmed_by
         model.confirmed_at = entity.confirmed_at
         model.cancelled_by = entity.cancelled_by

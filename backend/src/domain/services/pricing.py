@@ -71,7 +71,7 @@ class PriceResolver:
         """
         price = PriceResolver.resolve_or_none(unit, product)
         if price is None:
-            raise PriceNotSetError(PriceResolver._why_unpriced(unit, product))
+            raise PriceResolver._raise_unpriced(unit, product)
         return price
 
     @staticmethod
@@ -86,22 +86,33 @@ class PriceResolver:
         return None
 
     @staticmethod
-    def _why_unpriced(unit: DeviceUnit | None, product: Product) -> str:
+    def _raise_unpriced(unit: DeviceUnit | None, product: Product) -> PriceNotSetError:
         """The message matters: the Seller who hits this cannot fix it —
         pricing is Owner/Manager (§2.1) — so it has to say what is wrong
-        and who can act on it (FR-4.2b)."""
+        and who can act on it (FR-4.2b). Localized via ``key``/``**params``
+        (see ``domain.errors.DomainError``); the English text here is only
+        the fallback for a locale the catalog has no entry for."""
         if unit is None:
-            return (
+            return PriceNotSetError(
                 f"{product.sku} has no catalog price, and an accessory has no per-unit "
-                "price to fall back on — an Owner or Manager must price it"
+                "price to fall back on — an Owner or Manager must price it",
+                key="price_not_set_accessory",
+                sku=product.sku,
             )
         if unit.condition is not DeviceCondition.NEW:
-            return (
+            return PriceNotSetError(
                 f"IMEI {unit.imei} is {unit.condition.value} and has no price of its own. "
                 f"A unit that is not new never inherits the catalog price of {product.sku} — "
-                "an Owner or Manager must price this handset"
+                "an Owner or Manager must price this handset",
+                key="price_not_set_condition",
+                imei=str(unit.imei),
+                condition=unit.condition.value,
+                sku=product.sku,
             )
-        return (
+        return PriceNotSetError(
             f"IMEI {unit.imei} has no price of its own and {product.sku} has no catalog "
-            "price — an Owner or Manager must set one"
+            "price — an Owner or Manager must set one",
+            key="price_not_set_catalog",
+            imei=str(unit.imei),
+            sku=product.sku,
         )

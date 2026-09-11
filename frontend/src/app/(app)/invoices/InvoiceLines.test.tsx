@@ -65,6 +65,7 @@ const invoice: SalesInvoice = {
   remaining: { minor: 0, currency: "UZS" },
   tendered: [],
   payments: [],
+  saleRate: null,
   belowCostAlerts: [],
 };
 

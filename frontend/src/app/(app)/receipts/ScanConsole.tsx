@@ -22,11 +22,12 @@ import { useCan } from "@/components/MeProvider";
 import { MoneyInput } from "@/components/MoneyInput";
 import { CameraScanner } from "@/components/scan/CameraScanner";
 import { useDocumentAction } from "@/hooks/use-document";
-import { useRunsTill } from "@/hooks/use-tenant-settings";
+import { useCurrentRates } from "@/hooks/use-exchange-rates";
 import { useProductLookup } from "@/hooks/use-lookup";
-import { formatMoney, minorToInput } from "@/lib/money";
+import { formatMoney, inputToMoney, minorToInput } from "@/lib/money";
 import { errorMessage } from "@/lib/notify";
 import { Permission } from "@/lib/permissions";
+import { somAtRate } from "@/lib/rates";
 import { isSerial, scanProgress, type ReferenceCost } from "@/lib/receipts";
 import type {
   Currency,
@@ -73,8 +74,9 @@ export function ScanConsole({
   const t = useTranslations("receipts.scan");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const tRates = useTranslations("rates");
   const can = useCan();
-  const runsTill = useRunsTill();
+  const rates = useCurrentRates();
   const canPrice = can(Permission.Pricing.Set);
   const products = useProductLookup();
   const queryClient = useQueryClient();
@@ -135,6 +137,12 @@ export function ScanConsole({
     : undefined;
   const cost =
     costInput ?? (reference ? minorToInput(reference.minor, reference.currency) : "");
+  const isTradeIn = receipt.acquisitionSource === "trade_in";
+  const valued = selectedLine ? inputToMoney(cost, selectedLine.currency) : null;
+  const atRate = somAtRate(
+    valued ? [valued] : [],
+    rates.data?.buyback?.somPerUsd ?? null,
+  );
 
   async function submitCode(raw: string) {
     const imei = raw.trim();
@@ -311,16 +319,25 @@ export function ScanConsole({
                     onChange={(event) => setAskingPrice(event.currentTarget.value)}
                     w={{ base: "100%", sm: 160 }}
                   />
-                  {runsTill && (
-                    <MoneyInput
-                      label={t("cashPaid")}
-                      description={t("cashPaidHint")}
-                      value={cashPaid}
-                      onChange={setCashPaid}
-                      currency="UZS"
-                      w={{ base: "100%", sm: 260 }}
-                    />
-                  )}
+                  {/* A trade-in cannot be confirmed without it (W9 B2).
+                      The rate hint is never written into the field: what
+                      was handed over is a fact, not a guess. */}
+                  <MoneyInput
+                    label={t("cashPaid")}
+                    description={
+                      isTradeIn && atRate !== null
+                        ? tRates("atRate", {
+                            amount: formatMoney({ minor: atRate, currency: "UZS" }),
+                            rate: rates.data?.buyback?.somPerUsd ?? "",
+                          })
+                        : t("cashPaidHint")
+                    }
+                    value={cashPaid}
+                    onChange={setCashPaid}
+                    currency="UZS"
+                    required={isTradeIn}
+                    w={{ base: "100%", sm: 260 }}
+                  />
                 </Group>
               )}
 

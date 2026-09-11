@@ -9,15 +9,17 @@ the confirm over. Costs and the som handed over need
 
 from uuid import UUID
 
-from application.common.repository import TenantDbRepository
+from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.core import IRequestHandler, Query, ResultWithData
 from application.dtos import CurrentUser
 from application.errors import NotFoundError
-from application.models import GoodsReceiptData
+from application.models import ExchangeRateData, GoodsReceiptData
+from application.ports import Clock
+from application.services import PeriodResolver
 from application.specs import GoodsReceiptById
-from domain.entities import GoodsReceipt
+from domain.entities import ExchangeRate, GoodsReceipt
 from domain.permissions import Permission
-from infrastructure.persistence.tenant.models import GoodsReceiptModel
+from infrastructure.persistence.tenant.models import ExchangeRateModel, GoodsReceiptModel
 
 
 class GetGoodsReceiptQuery(Query[ResultWithData[GoodsReceiptData]]):
@@ -30,9 +32,15 @@ class GetGoodsReceiptHandler(
     def __init__(
         self,
         receipts: TenantDbRepository[GoodsReceipt, GoodsReceiptModel],
+        rates: TenantAppendOnlyRepository[ExchangeRate, ExchangeRateModel],
+        periods: PeriodResolver,
+        clock: Clock,
         current: CurrentUser,
     ) -> None:
         self._receipts = receipts
+        self._rates = rates
+        self._periods = periods
+        self._clock = clock
         self._current = current
 
     async def handle(
@@ -47,6 +55,18 @@ class GetGoodsReceiptHandler(
             )
         return ResultWithData[GoodsReceiptData].succeed_with_data(
             GoodsReceiptData.from_entity(
-                receipt, show_cost=Permission.COST_VIEW in self._current.permissions
+                receipt,
+                show_cost=Permission.COST_VIEW in self._current.permissions,
+                buyback_rate=await self._struck_rate(receipt),
             )
+        )
+
+    async def _struck_rate(self, receipt: GoodsReceipt) -> ExchangeRateData | None:
+        if receipt.buyback_rate_id is None:
+            return None
+        rate = await self._rates.get(receipt.buyback_rate_id)
+        if rate is None:
+            return None
+        return ExchangeRateData.from_entity(
+            rate, await self._periods.today(self._clock.now())
         )

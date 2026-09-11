@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TenderPanel } from "@/app/(app)/invoices/TenderPanel";
@@ -55,6 +56,7 @@ function sale(overrides: Partial<SalesInvoice> = {}): SalesInvoice {
     relieved: { minor: 0, currency: "UZS" },
     remaining: { minor: 0, currency: "UZS" },
     payments: [payment("a", 7_620_000, "UZS")],
+    saleRate: null,
     belowCostAlerts: [],
     ...overrides,
   };
@@ -97,6 +99,57 @@ describe("TenderPanel", () => {
 
     expect(
       await screen.findByRole("button", { name: /record what was taken/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("stops offering a row once both currencies are recorded", async () => {
+    const both = sale({
+      payments: [payment("a", 30000, "USD"), payment("b", 3_810_000, "UZS")],
+    });
+
+    renderWithProviders(<TenderPanel invoice={both} />, { me: SELLER });
+
+    expect(await screen.findByText(/reverse the row below/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /record what was taken/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers a row again once one is reversed", async () => {
+    const corrected = sale({
+      payments: [
+        payment("a", 30000, "USD"),
+        payment("b", 3_810_000, "UZS"),
+        {
+          ...payment("c", -3_810_000, "UZS"),
+          reversesPaymentId: "b",
+          isReversal: true,
+        },
+      ],
+    });
+
+    renderWithProviders(<TenderPanel invoice={corrected} />, { me: SELLER });
+
+    expect(
+      await screen.findByRole("button", { name: /record what was taken/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("says so when the amount typed is more than the sale charges", async () => {
+    const somSale = sale({
+      subtotals: [{ currency: "UZS", minor: 7_620_000 }],
+      tendered: [],
+      payments: [],
+    });
+    renderWithProviders(<TenderPanel invoice={somSale} />, { me: SELLER });
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /record what was taken/i }),
+    );
+    await userEvent.type(await screen.findByLabelText(/amount/i), "9000000");
+
+    expect(
+      await screen.findByText(/more than the sale charges/i),
     ).toBeInTheDocument();
   });
 

@@ -14,6 +14,12 @@ whatever currency, booked as ``TENDER_RECEIVED``. A tender has nothing to
 be capped against — the sale owes nothing — and is never netted against the
 revenue beside it, which is in the product's own currency and stays there.
 
+A tender is recorded for every store, not only one that balances a drawer
+(W9 B1): a dollar-priced handset paid for in som leaves no som figure
+anywhere else, and a figure not written down today cannot be recovered
+later. ``tenant_settings.runs_till`` still gates the *shift* screens that
+prove a drawer, and the trade-in payout on the receipt side.
+
 A credit-company sale takes neither. The company settles with the store
 outside this system (§4.7), so nothing changes hands at the counter and
 there is no row to write.
@@ -32,10 +38,12 @@ Nothing here commits — the calling handler owns the transaction, like every
 other poster.
 """
 
+from collections.abc import Sequence
+
 from application.common.repository import TenantAppendOnlyRepository, TenantDbRepository
 from application.common.specification import Specification
 from application.dtos import CurrentUser, MoneyEffect
-from application.ports import Clock, TenantSettingsRepository
+from application.ports import Clock
 from application.services.customer_balance import remaining_on
 from application.services.ledger import LedgerPoster
 from application.specs import CustomerReturnsForInvoice, PaymentsForInvoice
@@ -52,6 +60,8 @@ from domain.errors import (
     NotACreditSaleError,
     OverpaymentError,
     PaymentAlreadyReversedError,
+    TenderAlreadyRecordedError,
+    TenderExceedsSaleError,
 )
 from domain.value_objects import Currency, Money
 from infrastructure.persistence.tenant.models import CustomerReturnModel, PaymentModel
@@ -65,14 +75,12 @@ class PaymentPoster:
         poster: LedgerPoster,
         clock: Clock,
         current: CurrentUser,
-        settings: TenantSettingsRepository,
     ) -> None:
         self._payments = payments
         self._returns = returns
         self._poster = poster
         self._clock = clock
         self._current = current
-        self._settings = settings
 
     async def receive(
         self,
@@ -89,7 +97,7 @@ class PaymentPoster:
         if invoice.payment_type.opens_debt:
             await self._assert_collectable(invoice, amount)
         else:
-            await self._assert_tenderable(invoice)
+            await self._assert_tenderable(invoice, amount)
 
         payment = Payment(
             sales_invoice_id=invoice.id,
@@ -135,15 +143,17 @@ class PaymentPoster:
             location_id=invoice.location_id,
         )
 
-    async def _assert_tenderable(self, invoice: SalesInvoice) -> None:
-        """A tender records money over the counter, so there has to be one."""
-        if not await self._settings.runs_till():
-            raise NotACreditSaleError(
-                f"{invoice.number} owes nothing, and this store does not run a "
-                "till — there is nowhere to record what changed hands",
-                key="till_not_kept",
-                number=invoice.number,
-            )
+    async def _assert_tenderable(self, invoice: SalesInvoice, amount: Money) -> None:
+        """A tender records money over the counter, so there has to be one.
+
+        And one per currency. Half in dollars and half in som is a real way
+        to settle a sale, but a second row in a currency already recorded is
+        not: nothing caps a tender, so it would silently double what the
+        sale is said to have taken. Correcting one is a reversal.
+
+        The amount is capped only where the sale is priced in that one
+        currency, which needs no rate. See ``_sole_total``.
+        """
         if invoice.payment_type is not PaymentType.PAID_IN_FULL:
             raise NotACreditSaleError(
                 f"{invoice.number} is {invoice.payment_type.value}: the company "
@@ -158,6 +168,52 @@ class PaymentPoster:
                 key="sale_not_confirmed",
                 number=invoice.number,
             )
+        charged = self._sole_total(invoice, amount.currency)
+        if charged is not None and amount > charged:
+            raise TenderExceedsSaleError(
+                f"{amount.format()} is more than the {charged.format()} "
+                f"{invoice.number} charges in that currency",
+                amount=amount.format(),
+                charged=charged.format(),
+                number=invoice.number,
+            )
+        recorded = await self._payments.find(PaymentsForInvoice(invoice.id))
+        if amount.currency in self._standing_currencies(recorded):
+            raise TenderAlreadyRecordedError(
+                f"{invoice.number} already records "
+                f"{amount.currency.value} taken over the counter. Reverse "
+                "that row before recording another.",
+                key="tender_already_recorded",
+                number=invoice.number,
+                currency=amount.currency.value,
+            )
+
+    @staticmethod
+    def _sole_total(invoice: SalesInvoice, currency: Currency) -> Money | None:
+        """What the sale charges, when it charges in *currency* and nothing else.
+
+        On a mixed sale there is nothing to compare against without a rate:
+        a customer can settle a dollar handset and a som case together in
+        either currency, so any column would refuse a real payment.
+        """
+        subtotals = invoice.subtotals()
+        if set(subtotals) != {currency}:
+            return None
+        return subtotals[currency]
+
+    @staticmethod
+    def _standing_currencies(payments: Sequence[Payment]) -> set[Currency]:
+        """The currencies whose rows have not been reversed away."""
+        undone = {
+            payment.reverses_payment_id
+            for payment in payments
+            if payment.reverses_payment_id is not None
+        }
+        return {
+            payment.amount.currency
+            for payment in payments
+            if not payment.is_reversal and payment.id not in undone
+        }
 
     async def _assert_collectable(self, invoice: SalesInvoice, amount: Money) -> None:
         if invoice.debt is None:

@@ -3,11 +3,11 @@
 moved to the append-only generic repository.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, Select, func, select
+from sqlalchemy import Date, Row, Select, cast, func, select
 
 from application.dtos import FinancialLedgerRow, LedgerActor, SalesTotalsRow
 from domain.enums import DocumentType, TransactionType
@@ -54,6 +54,38 @@ class SqlFinancialTransactionQueries:
                 int(total or 0), Currency(currency)
             )
             for txn_type, currency, total in rows
+        }
+
+    async def totals_by_type_and_day(
+        self,
+        *,
+        timezone: str,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        location_id: UUID | None = None,
+    ) -> dict[tuple[TransactionType, Currency, date], Money]:
+        """``totals_by_type`` split by the store's own calendar day.
+
+        The day is local, so a sale at 23:30 in Tashkent converts at that
+        day's rate rather than the next one's, exactly as ``PeriodResolver``
+        decides which month it lands in.
+        """
+        day = cast(func.timezone(timezone, _T.occurred_at), Date).label("day")
+        stmt = select(
+            _T.txn_type, _T.currency, day, func.sum(_T.amount_minor)
+        ).group_by(_T.txn_type, _T.currency, day)
+        if since is not None:
+            stmt = stmt.where(_T.occurred_at >= since)
+        if until is not None:
+            stmt = stmt.where(_T.occurred_at < until)
+        if location_id is not None:
+            stmt = stmt.where(_T.location_id == location_id)
+        rows = await self._session.execute(stmt)
+        return {
+            (TransactionType(txn_type), Currency(currency), on): Money(
+                int(total or 0), Currency(currency)
+            )
+            for txn_type, currency, on, total in rows
         }
 
     async def sales_totals(

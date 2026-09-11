@@ -252,6 +252,61 @@ class TestTheGuards:
         )
         assert response.status_code == 422, response.text
 
+    async def test_a_trade_in_without_the_som_paid_cannot_be_confirmed(
+        self, client, store
+    ):
+        """W9 B2: the som is the only record of what the store paid out."""
+        owner, ids = store
+        receipt = await open_receipt(
+            client,
+            owner,
+            {
+                "locationId": ids["location"],
+                "acquisitionSource": "trade_in",
+                "lines": [{"productId": ids["phone"], "quantity": 1}],
+            },
+        )
+        await scan(
+            client,
+            owner,
+            receipt["id"],
+            "490154203237518",
+            condition="used",
+            acquisitionCost="330.00",
+            askingPrice="420.00",
+        )
+
+        refused = await client.post(
+            f"{API}/receipts/{receipt['id']}/confirm", headers=owner.auth, json={}
+        )
+
+        assert refused.status_code == 422, refused.text
+
+    async def test_a_supplier_receipt_needs_no_som_figure(self, client, store):
+        owner, ids = store
+        receipt = await open_receipt(
+            client,
+            owner,
+            {
+                "locationId": ids["location"],
+                "supplierId": ids["supplier"],
+                "lines": [{"productId": ids["phone"], "quantity": 1}],
+            },
+        )
+        await scan(
+            client,
+            owner,
+            receipt["id"],
+            "490154203237518",
+            acquisitionCost="700.00",
+        )
+
+        confirmed = await client.post(
+            f"{API}/receipts/{receipt['id']}/confirm", headers=owner.auth, json={}
+        )
+
+        assert confirmed.status_code == 200, confirmed.text
+
     async def test_a_malformed_imei_is_refused_at_the_scan(self, client, store):
         """FR-3.4: the last digit here fails the Luhn check."""
         owner, ids = store
