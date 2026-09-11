@@ -46,6 +46,24 @@ async def test_uncatalogued_code_uses_the_exception_message() -> None:
     assert detail == "this line has no price to sell at"
 
 
+async def test_price_not_set_is_localized() -> None:
+    """Regression: PriceResolver used to build the whole sentence itself
+    and raise with no key, so this always fell through to the English
+    fallback regardless of locale."""
+    detail = await _detail(
+        PriceNotSetError(
+            "english fallback",
+            key="price_not_set_condition",
+            imei="356938035643809",
+            condition="used",
+            sku="IP15P-256",
+        ),
+        "ru",
+    )
+    assert "356938035643809" in detail
+    assert "английском" not in detail  # the fallback string is not used
+
+
 def test_every_user_facing_error_has_a_code() -> None:
     def subclasses(base: type) -> set[type]:
         found: set[type] = set()
