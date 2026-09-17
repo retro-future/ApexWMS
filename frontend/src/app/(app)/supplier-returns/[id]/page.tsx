@@ -213,6 +213,7 @@ export default function SupplierReturnPage() {
         busy={confirm.isPending}
         error={actionError}
         onSubmit={runConfirm}
+        withReason={false}
       />
 
       <ReasonModal

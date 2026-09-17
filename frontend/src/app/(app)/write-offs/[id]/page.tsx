@@ -179,6 +179,7 @@ export default function WriteOffPage() {
         busy={confirm.isPending}
         error={actionError}
         onSubmit={runConfirm}
+        withReason={false}
       />
 
       <ReasonModal

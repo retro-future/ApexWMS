@@ -497,6 +497,7 @@ export default function ReceiptPage() {
         busy={confirm.isPending}
         error={actionError}
         onSubmit={runConfirm}
+        withReason={false}
       />
 
       <ReasonModal

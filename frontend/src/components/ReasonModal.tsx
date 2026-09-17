@@ -24,6 +24,7 @@ export function ReasonModal({
   busy,
   error,
   onSubmit,
+  withReason = true,
 }: {
   opened: boolean;
   onClose: () => void;
@@ -34,6 +35,8 @@ export function ReasonModal({
   busy?: boolean;
   error?: string | null;
   onSubmit: (reason: string | null) => void;
+  /** Confirming a document carries no reason field on the server; only a cancel does (see docstring). */
+  withReason?: boolean;
 }) {
   const t = useTranslations("common");
   const tDoc = useTranslations("documents");
@@ -50,14 +53,16 @@ export function ReasonModal({
           </Text>
         )}
 
-        <Textarea
-          label={tDoc("reason")}
-          description={tDoc("reasonHint")}
-          value={reason}
-          onChange={(event) => setReason(event.currentTarget.value)}
-          autosize
-          minRows={2}
-        />
+        {withReason && (
+          <Textarea
+            label={tDoc("reason")}
+            description={tDoc("reasonHint")}
+            value={reason}
+            onChange={(event) => setReason(event.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
+        )}
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose} disabled={busy}>

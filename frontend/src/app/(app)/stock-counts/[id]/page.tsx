@@ -293,6 +293,7 @@ export default function StockCountPage() {
         busy={close.isPending}
         error={actionError}
         onSubmit={runClose}
+        withReason={false}
       />
 
       <ReasonModal
@@ -304,6 +305,7 @@ export default function StockCountPage() {
         busy={confirm.isPending}
         error={actionError}
         onSubmit={runConfirm}
+        withReason={false}
       />
 
       <ReasonModal

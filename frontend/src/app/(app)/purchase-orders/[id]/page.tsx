@@ -248,6 +248,7 @@ export default function PurchaseOrderPage() {
         onSubmit={() =>
           run(confirm, undefined, tDoc("confirmed"), () => setConfirming(false))
         }
+        withReason={false}
       />
 
       <ReasonModal
