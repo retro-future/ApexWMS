@@ -6,7 +6,8 @@ needs such a read it goes in a query service (`.claude/rules/backend/
 query-services.md`); this is its port. `GoodsReceiptQueries` is the reference.
 """
 
-from datetime import date, datetime
+from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -276,19 +277,18 @@ class FinancialTransactionQueries(Protocol):
         """Every category's net, per currency; *until* exclusive (FR-10.8)."""
         ...
 
-    async def totals_by_type_and_day(
+    async def totals_by_type_and_rate(
         self,
         *,
-        timezone: str,
+        rate_changes: Sequence[datetime],
         since: datetime | None = None,
         until: datetime | None = None,
         location_id: UUID | None = None,
-    ) -> dict[tuple[TransactionType, Currency, date], Money]:
-        """The same nets, split by the store's own calendar day (W9 B3).
+    ) -> dict[tuple[TransactionType, Currency, datetime | None], Money]:
+        """The same nets, split at every instant the quoted rate changed (W9 B3).
 
-        The split exists so a report can convert each figure at the rate
-        that was in force when it happened, rather than at one rate for the
-        whole month.
+        Keyed by the last change at or before each figure, ``None`` for a
+        figure earlier than all of them. *rate_changes* is sorted ascending.
         """
         ...
 
@@ -348,7 +348,6 @@ class MonthEndQueries(Protocol):
     async def settled_sales(
         self,
         *,
-        timezone: str,
         since: datetime,
         until: datetime,
         location_id: UUID | None = None,
@@ -361,7 +360,6 @@ class MonthEndQueries(Protocol):
     async def trade_in_payouts(
         self,
         *,
-        timezone: str,
         since: datetime,
         until: datetime,
         location_id: UUID | None = None,

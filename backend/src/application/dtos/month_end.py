@@ -11,7 +11,7 @@ here and ``CurrencyTotals`` everywhere else.
 """
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -84,7 +84,7 @@ class SomFigures:
     """Every figure above, read in som (W9 B3).
 
     A conversion, not a record of what crossed the counter: each dollar
-    total was converted at the selling rate in force on the day it
+    total was converted at the selling rate in force at the moment it
     happened, and the som totals passed through untouched. It sits beside
     ``AccrualFigures`` rather than inside it, because ``CurrencyTotals``
     structurally cannot hold a mixed sum and that is worth keeping.
@@ -144,7 +144,7 @@ class SettledSale:
     rather than counted as a total loss.
     """
 
-    day: date
+    at: datetime
     charged: tuple[Money, ...]
     received: tuple[Money, ...]
     # A store-credit sale's gap is the markup the seller named, not a rate
@@ -156,7 +156,7 @@ class SettledSale:
 class TradeInPayout:
     """One handset bought off a walk-in: what it was valued at, what was paid."""
 
-    day: date
+    at: datetime
     valued: tuple[Money, ...]
     paid: tuple[Money, ...]
 

@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import operator
+from bisect import bisect_right
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.sql.operators import in_op
 
@@ -555,16 +555,16 @@ class FakeFinancialTransactionQueries:
             totals[key] = txn.amount if running is None else running + txn.amount
         return totals
 
-    async def totals_by_type_and_day(
+    async def totals_by_type_and_rate(
         self,
         *,
-        timezone: str,
+        rate_changes: Sequence[datetime],
         since: datetime | None = None,
         until: datetime | None = None,
         location_id: UUID | None = None,
-    ) -> dict[tuple[TransactionType, Currency, date], Money]:
-        zone = ZoneInfo(timezone)
-        totals: dict[tuple[TransactionType, Currency, date], Money] = {}
+    ) -> dict[tuple[TransactionType, Currency, datetime | None], Money]:
+        changes = list(rate_changes)
+        totals: dict[tuple[TransactionType, Currency, datetime | None], Money] = {}
         for txn in self._rows:
             if since is not None and txn.occurred_at < since:
                 continue
@@ -572,7 +572,8 @@ class FakeFinancialTransactionQueries:
                 continue
             if location_id is not None and txn.location_id != location_id:
                 continue
-            key = (txn.txn_type, txn.currency, txn.occurred_at.astimezone(zone).date())
+            index = bisect_right(changes, txn.occurred_at)
+            key = (txn.txn_type, txn.currency, changes[index - 1] if index else None)
             running = totals.get(key)
             totals[key] = txn.amount if running is None else running + txn.amount
         return totals
@@ -1103,12 +1104,10 @@ class FakeMonthEndQueries:
     async def settled_sales(
         self,
         *,
-        timezone: str,
         since: datetime,
         until: datetime,
         location_id: UUID | None = None,
     ) -> list[SettledSale]:
-        zone = ZoneInfo(timezone)
         settled: list[SettledSale] = []
         for invoice in self._invoices.by_id.values():
             if invoice.confirmed_at is None or invoice.cancelled_at is not None:
@@ -1129,7 +1128,7 @@ class FakeMonthEndQueries:
                 ]
             settled.append(
                 SettledSale(
-                    day=invoice.confirmed_at.astimezone(zone).date(),
+                    at=invoice.confirmed_at,
                     charged=tuple(invoice.subtotals().values()),
                     received=tuple(received),
                     on_credit=on_credit,
@@ -1140,12 +1139,10 @@ class FakeMonthEndQueries:
     async def trade_in_payouts(
         self,
         *,
-        timezone: str,
         since: datetime,
         until: datetime,
         location_id: UUID | None = None,
     ) -> list[TradeInPayout]:
-        zone = ZoneInfo(timezone)
         payouts: list[TradeInPayout] = []
         for receipt in self._receipts.by_id.values():
             if receipt.acquisition_source is not AcquisitionSource.TRADE_IN:
@@ -1159,7 +1156,7 @@ class FakeMonthEndQueries:
             units = list(receipt.units())
             payouts.append(
                 TradeInPayout(
-                    day=receipt.confirmed_at.astimezone(zone).date(),
+                    at=receipt.confirmed_at,
                     valued=tuple(
                         unit.acquisition_cost
                         for unit in units

@@ -11,7 +11,7 @@ location. Debt belongs to a customer, not a shelf, and a payment records no
 location at all — a per-location debt figure would be a fiction.
 
 Beside the per-currency figures sits one more set read in som (W9 B3),
-converted day by day at the rate that was in force, and two lines that are
+each figure converted at the rate in force when it happened, and two lines that are
 not conversions at all: the gap between the money that really crossed the
 counter and what the same deals convert to, split into the rate the counter
 traded at and the markup a store-credit sale carries. Adding both to the
@@ -21,7 +21,7 @@ unit.
 """
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from application.common.repository import TenantAppendOnlyRepository
@@ -47,7 +47,7 @@ from domain.enums import RateKind, TransactionType
 from domain.value_objects import Currency, CurrencyTotals, Money
 from infrastructure.persistence.tenant.models import ExchangeRateModel
 
-_DayTotals = dict[tuple[TransactionType, Currency, date], Money]
+_RateTotals = dict[tuple[TransactionType, Currency, datetime | None], Money]
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,21 +128,25 @@ class MonthEndReporter:
         )
 
     async def _som(self, period: Period, location_id: UUID | None) -> SomFigures | None:
-        """The same month read in som, each day at its own rate.
+        """The same month read in som, each figure at the rate of its moment.
 
         The *selling* rate throughout: it is what the store quotes the
         customer, so it is the one figure a dollar price was ever meant to
         be read at.
         """
-        converter = SomConverter(await self._rates.find(RateHistory(RateKind.SALE)))
+        converter = SomConverter(
+            await self._rates.find(RateHistory(RateKind.SALE)), period.timezone
+        )
         if converter.is_empty:
             return None
 
-        before = await self._transactions.totals_by_type_and_day(
-            timezone=period.timezone, until=period.start, location_id=location_id
+        before = await self._transactions.totals_by_type_and_rate(
+            rate_changes=converter.rate_changes,
+            until=period.start,
+            location_id=location_id,
         )
-        during = await self._transactions.totals_by_type_and_day(
-            timezone=period.timezone,
+        during = await self._transactions.totals_by_type_and_rate(
+            rate_changes=converter.rate_changes,
             since=period.start,
             until=period.end,
             location_id=location_id,
@@ -155,8 +159,6 @@ class MonthEndReporter:
 
         earned = await self._earned_beyond_the_rate(period, location_id, converter)
         opening_value = inventory_effect(opening).of(Currency.UZS)
-        first = period.start.astimezone(period.start.tzinfo).date()
-        last = period.end.date() - timedelta(days=1)
         return SomFigures(
             opening_inventory=opening_value,
             purchases=category(TransactionType.PURCHASE),
@@ -171,11 +173,11 @@ class MonthEndReporter:
             rate_gain=earned.on_the_rate,
             instalment_income=earned.on_credit,
             basis=ConversionBasis(
-                opening_rate=converter.on(first),
-                closing_rate=converter.on(last),
+                opening_rate=converter.on(period.start),
+                closing_rate=converter.on(period.end - timedelta(microseconds=1)),
                 before_the_first_quote=any(
-                    day < converter.starts_on
-                    for _, _, day in (*before, *during)
+                    converter.before_the_first_quote(at)
+                    for _, _, at in (*before, *during)
                 ),
             ),
         )
@@ -194,22 +196,20 @@ class MonthEndReporter:
         on_the_rate = Money.zero(Currency.UZS)
         on_credit = Money.zero(Currency.UZS)
         for sale in await self._debts.settled_sales(
-            timezone=period.timezone,
             since=period.start,
             until=period.end,
             location_id=location_id,
         ):
             if not sale.received:
                 continue
-            gap = self._som_of(sale.received, sale.day, converter) - self._som_of(
-                sale.charged, sale.day, converter
+            gap = self._som_of(sale.received, sale.at, converter) - self._som_of(
+                sale.charged, sale.at, converter
             )
             if sale.on_credit:
                 on_credit += gap
             else:
                 on_the_rate += gap
         for bought in await self._debts.trade_in_payouts(
-            timezone=period.timezone,
             since=period.start,
             until=period.end,
             location_id=location_id,
@@ -217,28 +217,28 @@ class MonthEndReporter:
             if not bought.paid:
                 continue
             on_the_rate += self._som_of(
-                bought.valued, bought.day, converter
-            ) - self._som_of(bought.paid, bought.day, converter)
+                bought.valued, bought.at, converter
+            ) - self._som_of(bought.paid, bought.at, converter)
         return _Earned(on_the_rate=on_the_rate, on_credit=on_credit)
 
     @staticmethod
     def _som_of(
-        amounts: tuple[Money, ...], day: date, converter: SomConverter
+        amounts: tuple[Money, ...], at: datetime, converter: SomConverter
     ) -> Money:
         total = Money.zero(Currency.UZS)
         for amount in amounts:
-            total += converter.convert(amount, day)
+            total += converter.convert(amount, at)
         return total
 
     @staticmethod
     def _in_som(
-        totals: _DayTotals, converter: SomConverter
+        totals: _RateTotals, converter: SomConverter
     ) -> dict[tuple[TransactionType, Currency], Money]:
-        """Collapse the daily split back to one som figure per category."""
+        """Collapse the split by rate back to one som figure per category."""
         running: dict[tuple[TransactionType, Currency], Money] = {}
-        for (txn_type, _, day), amount in totals.items():
+        for (txn_type, _, at), amount in totals.items():
             key = (txn_type, Currency.UZS)
-            in_som = converter.convert(amount, day)
+            in_som = converter.convert(amount, at)
             running[key] = running.get(key, Money.zero(Currency.UZS)) + in_som
         return running
 

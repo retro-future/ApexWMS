@@ -380,6 +380,41 @@ class TestTheProfitAnOwnerCountsOnPaper:
         assert som["rateGain"]["minor"] == 0
 
 
+class TestARateChangedDuringTheDay:
+    """Over a real database: the ledger split by rate change is a
+    ``width_bucket`` over an array of instants, which the fakes only mimic."""
+
+    async def test_each_figure_reads_at_the_quote_in_force_at_its_moment(
+        self, client, settings, owner
+    ):
+        await _quote(client, owner, "12500")
+        # A $380 phone from the supplier, then a $330 trade-in paid 4 200 000.
+        await a_trade_in(client, settings, owner)
+        await _quote(client, owner, "11000")
+        await sell(client, owner, await _where(client, owner), TRADE_IN_IMEI)
+
+        body = await month_end(client, owner.auth, **await this_month(client, owner.auth))
+
+        som = body["som"]
+        assert som is not None
+        # $710 bought while 12 500 was quoted.
+        assert som["purchases"]["minor"] == -8_875_000
+        # $420 sold after the rate went down to 11 000.
+        assert som["revenue"]["minor"] == 4_620_000
+        # $330 at 12 500 is 4 125 000; read at 11 000 it would be -570 000.
+        assert som["rateGain"]["minor"] == -75_000
+        assert som["closingRate"] == "11000"
+
+
+async def _quote(client, owner, rate: str) -> None:
+    quoted = await client.post(
+        f"{API}/exchange-rates",
+        headers=owner.auth,
+        json={"kind": "sale", "somPerUsd": rate},
+    )
+    assert quoted.status_code == 200, quoted.text
+
+
 async def _where(client, owner) -> str:
     """The store's only location."""
     listed = await client.get(f"{API}/locations", headers=owner.auth)

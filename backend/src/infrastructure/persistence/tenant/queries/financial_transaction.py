@@ -3,11 +3,13 @@
 moved to the append-only generic repository.
 """
 
-from datetime import date, datetime
+from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, Row, Select, cast, func, select
+from sqlalchemy import DateTime, Row, Select, bindparam, func, select
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from application.dtos import FinancialLedgerRow, LedgerActor, SalesTotalsRow
 from domain.enums import DocumentType, TransactionType
@@ -56,24 +58,28 @@ class SqlFinancialTransactionQueries:
             for txn_type, currency, total in rows
         }
 
-    async def totals_by_type_and_day(
+    async def totals_by_type_and_rate(
         self,
         *,
-        timezone: str,
+        rate_changes: Sequence[datetime],
         since: datetime | None = None,
         until: datetime | None = None,
         location_id: UUID | None = None,
-    ) -> dict[tuple[TransactionType, Currency, date], Money]:
-        """``totals_by_type`` split by the store's own calendar day.
+    ) -> dict[tuple[TransactionType, Currency, datetime | None], Money]:
+        """``totals_by_type`` split at each rate change.
 
-        The day is local, so a sale at 23:30 in Tashkent converts at that
-        day's rate rather than the next one's, exactly as ``PeriodResolver``
-        decides which month it lands in.
+        ``width_bucket`` returns 0 before the first change and *i* from the
+        *i*-th one on, so the rows stay one per category per quote rather
+        than one per transaction.
         """
-        day = cast(func.timezone(timezone, _T.occurred_at), Date).label("day")
+        changes = list(rate_changes)
+        bucket = func.width_bucket(
+            _T.occurred_at,
+            bindparam("rate_changes", changes, type_=ARRAY(DateTime(timezone=True))),
+        ).label("bucket")
         stmt = select(
-            _T.txn_type, _T.currency, day, func.sum(_T.amount_minor)
-        ).group_by(_T.txn_type, _T.currency, day)
+            _T.txn_type, _T.currency, bucket, func.sum(_T.amount_minor)
+        ).group_by(_T.txn_type, _T.currency, bucket)
         if since is not None:
             stmt = stmt.where(_T.occurred_at >= since)
         if until is not None:
@@ -82,10 +88,12 @@ class SqlFinancialTransactionQueries:
             stmt = stmt.where(_T.location_id == location_id)
         rows = await self._session.execute(stmt)
         return {
-            (TransactionType(txn_type), Currency(currency), on): Money(
-                int(total or 0), Currency(currency)
-            )
-            for txn_type, currency, on, total in rows
+            (
+                TransactionType(txn_type),
+                Currency(currency),
+                None if index == 0 else changes[index - 1],
+            ): Money(int(total or 0), Currency(currency))
+            for txn_type, currency, index, total in rows
         }
 
     async def sales_totals(

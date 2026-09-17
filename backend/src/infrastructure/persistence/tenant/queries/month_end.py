@@ -7,12 +7,12 @@ one invoice. Both read ``sales_invoices``; they do not read it for the same
 reason.
 """
 
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import func, select
 
 from application.dtos import FinancingSplitRow, SettledSale, TradeInPayout
 from domain.enums import (
@@ -181,7 +181,6 @@ class SqlMonthEndQueries:
     async def settled_sales(
         self,
         *,
-        timezone: str,
         since: datetime,
         until: datetime,
         location_id: UUID | None = None,
@@ -195,9 +194,8 @@ class SqlMonthEndQueries:
         agreed instead: a payment against that debt is the same money
         arriving, and counting both would state it twice.
         """
-        day = cast(func.timezone(timezone, _I.confirmed_at), Date).label("day")
         charged = (
-            select(_I.id, day, _F.currency, func.sum(_F.amount_minor))
+            select(_I.id, _I.confirmed_at, _F.currency, func.sum(_F.amount_minor))
             .join(_F, _F.document_id == _I.id)
             .where(
                 _F.txn_type == TransactionType.SALE_REVENUE.value,
@@ -206,24 +204,24 @@ class SqlMonthEndQueries:
                 _I.confirmed_at < until,
                 _I.cancelled_at.is_(None),
             )
-            .group_by(_I.id, day, _F.currency)
+            .group_by(_I.id, _I.confirmed_at, _F.currency)
         )
         if location_id is not None:
             charged = charged.where(_I.location_id == location_id)
 
-        days: dict[UUID, date] = {}
+        confirmed: dict[UUID, datetime] = {}
         billed: dict[UUID, list[Money]] = {}
-        for invoice_id, on, currency, total in await self._session.execute(charged):
-            days[invoice_id] = on
+        for invoice_id, at, currency, total in await self._session.execute(charged):
+            confirmed[invoice_id] = at
             billed.setdefault(invoice_id, []).append(
                 Money(int(total or 0), Currency(currency))
             )
-        if not days:
+        if not confirmed:
             return []
 
         on_credit: dict[UUID, Money] = {}
         owed = select(_I.id, _I.debt_minor).where(
-            _I.id.in_(days),
+            _I.id.in_(confirmed),
             _I.payment_type == PaymentType.STORE_CREDIT.value,
             _I.debt_minor.is_not(None),
         )
@@ -237,7 +235,7 @@ class SqlMonthEndQueries:
                 PaymentModel.currency,
                 func.sum(PaymentModel.amount_minor),
             )
-            .where(PaymentModel.sales_invoice_id.in_(set(days) - set(on_credit)))
+            .where(PaymentModel.sales_invoice_id.in_(set(confirmed) - set(on_credit)))
             .group_by(PaymentModel.sales_invoice_id, PaymentModel.currency)
         )
         for invoice_id, currency, total in await self._session.execute(paid):
@@ -247,7 +245,7 @@ class SqlMonthEndQueries:
 
         return [
             SettledSale(
-                day=days[invoice_id],
+                at=confirmed[invoice_id],
                 charged=tuple(amounts),
                 received=(on_credit[invoice_id],)
                 if invoice_id in on_credit
@@ -260,17 +258,15 @@ class SqlMonthEndQueries:
     async def trade_in_payouts(
         self,
         *,
-        timezone: str,
         since: datetime,
         until: datetime,
         location_id: UUID | None = None,
     ) -> list[TradeInPayout]:
         """One handset bought off a walk-in in the window: valued, and paid for."""
-        day = cast(func.timezone(timezone, _G.confirmed_at), Date).label("day")
         stmt = (
             select(
                 _G.id,
-                day,
+                _G.confirmed_at,
                 ProductModel.currency,
                 func.sum(_U.acquisition_cost_minor),
                 _U.cash_paid_currency,
@@ -285,18 +281,18 @@ class SqlMonthEndQueries:
                 _G.confirmed_at < until,
                 _G.cancelled_at.is_(None),
             )
-            .group_by(_G.id, day, ProductModel.currency, _U.cash_paid_currency)
+            .group_by(_G.id, _G.confirmed_at, ProductModel.currency, _U.cash_paid_currency)
         )
         if location_id is not None:
             stmt = stmt.where(_G.location_id == location_id)
 
-        days: dict[UUID, date] = {}
+        confirmed: dict[UUID, datetime] = {}
         valued: dict[UUID, list[Money]] = {}
         paid: dict[UUID, list[Money]] = {}
-        for receipt_id, on, currency, cost, cash_currency, cash in (
+        for receipt_id, at, currency, cost, cash_currency, cash in (
             await self._session.execute(stmt)
         ):
-            days[receipt_id] = on
+            confirmed[receipt_id] = at
             if cost is not None:
                 valued.setdefault(receipt_id, []).append(
                     Money(int(cost), Currency(currency))
@@ -307,11 +303,11 @@ class SqlMonthEndQueries:
                 )
         return [
             TradeInPayout(
-                day=on,
+                at=at,
                 valued=tuple(valued.get(receipt_id, ())),
                 paid=tuple(paid.get(receipt_id, ())),
             )
-            for receipt_id, on in days.items()
+            for receipt_id, at in confirmed.items()
         ]
 
     @staticmethod

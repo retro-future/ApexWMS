@@ -109,7 +109,7 @@ Each branch ships on its own and leaves the system usable.
 | **B1** | Rate of the day, and the som figure on every counter sale | 1 (recording half), 4 (partly) | done |
 | **B1b** | One tender row per currency on a counter sale | a doubled figure nobody caps | done |
 | **B2** | A used-handset buy states both its dollar valuation and its som payout | 3 | done |
-| **B3** | The month-end report read in som, at the rate of each day | 4, and the reporting half of 1 | done |
+| **B3** | The month-end report read in som, at the rate in force when each figure happened | 4, and the reporting half of 1 | done |
 | **B4** | The instalment markup as its own income line, split out of the rate gain | 2 | done |
 | **B5** | Cash accounts, opening balances, expenses, shift close | 5, 6 | owner Q7, Q8; ships with W5 |
 | **B6** | Supplier debt | 7 | ships with W5 |
@@ -176,6 +176,12 @@ among them.
   months lands whole in the month it was made. That is what accrual means and it is what
   `AccrualFigures` has always done; it is written here because the som profit line makes
   it visible for the first time.
+- **A figure reads at the rate in force at its own moment, not at the day's last quote.**
+  B3 first kept one rate per day, the last one entered. A store that moved its rate at
+  06:07 and again at 06:49 then saw a trade-in bought at 06:12 revalued at the 06:49
+  quote, and a deal that earned 200 000 som showed as a 60 000 loss. A quote is now in
+  force from its `set_at`; a quote entered for another day (yesterday's, after the fact,
+  or tomorrow's, in advance) counts from the start of that day.
 - **The `runs_till` switch left the settings screen.** After B1 and B2 it gates neither
   the tender nor the trade-in payout, and the shift screens it is for do not exist yet.
   The column, the API field and the form value all stay; only the control is gone, so a

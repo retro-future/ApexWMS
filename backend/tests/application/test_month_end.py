@@ -247,7 +247,7 @@ class TestTheAccrualView:
 
 
 class TestTheSomView:
-    """W9 B3: the same month read in som, each day at its own rate."""
+    """W9 B3: the same month read in som, each figure at the rate of its moment."""
 
     async def test_a_store_that_never_quoted_a_rate_gets_no_som_view(self):
         world = make_world()
@@ -429,6 +429,108 @@ class TestTheProfitAnOwnerCountsOnPaper:
 
         assert report.som is not None
         assert report.som.instalment_income == som("300000")
+
+
+class TestARateChangedDuringTheDay:
+    """The store moved its rate twice in one morning. Every figure reads at
+    the quote in force at its own moment, never at the day's last one."""
+
+    async def test_a_trade_in_before_the_correction_reads_at_the_earlier_quote(self):
+        """The case found on the server: bought at 12 000 while 12 500 was
+        quoted, then the rate went down to 11 850. The deal earned money."""
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12500")
+        await quoted(world, MID_JANUARY + timedelta(minutes=40), "11850")
+        world.clock.current = MID_JANUARY + timedelta(minutes=5)
+        receipt, _, _ = await opened(world, source=AcquisitionSource.TRADE_IN)
+        await scan(
+            world,
+            receipt,
+            condition=DeviceCondition.USED,
+            acquisition_cost="400",
+            asking_price="450",
+            cash_paid="4800000",
+            cash_paid_currency=Currency.UZS,
+        )
+        await confirm_receipt(world, receipt)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        # $400 at 12 500 is 5 000 000; 4 800 000 was handed over.
+        assert report.som.rate_gain == som("200000")
+        assert report.som.purchases == som("-5000000")
+
+    async def test_a_trade_in_after_the_correction_reads_at_the_correction(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12500")
+        await quoted(world, MID_JANUARY + timedelta(minutes=40), "11850")
+        world.clock.current = MID_JANUARY + timedelta(minutes=45)
+        receipt, _, _ = await opened(world, source=AcquisitionSource.TRADE_IN)
+        await scan(
+            world,
+            receipt,
+            condition=DeviceCondition.USED,
+            acquisition_cost="400",
+            asking_price="450",
+            cash_paid="4800000",
+            cash_paid_currency=Currency.UZS,
+        )
+        await confirm_receipt(world, receipt)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.rate_gain == som("-60000")
+
+    async def test_a_credit_sale_before_the_correction_reads_at_the_earlier_quote(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY - timedelta(hours=1), "12500")
+        await quoted(world, MID_JANUARY + timedelta(hours=1), "13500")
+        await a_credit_sale(world)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        # $600 at 12 500 is 7 500 000; the seller named 7 800 000. Read at
+        # the later 13 500 it would have been a 300 000 loss.
+        assert report.som.instalment_income == som("300000")
+
+    async def test_revenue_reads_at_the_quote_in_force_when_it_was_sold(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        await quoted(world, MID_JANUARY + timedelta(hours=2), "13000")
+        await a_bought_and_sold_phone(world, MID_JANUARY + timedelta(hours=1))
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.revenue == som("7200000")
+        assert report.som.cost_of_goods == som("-4560000")
+
+    async def test_the_basis_names_the_quote_in_force_at_each_end(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY, "12000")
+        await quoted(world, LAST_NIGHT_OF_JANUARY - timedelta(hours=2), "12400")
+        await quoted(world, LAST_NIGHT_OF_JANUARY, "12500")
+        world.clock.current = MID_JANUARY
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert str(report.som.basis.opening_rate) == "12000"
+        assert str(report.som.basis.closing_rate) == "12500"
+
+    async def test_a_sale_before_the_days_first_quote_reads_at_yesterdays(self):
+        world = make_world()
+        await quoted(world, MID_JANUARY - timedelta(days=1), "12000")
+        await quoted(world, MID_JANUARY + timedelta(hours=1), "13000")
+        await a_bought_and_sold_phone(world, MID_JANUARY)
+
+        report = await world.month_end_reporter().report(2026, 1)
+
+        assert report.som is not None
+        assert report.som.revenue == som("7200000")
 
 
 class TestClosingValueReconciles:
