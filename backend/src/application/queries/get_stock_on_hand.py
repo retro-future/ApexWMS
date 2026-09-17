@@ -12,6 +12,7 @@ from application.core import IRequestHandler, PagedQuery, PagedResult
 from application.dtos import CurrentUser, StockGroupBy
 from application.models import StockOnHandData
 from application.services import StockOnHandReader
+from domain.enums import TrackingType
 from domain.permissions import Permission
 
 
@@ -20,6 +21,8 @@ class GetStockOnHandQuery(PagedQuery[PagedResult[StockOnHandData]]):
     location_id: UUID | None = None
     product_id: UUID | None = None
     brand: str | None = None
+    tracking_type: TrackingType | None = None
+    out_of_stock_only: bool = False
 
 
 class GetStockOnHandHandler(
@@ -35,6 +38,8 @@ class GetStockOnHandHandler(
             location_id=request.location_id,
             product_id=request.product_id,
             brand=request.brand,
+            tracking_type=request.tracking_type,
+            out_of_stock_only=request.out_of_stock_only,
         )
         start = (request.page - 1) * request.page_size
         show_cost = Permission.COST_VIEW in self._current.permissions

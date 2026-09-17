@@ -252,6 +252,77 @@ class TestFiltering:
 
         assert body["data"][0]["quantity"] == 1
 
+    async def test_tracking_type_narrows_to_phones_or_accessories(self, client, store):
+        owner, ids = store
+        await a_mixed_shelf(client, owner, ids)
+
+        phones = await on_hand(
+            client, owner.auth, groupBy="product", trackingType="serial"
+        )
+        accessories = await on_hand(
+            client, owner.auth, groupBy="product", trackingType="quantity"
+        )
+
+        assert [row["label"] for row in phones["data"]] == ["iPhone 15 Pro"]
+        assert [row["label"] for row in accessories["data"]] == ["Silicone case"]
+
+    async def test_tracking_type_also_narrows_out_of_stock_only(self, client, store):
+        owner, _ = store
+
+        phones = await on_hand(
+            client,
+            owner.auth,
+            groupBy="product",
+            outOfStockOnly=True,
+            trackingType="serial",
+        )
+
+        assert [row["label"] for row in phones["data"]] == ["iPhone 15 Pro"]
+
+
+class TestOutOfStock:
+    async def test_shows_active_products_with_nothing_on_hand(self, client, store):
+        owner, ids = store
+
+        body = await on_hand(
+            client, owner.auth, groupBy="product", outOfStockOnly=True
+        )
+
+        rows = {row["label"]: row for row in body["data"]}
+        assert rows["iPhone 15 Pro"]["quantity"] == 0
+        assert rows["Silicone case"]["quantity"] == 0
+
+    async def test_a_product_carrying_stock_drops_out(self, client, store):
+        """Turning it on replaces the shelf view, it doesn't add to it."""
+        owner, ids = store
+        await a_phone_on_the_shelf(client, owner, ids)
+
+        body = await on_hand(
+            client, owner.auth, groupBy="product", outOfStockOnly=True
+        )
+
+        labels = {row["label"] for row in body["data"]}
+        assert "iPhone 15 Pro" not in labels
+        assert "Silicone case" in labels
+
+    async def test_off_by_default(self, client, store):
+        owner, ids = store
+        await a_phone_on_the_shelf(client, owner, ids)
+
+        body = await on_hand(client, owner.auth, groupBy="product")
+
+        assert [row["label"] for row in body["data"]] == ["iPhone 15 Pro"]
+
+    async def test_ignored_outside_product_grouping(self, client, store):
+        owner, ids = store
+        await a_phone_on_the_shelf(client, owner, ids)
+
+        body = await on_hand(
+            client, owner.auth, groupBy="location", outOfStockOnly=True
+        )
+
+        assert [row["label"] for row in body["data"]] == ["Chilonzor shop"]
+
 
 class TestWhoMayRead:
     async def test_a_seller_is_refused(self, client, store):

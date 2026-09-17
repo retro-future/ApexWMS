@@ -43,6 +43,7 @@ from domain.enums import (
     DeviceCondition,
     DocumentType,
     MovementType,
+    TrackingType,
     TransactionType,
 )
 from domain.value_objects import Currency, Money
@@ -198,6 +199,17 @@ class StockOnHandQueries(Protocol):
     ) -> list[AccessoryOnHand]:
         """The accessory pairs still carrying stock, unvalued: their cost is
         a pool ``CostPoolReader`` replays, not a column to sum (§4.6)."""
+        ...
+
+    async def out_of_stock(
+        self,
+        location_id: UUID | None = None,
+        product_id: UUID | None = None,
+        brand: str | None = None,
+        tracking_type: TrackingType | None = None,
+    ) -> list[OnHandBucket]:
+        """Active products with nothing on hand anywhere the filters allow
+        (FR-9.1b) — what an owner needs to know to restock."""
         ...
 
 

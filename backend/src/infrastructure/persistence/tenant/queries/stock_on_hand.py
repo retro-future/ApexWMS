@@ -67,6 +67,59 @@ class SqlStockOnHandQueries:
         rows = await self._session.execute(stmt)
         return [self._to_bucket(row) for row in rows]
 
+    async def out_of_stock(
+        self,
+        location_id: UUID | None = None,
+        product_id: UUID | None = None,
+        brand: str | None = None,
+        tracking_type: TrackingType | None = None,
+    ) -> list[OnHandBucket]:
+        """Active products carrying no stock anywhere the filters allow —
+        one row each, quantity zero, for restocking (FR-9.1b). Grouping by
+        product only: a location or a brand isn't itself "out of stock"."""
+        serial_on_hand = select(DeviceUnitModel.product_id).where(
+            DeviceUnitModel.status.in_(ON_HAND)
+        )
+        accessory_on_hand = select(StockLevelModel.product_id).where(
+            StockLevelModel.quantity > 0
+        )
+        if location_id is not None:
+            serial_on_hand = serial_on_hand.where(
+                DeviceUnitModel.location_id == location_id
+            )
+            accessory_on_hand = accessory_on_hand.where(
+                StockLevelModel.location_id == location_id
+            )
+
+        stmt = (
+            select(
+                ProductModel.id,
+                ProductModel.name,
+                ProductModel.sku,
+                ProductModel.currency,
+            )
+            .where(
+                ProductModel.is_active.is_(True),
+                ProductModel.id.notin_(serial_on_hand),
+                ProductModel.id.notin_(accessory_on_hand),
+                *self._catalog_filters(product_id, brand),
+            )
+            .order_by(ProductModel.name)
+        )
+        if tracking_type is not None:
+            stmt = stmt.where(ProductModel.tracking_type == tracking_type.value)
+        rows = await self._session.execute(stmt)
+        return [
+            OnHandBucket(
+                key=row.id,
+                label=row.name,
+                sku=row.sku,
+                quantity=0,
+                value=Money(0, Currency(row.currency)),
+            )
+            for row in rows
+        ]
+
     async def accessories_on_hand(
         self,
         group_by: StockGroupBy,

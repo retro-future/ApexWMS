@@ -1,6 +1,6 @@
 "use client";
 
-import { Anchor, Select, Table, Text, TextInput } from "@mantine/core";
+import { Anchor, Select, Switch, Table, Text, TextInput } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
@@ -24,13 +24,19 @@ export function StockOnHandReport() {
   const t = useTranslations("reports");
   const tDoc = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const tProducts = useTranslations("products");
 
   const locations = useLocationLookup();
 
-  const [groupBy, setGroupBy] = useState<StockGroupBy>("location");
+  const [groupBy, setGroupBy] = useState<StockGroupBy>("product");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
   const [brand, setBrand] = useState("");
+  const [trackingType, setTrackingType] = useState<string | null>(null);
+  // Replaces the on-hand list with what has none, rather than adding to it.
+  // Only means anything grouped by product: a location or a brand isn't
+  // itself "out of stock" the way one specific product is.
+  const [outOfStockOnly, setOutOfStockOnly] = useState(false);
   const [page, setPage] = useState(1);
 
   const reset = makePageReset(setPage);
@@ -41,6 +47,8 @@ export function StockOnHandReport() {
     locationId: locationId ?? undefined,
     productId: productId ?? undefined,
     brand: brand || undefined,
+    trackingType: trackingType ?? undefined,
+    outOfStockOnly: groupBy === "product" ? outOfStockOnly : undefined,
   });
 
   const rows = query.data?.items ?? [];
@@ -55,7 +63,7 @@ export function StockOnHandReport() {
           <Select
             label={t("groupBy")}
             value={groupBy}
-            onChange={(value) => reset(setGroupBy)((value ?? "location") as StockGroupBy)}
+            onChange={(value) => reset(setGroupBy)((value ?? "product") as StockGroupBy)}
             data={(["location", "product", "brand"] as StockGroupBy[]).map((key) => ({
               value: key,
               label: t(`groupByOption.${key}`),
@@ -87,6 +95,27 @@ export function StockOnHandReport() {
             onChange={(event) => reset(setBrand)(event.currentTarget.value)}
             w={{ base: "100%", sm: 160 }}
           />
+          <Select
+            label={tProducts("filterTracking")}
+            value={trackingType}
+            onChange={reset(setTrackingType)}
+            placeholder={tCommon("all")}
+            clearable
+            w={{ base: "100%", sm: 180 }}
+            data={[
+              { value: "serial", label: tProducts("serial") },
+              { value: "quantity", label: tProducts("quantity") },
+            ]}
+          />
+          {groupBy === "product" && (
+            <Switch
+              label={t("outOfStockOnly")}
+              checked={outOfStockOnly}
+              onChange={(event) =>
+                reset(setOutOfStockOnly)(event.currentTarget.checked)
+              }
+            />
+          )}
         </>
       }
       head={
