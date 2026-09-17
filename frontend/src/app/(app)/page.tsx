@@ -12,6 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  IconArrowsExchange,
   IconBarcode,
   IconBuildingWarehouse,
   IconClipboardList,
@@ -93,14 +94,25 @@ export default function DashboardPage() {
 
   return (
     <Stack gap="lg">
-      <Stack gap="3xs">
-        <Title order={2}>
-          {t("welcome", { name: me.fullName.split(" ")[0] })}
-        </Title>
-        <Text size="sm" c="dimmed">
-          {t("subtitle")}
-        </Text>
-      </Stack>
+      <Group justify="space-between" align="flex-start" wrap="wrap">
+        <Stack gap="3xs">
+          <Title order={2}>
+            {t("welcome", { name: me.fullName.split(" ")[0] })}
+          </Title>
+          <Text size="sm" c="dimmed">
+            {t("subtitle")}
+          </Text>
+        </Stack>
+        {can(Permission.Receiving.Manage) && (
+          <Button
+            component={Link}
+            href="/receipts/new?source=trade_in"
+            leftSection={<IconArrowsExchange size={18} stroke={1.5} />}
+          >
+            {t("newTradeIn")}
+          </Button>
+        )}
+      </Group>
 
       <MobileScanCard />
 

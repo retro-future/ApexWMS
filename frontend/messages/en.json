@@ -107,7 +107,8 @@
     "subtitle": "Your store at a glance.",
     "browse": "Open",
     "draftReceipts": "Receipts in progress",
-    "draftOrders": "Draft orders"
+    "draftOrders": "Draft orders",
+    "newTradeIn": "New trade-in"
   },
   "products": {
     "title": "Products",

@@ -107,7 +107,8 @@
     "subtitle": "Ваш магазин в двух словах.",
     "browse": "Открыть",
     "draftReceipts": "Приёмки в работе",
-    "draftOrders": "Черновики заказов"
+    "draftOrders": "Черновики заказов",
+    "newTradeIn": "Новый trade-in"
   },
   "products": {
     "title": "Товары",

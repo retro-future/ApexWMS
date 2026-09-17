@@ -60,8 +60,11 @@ export function ReceiptForm() {
   const router = useRouter();
   const can = useCan();
 
-  const purchaseOrderId = useSearchParams().get("purchaseOrderId");
+  const searchParams = useSearchParams();
+  const purchaseOrderId = searchParams.get("purchaseOrderId");
   const fromOrder = Boolean(purchaseOrderId);
+  const initialSource: AcquisitionSource =
+    searchParams.get("source") === "trade_in" ? "trade_in" : "supplier";
 
   // The order already names a supplier; nothing here needs the operator to
   // repeat it, and the server ignores whatever this form would send anyway
@@ -74,7 +77,7 @@ export function ReceiptForm() {
   const supplierNames = useSupplierLookup();
   const poSupplierId = order.data?.supplierId ?? null;
 
-  const [source, setSource] = useState<AcquisitionSource>("supplier");
+  const [source, setSource] = useState<AcquisitionSource>(initialSource);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
