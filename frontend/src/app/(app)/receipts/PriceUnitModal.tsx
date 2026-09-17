@@ -7,7 +7,7 @@ import { FormModal } from "@/components/FormModal";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useDocumentAction } from "@/hooks/use-document";
 import { useCurrentRates } from "@/hooks/use-exchange-rates";
-import { formatMoney, inputToMoney, moneyToInput } from "@/lib/money";
+import { formatMoney, inputToMoney, minorToInput, moneyToInput } from "@/lib/money";
 import { errorMessage, notifySuccess } from "@/lib/notify";
 import { somAtRate } from "@/lib/rates";
 import type { ReferenceCost } from "@/lib/receipts";
@@ -35,12 +35,19 @@ export function PriceUnitModal({
   const [cost, setCost] = useState(moneyToInput(unit.acquisitionCost ?? reference));
   const [asking, setAsking] = useState(moneyToInput(unit.askingPrice));
   const [cash, setCash] = useState("");
+  const [cashTouched, setCashTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valued = inputToMoney(cost, unit.currency);
   const atRate = somAtRate(
     valued ? [valued] : [],
     rates.data?.buyback?.somPerUsd ?? null,
   );
+  // Defaults the trade-in payout to the acquisition cost converted at
+  // today's buyback rate; typing in the field opts out of the default.
+  const cashValue =
+    isTradeIn && !cashTouched && atRate !== null
+      ? minorToInput(atRate, "UZS")
+      : cash;
 
   const price = useDocumentAction<
     ReceivedUnit,
@@ -62,7 +69,9 @@ export function PriceUnitModal({
       await price.mutateAsync({
         ...(cost.trim() ? { acquisitionCost: cost.trim() } : {}),
         ...(asking.trim() ? { askingPrice: asking.trim() } : {}),
-        ...(cash.trim() ? { cashPaid: cash.trim(), cashPaidCurrency: "UZS" } : {}),
+        ...(cashValue.trim()
+          ? { cashPaid: cashValue.trim(), cashPaidCurrency: "UZS" }
+          : {}),
       });
       notifySuccess(tCommon("saved"));
       onClose();
@@ -113,8 +122,11 @@ export function PriceUnitModal({
               })
             : tScan("cashPaidHint")
         }
-        value={cash}
-        onChange={setCash}
+        value={cashValue}
+        onChange={(value) => {
+          setCashTouched(true);
+          setCash(value);
+        }}
         currency="UZS"
         required={isTradeIn}
       />

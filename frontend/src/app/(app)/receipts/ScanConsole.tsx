@@ -89,7 +89,9 @@ export function ScanConsole({
   // committed to state until the operator actually edits it.
   const [costInput, setCostInput] = useState<string | null>(null);
   const [askingPrice, setAskingPrice] = useState("");
-  const [cashPaid, setCashPaid] = useState("");
+  // Same "untouched" sentinel as costInput: falls back to the buyback-rate
+  // default below until the operator actually types a different figure.
+  const [cashInput, setCashInput] = useState<string | null>(null);
   const [rejection, setRejection] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<string | null>(null);
   const [cameraOpened, { open: openCamera, close: closeCamera }] = useDisclosure(false);
@@ -143,6 +145,8 @@ export function ScanConsole({
     valued ? [valued] : [],
     rates.data?.buyback?.somPerUsd ?? null,
   );
+  const cashPaid =
+    cashInput ?? (isTradeIn && atRate !== null ? minorToInput(atRate, "UZS") : "");
 
   async function submitCode(raw: string) {
     const imei = raw.trim();
@@ -193,7 +197,7 @@ export function ScanConsole({
       // cost again, rather than blanking a run of identical phones.
       setCostInput(null);
       setAskingPrice("");
-      setCashPaid("");
+      setCashInput(null);
     } catch (error) {
       setAccepted(null);
       setRejection(errorMessage(error, tCommon("retry")));
@@ -319,9 +323,8 @@ export function ScanConsole({
                     onChange={(event) => setAskingPrice(event.currentTarget.value)}
                     w={{ base: "100%", sm: 160 }}
                   />
-                  {/* A trade-in cannot be confirmed without it (W9 B2).
-                      The rate hint is never written into the field: what
-                      was handed over is a fact, not a guess. */}
+                  {/* A trade-in cannot be confirmed without it (W9 B2);
+                      it defaults to the buyback rate but stays editable. */}
                   <MoneyInput
                     label={t("cashPaid")}
                     description={
@@ -333,7 +336,7 @@ export function ScanConsole({
                         : t("cashPaidHint")
                     }
                     value={cashPaid}
-                    onChange={setCashPaid}
+                    onChange={setCashInput}
                     currency="UZS"
                     required={isTradeIn}
                     w={{ base: "100%", sm: 260 }}

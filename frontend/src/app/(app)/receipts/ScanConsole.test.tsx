@@ -335,7 +335,7 @@ describe("ScanConsole", () => {
     expect(field).not.toBeRequired();
   });
 
-  it("requires it on a trade-in and shows the cost at the buying rate", async () => {
+  it("requires it on a trade-in and defaults it to the buying rate", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -347,9 +347,14 @@ describe("ScanConsole", () => {
 
     await user.type(screen.getByLabelText("Cost"), "330.00");
 
-    // $330 at 11 500, as a hint. It is never written into the field.
+    // $330 at 11 500, defaulted into the field as well as shown as a hint.
     expect(await screen.findByText(/3\s795\s000/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("");
+    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("3795000");
+
+    // Typing a different figure opts out of the default.
+    await user.clear(screen.getByLabelText(/cash paid/i));
+    await user.type(screen.getByLabelText(/cash paid/i), "4000000");
+    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("4000000");
   });
 
   it("sends cost and price when the scanner does hold the pricing permission", async () => {
