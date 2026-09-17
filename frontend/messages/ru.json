@@ -712,6 +712,9 @@
       "surpriseCostHint": "Во сколько обошёлся аппарат. Без этого излишек применить нельзя.",
       "accessoryCost": "Себестоимость за штуку",
       "accessoryCostHint": "Нужно только если этот товар никогда не поступал в эту точку.",
+      "manualProduct": "Товар, если нет кода",
+      "manualProductPlaceholder": "Поиск по каталогу",
+      "manualAdd": "Добавить",
       "unscan": "Убрать",
       "unscanned": "{imei} убран"
     },

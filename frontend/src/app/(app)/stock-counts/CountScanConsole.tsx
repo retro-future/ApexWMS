@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Card,
+  Fieldset,
   Group,
   Stack,
   Text,
@@ -55,6 +56,11 @@ type CountScanBody = {
  * to book a surplus at. It rides on every beep rather than only the first,
  * because the operator holding the scanner may not hold the pricing
  * permission and someone else may state it on a later pass.
+ *
+ * The manual picker below the scan input is for an accessory whose barcode
+ * the operator does not have handy — it submits through the same `/scan`
+ * endpoint with the product's own SKU as the code, so a picked product is
+ * indistinguishable from a typed one server-side.
  */
 export function CountScanConsole({
   count,
@@ -64,6 +70,7 @@ export function CountScanConsole({
   onScanned: (result: CountScanResult) => void;
 }) {
   const t = useTranslations("stockCounts.scan");
+  const tStock = useTranslations("stockCounts");
   const tCommon = useTranslations("common");
   const can = useCan();
   const canPrice = can(Permission.Pricing.Set);
@@ -73,6 +80,7 @@ export function CountScanConsole({
   const [product, setProduct] = useState<Product | null>(null);
   const [cost, setCost] = useState("");
   const [accessoryUnitCost, setAccessoryUnitCost] = useState("");
+  const [manualProduct, setManualProduct] = useState<Product | null>(null);
   const [rejection, setRejection] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<string | null>(null);
   const [cameraOpened, { open: openCamera, close: closeCamera }] = useDisclosure(false);
@@ -145,6 +153,12 @@ export function CountScanConsole({
     void submitCode(decoded);
   }
 
+  async function submitManual() {
+    if (!manualProduct) return;
+    await submitCode(manualProduct.sku);
+    setManualProduct(null);
+  }
+
   return (
     <Card withBorder radius="md" padding="lg">
       <Stack gap="md">
@@ -194,35 +208,60 @@ export function CountScanConsole({
             </Group>
 
             {canPrice && (
+              <Fieldset legend={tStock("handsets")}>
+                <Group gap="sm" align="flex-end" wrap="wrap">
+                  <ProductSelect
+                    label={t("surpriseProduct")}
+                    value={product?.id ?? null}
+                    onChange={(next) => {
+                      setProduct(next);
+                      // The cost was typed in the old product's currency.
+                      setCost("");
+                    }}
+                    placeholder={t("surpriseProductHint")}
+                  />
+                  <MoneyInput
+                    label={t("surpriseCost")}
+                    description={t("surpriseCostHint")}
+                    value={cost}
+                    onChange={setCost}
+                    currency={product?.currency}
+                    disabled={product === null}
+                    w={{ base: "100%", sm: 200 }}
+                  />
+                </Group>
+              </Fieldset>
+            )}
+
+            <Fieldset legend={tStock("accessories")}>
               <Group gap="sm" align="flex-end" wrap="wrap">
                 <ProductSelect
-                  label={t("surpriseProduct")}
-                  value={product?.id ?? null}
-                  onChange={(next) => {
-                    setProduct(next);
-                    // The cost was typed in the old product's currency.
-                    setCost("");
-                  }}
-                  placeholder={t("surpriseProductHint")}
+                  label={t("manualProduct")}
+                  placeholder={t("manualProductPlaceholder")}
+                  value={manualProduct?.id ?? null}
+                  onChange={setManualProduct}
+                  trackingType="quantity"
                 />
-                <MoneyInput
-                  label={t("surpriseCost")}
-                  description={t("surpriseCostHint")}
-                  value={cost}
-                  onChange={setCost}
-                  currency={product?.currency}
-                  disabled={product === null}
-                  w={{ base: "100%", sm: 200 }}
-                />
-                <MoneyInput
-                  label={t("accessoryCost")}
-                  description={t("accessoryCostHint")}
-                  value={accessoryUnitCost}
-                  onChange={setAccessoryUnitCost}
-                  w={{ base: "100%", sm: 200 }}
-                />
+                <Button
+                  type="button"
+                  variant="default"
+                  disabled={!manualProduct}
+                  loading={scan.isPending}
+                  onClick={() => void submitManual()}
+                >
+                  {t("manualAdd")}
+                </Button>
+                {canPrice && (
+                  <MoneyInput
+                    label={t("accessoryCost")}
+                    description={t("accessoryCostHint")}
+                    value={accessoryUnitCost}
+                    onChange={setAccessoryUnitCost}
+                    w={{ base: "100%", sm: 200 }}
+                  />
+                )}
               </Group>
-            )}
+            </Fieldset>
 
             {rejection && (
               <Alert

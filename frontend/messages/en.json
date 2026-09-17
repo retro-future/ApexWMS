@@ -712,6 +712,9 @@
       "surpriseCostHint": "What this handset cost. Required before a surplus can be applied.",
       "accessoryCost": "Cost per unit",
       "accessoryCostHint": "Only needed if this location has never held this accessory before.",
+      "manualProduct": "Accessory, if you don't have the code",
+      "manualProductPlaceholder": "Search the catalogue",
+      "manualAdd": "Add",
       "unscan": "Remove",
       "unscanned": "{imei} removed"
     },

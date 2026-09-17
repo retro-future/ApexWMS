@@ -712,6 +712,9 @@
       "surpriseCostHint": "Bu apparat qanchaga tushgan. Ortiqchani qo'llash uchun shart.",
       "accessoryCost": "Birlik tannarxi",
       "accessoryCostHint": "Faqat bu tovar bu do'konga hech qachon kelmagan bo'lsa kerak.",
+      "manualProduct": "Tovar, agar kodi bo'lmasa",
+      "manualProductPlaceholder": "Katalogdan qidirish",
+      "manualAdd": "Qo'shish",
       "unscan": "Olib tashlash",
       "unscanned": "{imei} olib tashlandi"
     },
