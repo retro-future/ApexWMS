@@ -42,10 +42,16 @@ function quoted(somPerUsd: string, isStale: boolean): CurrentRates {
 
 const EMPTY: CurrentRates = { sale: null, buyback: null, today: "2026-08-19" };
 
-function render(rates: CurrentRates, me = MANAGER) {
+function mount(rates: CurrentRates, me = MANAGER) {
   apiGet.mockResolvedValue(rates);
   apiSend.mockResolvedValue(rates.sale);
   renderWithProviders(<RatesCard />, { me });
+}
+
+/** The card ships collapsed, so anything in its body has to be opened first. */
+async function render(rates: CurrentRates, me = MANAGER) {
+  mount(rates, me);
+  await userEvent.click(await screen.findByLabelText(/expand/i));
 }
 
 beforeEach(() => {
@@ -54,35 +60,35 @@ beforeEach(() => {
 
 describe("the rate of the day", () => {
   it("shows the rate in force", async () => {
-    render(quoted("12000", false));
+    await render(quoted("12000", false));
 
-    expect(await screen.findByDisplayValue("12000")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("12 000")).toBeInTheDocument();
     expect(screen.queryByText(/update it for today/i)).not.toBeInTheDocument();
   });
 
   it("warns when the rate on file is yesterday's", async () => {
-    render(quoted("12000", true));
+    await render(quoted("12000", true));
 
     expect(await screen.findByText(/last quoted on 2026-08-18/i)).toBeInTheDocument();
   });
 
   it("says so when no rate has ever been quoted", async () => {
-    render(EMPTY);
+    await render(EMPTY);
 
     expect(await screen.findByText(/no rate has been quoted yet/i)).toBeInTheDocument();
   });
 
   it("lets a seller read the rate but not change it", async () => {
-    render(quoted("12000", false), SELLER);
+    await render(quoted("12000", false), SELLER);
 
-    expect(await screen.findByDisplayValue("12000")).toBeDisabled();
+    expect(await screen.findByDisplayValue("12 000")).toBeDisabled();
     expect(screen.queryByRole("button", { name: /save rate/i })).not.toBeInTheDocument();
   });
 
   it("lets an unchanged rate be quoted again for today", async () => {
     // A rate that has not moved for days still has to be quoted, or those
     // days are read at an older figure.
-    render(quoted("12000", true));
+    await render(quoted("12000", true));
 
     const button = await screen.findByRole("button", {
       name: /confirm today's rate/i,
@@ -91,13 +97,13 @@ describe("the rate of the day", () => {
   });
 
   it("has nothing to save while today's rate is already on file", async () => {
-    render(quoted("12000", false));
+    await render(quoted("12000", false));
 
     expect(await screen.findByRole("button", { name: /save rate/i })).toBeDisabled();
   });
 
   it("writes the same number again when today's rate is confirmed", async () => {
-    render(quoted("12000", true));
+    await render(quoted("12000", true));
 
     await userEvent.click(
       await screen.findByRole("button", { name: /confirm today's rate/i }),
@@ -111,7 +117,7 @@ describe("the rate of the day", () => {
   });
 
   it("is hidden from anyone who may not see rates", async () => {
-    render(quoted("12000", false), makeMe([], "tenant.seller"));
+    mount(quoted("12000", false), makeMe([], "tenant.seller"));
 
     expect(screen.queryByText(/rate of the day/i)).not.toBeInTheDocument();
   });

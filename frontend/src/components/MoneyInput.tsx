@@ -9,13 +9,20 @@ type MoneyInputProps = Omit<TextInputProps, "rightSection" | "rightSectionWidth"
   currency?: string | null | false;
 };
 
+/** Group the integer part with spaces for display: `5225000` -> `5 225 000`. */
+function groupDigits(raw: string): string {
+  const [major, fraction] = raw.split(".");
+  const grouped = major.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return fraction !== undefined ? `${grouped}.${fraction}` : grouped;
+}
+
 /** A som/dollar amount input with its currency shown as a fixed suffix. */
 export function MoneyInput({ value, onChange, currency, ...props }: MoneyInputProps) {
   return (
     <TextInput
       {...props}
-      value={value}
-      onChange={(event) => onChange(event.currentTarget.value)}
+      value={groupDigits(value)}
+      onChange={(event) => onChange(event.currentTarget.value.replace(/[^\d.]/g, ""))}
       inputMode="numeric"
       rightSection={
         currency ? (

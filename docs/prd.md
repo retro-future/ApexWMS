@@ -222,7 +222,7 @@ A single flag on `Product` decides which path every stock operation takes. Both 
 - `condition` ∈ `NEW | REFURBISHED | USED`. Not decoration: it is what decides whether this unit may inherit the catalog's price (§4.5b).
 - Provenance: the receipt document that brought it in.
 
-- `cash_paid_minor` + `cash_paid_currency` (both **nullable**) — what physically changed hands, when that is not the same as `acquisition_cost`. A trade-in bought from a walk-in for som against a USD catalog row is the case this exists for (§4.5b). **Informational only: it enters no ledger, no total, and no report figure** — see the trade-in subsection of §4.5b before touching it.
+- `cash_paid_minor` + `cash_paid_currency` (both **nullable**) — what physically changed hands, when that is not the same as `acquisition_cost`. A trade-in bought from a walk-in for som against a USD catalog row is the case this exists for (§4.5b). **Superseded by W9 B2/B3/B7** ([prd-v2-money-and-rate.md](prd-v2-money-and-rate.md)): it is now required on a trade-in, booked as `TENDER_PAID`, and read by the month-end report's som block. It still enters no per-currency total. See the trade-in subsection of §4.5b before touching it.
 
 Both `acquisition_cost` and `asking_price` are stored as a bare `BIGINT` minor amount and **inherit the product's currency** — there is no per-unit currency column, because a unit cannot be denominated differently from the catalog row it belongs to (§4.5 rule 3).
 
@@ -320,7 +320,7 @@ Used handsets are bought from **walk-in customers**, and the earlier draft of th
 
 The system supports exactly **two currencies in v1: `UZS` (Uzbek som) and `USD`**. This is not a placeholder for "any currency" — it is the real shape of an Uzbek phone business:
 
-- **Phones are bought *and* sold in USD** — *booked* in USD, more precisely: a used handset traded in by a walk-in customer may be **paid for in som**, and the owner states its cost in dollars while the som actually handed over is recorded as an inert, unsummable fact (§4.5b). No rate enters the system; the owner's own valuation does.
+- **Phones are bought *and* sold in USD** — *booked* in USD, more precisely: a used handset traded in by a walk-in customer may be **paid for in som**, and the owner states its cost in dollars while the som actually handed over is recorded beside it (§4.5b). *(The clause "no rate enters the system" is superseded by W9 B1: sale and buyback rates are recorded, and reports convert at the rate in force when a figure happened. Costs are still booked in the product's currency, never converted on the way in.)*
 - **Accessories, cases, and chargers are bought *and* sold in UZS.**
 
 **Each line of business is internally single-currency, so no conversion ever happens.** A phone costing $500 and selling for $600 has a margin of $100 — both sides are already USD. A case costing 30,000 so'm and selling for 50,000 so'm has a margin of 20,000 so'm. Subtraction works because the units already match.
@@ -493,9 +493,15 @@ The resolution keeps all seven rules intact:
 
 > **The owner states the acquisition cost in the product's currency. The system never converts anything.** A handset bought for `4 200 000 so'm` is received at the USD figure the owner names — `$330`, because that is what they were thinking when they made the offer. The som actually handed over is recorded next to it, in `cash_paid_minor` / `cash_paid_currency`, as **a fact about the deal and not an amount in any ledger**.
 
-The exchange judgement happens **once, in the owner's head, at the moment of negotiation** — which is exactly where it belongs and the only place it is ever accurate. It does not become a rate table, a settings screen, a daily fixing, or a field that has to be right for the books to balance. Rule 1 is untouched: there is still no exchange rate anywhere in the system, because nothing in the system divides one currency by another.
+The exchange judgement happens **once, in the owner's head, at the moment of negotiation** — which is exactly where it belongs and the only place it is ever accurate. It does not become a field that has to be right for the books to balance.
 
-What `cash_paid` is for: the IMEI trace (FR-9.2) and the unit's own page show *"paid 4 200 000 so'm · booked at $330"*, so months later the owner can see what actually left the till for this specific phone. What it is **not** for: it enters no `FinancialTransaction`, no inventory value, no margin, no month-end figure, and no `SUM()` anywhere. `PURCHASE` is booked at `acquisition_cost`, in the product's currency, like every other receipt line. **Any report that adds `cash_paid` to anything is a bug** — it is deliberately denormalized, deliberately inert, and exists only to be read one row at a time.
+> **Superseded in part by W9 B2/B3/B7** ([prd-v2-money-and-rate.md](prd-v2-money-and-rate.md)). What follows below is v1's rule; two clauses of it no longer hold.
+
+**Still true:** `PURCHASE` is booked at `acquisition_cost`, in the product's currency, like every other receipt line. The som is never converted on the way in and never stored as a converted fact. It enters no inventory value, no COGS, no margin, and no per-currency total. Adding `cash_paid` to a dollar figure is still a bug.
+
+**No longer true:** that it enters no `FinancialTransaction` and no month-end figure, and that there is no rate anywhere. `ReceiptPoster` books it as `TENDER_PAID`, a trade-in cannot be confirmed without it, and the receipt snapshots the buyback rate in force. The month-end report's som block converts `acquisition_cost` at that stamped rate and subtracts the som actually paid; the difference is the report's rate gain line. That is what tells an owner whether a deal earned or lost money against the rate they were quoting — the question v1 left with no answer anywhere.
+
+`cash_paid` is also still read one row at a time: the IMEI trace (FR-9.2) and the unit's own page show *"paid 4 200 000 so'm · booked at $330"*.
 
 *(This is also why the field is a pair and not a `Money` on the domain entity's arithmetic path: it must be impossible to accidentally include in a total that a `Money` would otherwise happily participate in.)*
 
@@ -683,7 +689,7 @@ Each requirement is phrased as *actor → action → observable outcome*, so it 
 - **FR-3.4** For a `SERIAL` line, the Storekeeper scans one IMEI per unit. The system validates the Luhn check digit and rejects malformed IMEIs **at scan time**, not on submit.
 - **FR-3.4b** Each scanned unit carries its own `acquisition_cost`, `condition`, and — where the condition is not `NEW` — its own `asking_price` (§4.5b). Cost and price are visible and settable only to Owner/Manager (§2.1); a Storekeeper scans IMEIs and states condition.
 - **FR-3.4c** A scanned unit's `acquisition_cost` is always stated in **its product's currency** (§4.5 rule 3). Where the store actually paid in a different currency — a trade-in bought for som against a USD catalog row — the amount handed over may additionally be recorded in `cash_paid_minor` / `cash_paid_currency`. **The system performs no conversion between the two and derives neither from the other**; the owner states both. *(Test: receive a trade-in at `$330` with `cash_paid = 4 200 000 so'm`; the `PURCHASE` financial entry is exactly `−$330`, the unit's inventory value is `$330`, and no figure anywhere equals or contains 4 200 000.)*
-- **FR-3.4d** `cash_paid` is **informational only**: it appears on the unit's detail and in the IMEI trace (FR-9.2) and **enters no financial transaction, no inventory value, no margin, and no report total**. *(Test: run the month-end report over a period containing a som-paid trade-in — every figure is identical to the same report with `cash_paid` cleared.)*
+- **FR-3.4d** `cash_paid` **enters no inventory value, no margin, and no per-currency report total**. It appears on the unit's detail and in the IMEI trace (FR-9.2). *(Test: run the month-end report over a period containing a som-paid trade-in — every accrual figure is identical to the same report with `cash_paid` cleared.)* **Superseded in part by W9 B2/B3**: it is now booked as `TENDER_PAID` and feeds the month-end som block's rate gain line. See the trade-in subsection of §4.5b.
 - **FR-3.5** Scanning an IMEI that already exists in this tenant is rejected immediately with a message naming the existing unit's status and location. *(A duplicate IMEI is either a scanning error or a stolen-goods red flag. Never silently accept it.)*
 - **FR-3.6** For a `QUANTITY` line, the Storekeeper enters a count.
 - **FR-3.7** Confirming a Goods Receipt creates the `DeviceUnit`s with their per-unit acquisition cost, increments quantity levels, and writes one `+` movement per line. Units enter as `IN_STOCK` at the receipt's location.

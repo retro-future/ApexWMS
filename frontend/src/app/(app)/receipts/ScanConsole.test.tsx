@@ -349,12 +349,12 @@ describe("ScanConsole", () => {
 
     // $330 at 11 500, defaulted into the field as well as shown as a hint.
     expect(await screen.findByText(/3\s795\s000/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("3795000");
+    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("3 795 000");
 
     // Typing a different figure opts out of the default.
     await user.clear(screen.getByLabelText(/cash paid/i));
     await user.type(screen.getByLabelText(/cash paid/i), "4000000");
-    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("4000000");
+    expect(screen.getByLabelText(/cash paid/i)).toHaveValue("4 000 000");
   });
 
   it("sends cost and price when the scanner does hold the pricing permission", async () => {

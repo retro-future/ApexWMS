@@ -270,9 +270,17 @@ one transaction and so can only diverge if something bypassed it. It also
 sweeps for a debt smaller than what has been collected against it, and for
 a settled sale (`PAID_IN_FULL`/`CREDIT_COMPANY`) carrying a payment at all.
 
-## `cash_paid_minor` is inert
+## `cash_paid_minor` stays out of the accrual figures
 
 `DeviceUnit.cash_paid_minor`/`cash_paid_currency` is a bare pair and
-**never a `Money`**, on purpose (PRD §4.5b): it enters no ledger, total, or
-report, and `tests/application/test_cash_paid_is_inert.py` exists to catch
-the future report that sums it.
+**never a `Money`**, on purpose (PRD §4.5b): it must not be addable to a
+per-currency total. `tests/application/test_cash_paid_is_inert.py` pins
+that, asserting the accrual side of the close, inventory value and margin
+are identical with the som figure recorded and cleared.
+
+It is not unused. `ReceiptPoster._pay_out` books it as `TENDER_PAID`, and
+`MonthEndReporter._earned_beyond_the_rate` subtracts it from the converted
+`acquisition_cost` to produce `SomFigures.rate_gain` (W9 B2/B3/B7). The
+rule it still obeys is the one in `prd-v2-money-and-rate.md`: never stored
+as a converted fact, only converted inside a report at the rate stamped on
+the receipt.

@@ -744,7 +744,7 @@
     "notPricedHint": "Bu apparatning narxi aniqlanmaydi, shuning uchun sotib bo'lmaydi. Egasi yoki menejer narx belgilashi kerak.",
     "acquisitionCost": "Tannarx",
     "cashPaid": "Naqd to'langan",
-    "cashPaidHint": "Faqat ma'lumot uchun — jamiga ham, marjaga ham, hisobotga ham kirmaydi.",
+    "cashPaidHint": "Haqiqatda berilgan so'm. Tannarx va marjaga kirmaydi, lekin oylik hisobotning kurs farqi qatorida hisobga olinadi.",
     "reprice": "Narx belgilash",
     "printLabel": "Yorliq chop etish",
     "repriceTitle": "Apparat narxi",
@@ -810,6 +810,7 @@
       "brand": "Brend"
     },
     "filterBrand": "Brend",
+    "outOfStockOnly": "Faqat qoldig'i yo'qlar",
     "costValue": "Tannarx qiymati",
     "ageingTitle": "Uzoq turgan tovar",
     "ageingSubtitle": "Tanlangan kundan uzoq turgan telefonlar, so'ralayotgan narxi va necha marta arzonlashtirilgani bilan. Ikki marta arzonlashtirilgan va hali ham turgan telefon eng og'ir holat.",

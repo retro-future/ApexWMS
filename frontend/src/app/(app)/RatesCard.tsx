@@ -40,7 +40,7 @@ export function RatesCard() {
   const can = useCan();
   const { data, isPending } = useCurrentRates();
   const save = useSetRate();
-  const [opened, { toggle }] = useDisclosure(true);
+  const [opened, { toggle }] = useDisclosure(false);
 
   // Null until someone types: the field shows the stored rate and follows
   // it, and a draft takes over only once it exists. That way a refetch

@@ -1,13 +1,17 @@
-"""FR-3.4d: ``cash_paid`` enters no ledger, no total, and no report figure.
+"""FR-3.4d: ``cash_paid`` enters no inventory value, margin, or per-currency total.
 
-**This suite exists to catch a future report quietly summing it.** §4.5b
-is explicit that the field is deliberately denormalized, deliberately
-inert, and exists only to be read one row at a time — *"any report that
-adds ``cash_paid`` to anything is a bug"*.
+**This suite exists to catch a future report quietly summing it** into a
+dollar figure, which §4.5b calls a bug.
 
 The method is the one FR-3.4d prescribes: compute everything twice, once
 with the som figure recorded and once with it cleared, and assert the two
-runs are identical. A figure that leaks into a total cannot survive that.
+runs are identical.
+
+Scope, since W9 B2/B3: this covers the *accrual* side only. The month-end
+som block reads ``cash_paid`` on purpose, converting ``acquisition_cost``
+at the receipt's stamped buyback rate and subtracting the som paid to get
+``SomFigures.rate_gain``. That behaviour is pinned in ``test_month_end.py``,
+and these stores quote no rate, so their som block is ``None``.
 """
 
 from datetime import UTC, datetime
@@ -283,10 +287,11 @@ class TestM8sReportsDoNotSumIt:
         )
 
 
-class TestTheMonthEndReportCannotSeeIt:
+class TestTheAccrualFiguresCannotSeeIt:
     """FR-3.4d's own test, stated in the requirement: run the close over a
-    period holding a som-paid trade-in, and every figure matches the same
-    close with ``cash_paid`` cleared."""
+    period holding a som-paid trade-in, and every accrual figure matches the
+    same close with ``cash_paid`` cleared. The som block is deliberately not
+    compared here — see the module docstring."""
 
     async def test_every_figure_is_identical_with_and_without_the_som_record(self):
         recorded, _ = await trade_in_store(record_cash=True)

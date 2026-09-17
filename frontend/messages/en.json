@@ -744,7 +744,7 @@
     "notPricedHint": "This handset resolves to no price, so it cannot be sold. An Owner or Manager must price it.",
     "acquisitionCost": "Cost",
     "cashPaid": "Cash paid",
-    "cashPaidHint": "Informational only — it enters no total, no margin and no report.",
+    "cashPaidHint": "The som actually handed over. It is not part of cost or margin, but it feeds the month-end report's rate gain line.",
     "reprice": "Set price",
     "printLabel": "Print label",
     "repriceTitle": "Price this handset",
@@ -810,6 +810,7 @@
       "brand": "Brand"
     },
     "filterBrand": "Brand",
+    "outOfStockOnly": "Only what has nothing on hand",
     "costValue": "Cost value",
     "ageingTitle": "Ageing",
     "ageingSubtitle": "Handsets that have been in stock longer than the chosen number of days, with what they are asking and how many times they have been cut. A phone cut twice that is still here is the sharpest form of dead stock.",
