@@ -975,11 +975,10 @@
   },
   "rates": {
     "title": "Kunlik kurs",
-    "hint": "Do‘kon kursi, dollar uchun so‘m. Oylik hisobot har bir dollar raqamini amal paytida amalda bo‘lgan kurs bo‘yicha so‘mda o‘qiydi, shuning uchun tushda kurs o‘zgarsa, ertalabki amallar avvalgi kursda qoladi.",
     "sale": "Sotish kursi",
-    "saleHint": "So'm sizga keladi. Mijoz dollarda narxlangan telefon uchun so'm to'laydi. Odatda sizning yuqoriroq kursingiz.",
     "buyback": "Sotib olish kursi",
-    "buybackHint": "So'm sizdan chiqadi. Dollarda baholangan ishlatilgan telefon uchun so'm berasiz. Odatda sizning pastroq kursingiz.",
+    "collapse": "Yig'ish",
+    "expand": "Yoyish",
     "save": "Kursni saqlash",
     "confirmToday": "Bugungi kursni tasdiqlash",
     "malformed": "Dollar uchun so'm, musbat son",
@@ -999,7 +998,6 @@
     "effectiveOn": "Sanaga",
     "rate": "Dollar uchun so'm",
     "setAt": "Kiritilgan",
-    "example": "Dollarni 12 000 ga sotib olib, 12 500 ga sotsangiz, chapda 12 500, o'ngda 12 000 bo'ladi.",
     "onBuy": "Sotib olish kursi"
   }
 }

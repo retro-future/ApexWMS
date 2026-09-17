@@ -975,11 +975,10 @@
   },
   "rates": {
     "title": "Rate of the day",
-    "hint": "The store's rate, som per dollar. The month-end report reads every dollar figure in som at the rate in force when it happened, so a change made at noon leaves the morning at the earlier rate.",
     "sale": "Selling rate",
-    "saleHint": "Som comes in. A customer paying som for a dollar-priced handset. Usually your higher rate.",
     "buyback": "Buying rate",
-    "buybackHint": "Som goes out. Paying a walk-in som for a used handset you valued in dollars. Usually your lower rate.",
+    "collapse": "Collapse",
+    "expand": "Expand",
     "save": "Save rate",
     "confirmToday": "Confirm today's rate",
     "malformed": "Som per dollar, a positive number",
@@ -999,7 +998,6 @@
     "effectiveOn": "Applies to",
     "rate": "Som per dollar",
     "setAt": "Entered",
-    "example": "Buying dollars at 12 000 and selling at 12 500 means 12 500 on the left and 12 000 on the right.",
     "onBuy": "Buying rate"
   }
 }

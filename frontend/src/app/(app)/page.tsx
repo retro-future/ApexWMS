@@ -102,8 +102,6 @@ export default function DashboardPage() {
         </Text>
       </Stack>
 
-      <RatesCard />
-
       <MobileScanCard />
 
       {inbound.length > 0 && (
@@ -133,6 +131,8 @@ export default function DashboardPage() {
           />
         ))}
       </SimpleGrid>
+
+      <RatesCard />
     </Stack>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Button,
@@ -8,10 +9,10 @@ import {
   Group,
   Skeleton,
   Stack,
-  Text,
   Title,
 } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { useDisclosure } from "@mantine/hooks";
+import { IconAlertTriangle, IconChevronDown } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
@@ -39,6 +40,7 @@ export function RatesCard() {
   const can = useCan();
   const { data, isPending } = useCurrentRates();
   const save = useSetRate();
+  const [opened, { toggle }] = useDisclosure(true);
 
   // Null until someone types: the field shows the stored rate and follows
   // it, and a draft takes over only once it exists. That way a refetch
@@ -84,69 +86,78 @@ export function RatesCard() {
     <Card withBorder radius="md" padding="lg">
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="wrap">
-          <Stack gap="3xs">
-            <Title order={4}>{t("title")}</Title>
-            <Text size="sm" c="dimmed">
-              {t("hint")}
-            </Text>
-          </Stack>
-          <Anchor component={Link} href="/settings/rates" size="sm">
-            {t("historyTitle")}
-          </Anchor>
-        </Group>
-
-        {stale && quoted && (
-          <Alert
-            color="yellow"
-            variant="light"
-            icon={<IconAlertTriangle size={18} />}
-          >
-            {/* Already YYYY-MM-DD from the server, and parsing it into a
-                Date would shift the day for a negative UTC offset. */}
-            {t("stale", { date: quoted.effectiveOn })}
-          </Alert>
-        )}
-        {!data?.sale && !data?.buyback && (
-          <Alert color="blue" variant="light">
-            {t("neverSet")}
-          </Alert>
-        )}
-
-        <Group grow align="flex-start">
-          <MoneyInput
-            label={t("sale")}
-            description={t("saleHint")}
-            value={sale}
-            onChange={setSaleDraft}
-            currency="UZS"
-            disabled={!manage}
-            error={sale !== "" && !isValidRate(sale) ? t("malformed") : undefined}
-          />
-          <MoneyInput
-            label={t("buyback")}
-            description={t("buybackHint")}
-            value={buyback}
-            onChange={setBuybackDraft}
-            currency="UZS"
-            disabled={!manage}
-            error={buyback !== "" && !isValidRate(buyback) ? t("malformed") : undefined}
-          />
-        </Group>
-
-        <Text size="xs" c="dimmed">
-          {t("example")}
-        </Text>
-
-        {manage && (
-          <Group justify="flex-end">
-            <Button
-              onClick={submit}
-              loading={save.isPending}
-              disabled={(!changed && !confirming) || malformed}
+          <Title order={4}>{t("title")}</Title>
+          <Group gap="xs">
+            <Anchor component={Link} href="/settings/rates" size="sm">
+              {t("historyTitle")}
+            </Anchor>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              onClick={toggle}
+              aria-label={t(opened ? "collapse" : "expand")}
             >
-              {confirming ? t("confirmToday") : t("save")}
-            </Button>
+              <IconChevronDown
+                size={18}
+                style={{
+                  transform: opened ? "rotate(180deg)" : undefined,
+                  transition: "transform 150ms ease",
+                }}
+              />
+            </ActionIcon>
           </Group>
+        </Group>
+
+        {opened && (
+          <Stack gap="sm">
+            {stale && quoted && (
+              <Alert
+                color="yellow"
+                variant="light"
+                icon={<IconAlertTriangle size={18} />}
+              >
+                {/* Already YYYY-MM-DD from the server, and parsing it into a
+                    Date would shift the day for a negative UTC offset. */}
+                {t("stale", { date: quoted.effectiveOn })}
+              </Alert>
+            )}
+            {!data?.sale && !data?.buyback && (
+              <Alert color="blue" variant="light">
+                {t("neverSet")}
+              </Alert>
+            )}
+
+            <Group grow align="flex-start">
+              <MoneyInput
+                label={t("sale")}
+                value={sale}
+                onChange={setSaleDraft}
+                currency="UZS"
+                disabled={!manage}
+                error={sale !== "" && !isValidRate(sale) ? t("malformed") : undefined}
+              />
+              <MoneyInput
+                label={t("buyback")}
+                value={buyback}
+                onChange={setBuybackDraft}
+                currency="UZS"
+                disabled={!manage}
+                error={buyback !== "" && !isValidRate(buyback) ? t("malformed") : undefined}
+              />
+            </Group>
+
+            {manage && (
+              <Group justify="flex-end">
+                <Button
+                  onClick={submit}
+                  loading={save.isPending}
+                  disabled={(!changed && !confirming) || malformed}
+                >
+                  {confirming ? t("confirmToday") : t("save")}
+                </Button>
+              </Group>
+            )}
+          </Stack>
         )}
       </Stack>
     </Card>
