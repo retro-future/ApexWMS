@@ -291,8 +291,11 @@ class CountPoster:
 
         A surplus has no purchase document behind it, so it comes on at what
         the pool currently averages — and if the pool is empty there is no
-        average and nothing that could stand in for one. That is refused
-        rather than booked at zero: a free accessory would dilute the
+        average and nothing that could stand in for one. ``line.stated_unit_cost``
+        is an operator's word for it, taken while scanning (the accessory
+        twin of a surprise handset's ``acquisition_cost``, FR-6.4b); with
+        neither an average nor a stated cost, the surplus is refused rather
+        than booked at zero, because a free accessory would dilute the
         average for every later sale, invisibly and forever.
         """
         if delta < 0:
@@ -308,12 +311,15 @@ class CountPoster:
                 subject_key="product",
             )
         unit_cost = pool.average_unit_cost
-        if unit_cost is None:
-            product = await self._products.get(line.product_id)
-            sku = product.sku if product is not None else line.product_id
-            raise UnpricedUnitError(
-                f"{count.number} found {delta} more {sku} than the books hold, and "
-                "this location has never held any — so nothing says what they are "
-                "worth. Receive them instead (FR-6.4b)"
-            )
-        return unit_cost * delta
+        if unit_cost is not None:
+            return unit_cost * delta
+        if line.stated_unit_cost is not None:
+            return line.stated_unit_cost * delta
+
+        product = await self._products.get(line.product_id)
+        sku = product.sku if product is not None else line.product_id
+        raise UnpricedUnitError(
+            f"{count.number} found {delta} more {sku} than the books hold, and "
+            "this location has never held any — so nothing says what they are "
+            "worth. Scan it again with a stated cost, or receive them instead."
+        )

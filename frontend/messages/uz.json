@@ -710,6 +710,8 @@
       "surpriseProductHint": "Faqat ortiqcha uchun kerak",
       "surpriseCost": "Tannarx",
       "surpriseCostHint": "Bu apparat qanchaga tushgan. Ortiqchani qo'llash uchun shart.",
+      "accessoryCost": "Birlik tannarxi",
+      "accessoryCostHint": "Faqat bu tovar bu do'konga hech qachon kelmagan bo'lsa kerak.",
       "unscan": "Olib tashlash",
       "unscanned": "{imei} olib tashlandi"
     },

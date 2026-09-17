@@ -729,6 +729,93 @@ class TestCountingAccessories:
             )
 
 
+class TestOnboardingAnAccessoryWithNoHistory:
+    """The accessory twin of a surprise handset: a location that has never
+    held this SKU before has no cost pool average to book a surplus at, so
+    an operator states one while scanning instead (FR-6.4b's accessory
+    twin)."""
+
+    async def test_a_stated_cost_lets_the_surplus_be_confirmed(self):
+        world = make_world()
+        location = a_place(world)
+        catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="50000",
+            barcode=CASE_BARCODE,
+        )
+        count = await opened_count(world, location)
+        await scan(world, count, CASE_BARCODE, unit_cost="15000")
+        await close_and_confirm(world, count)
+
+        booked = money(world, count)
+        assert [t.txn_type for t in booked] == [TransactionType.COUNT_ADJUSTMENT]
+        assert booked[0].amount == uzs("15000")
+        assert [m.quantity_delta for m in adjustments(world, count)] == [1]
+
+    async def test_the_stated_cost_is_multiplied_by_the_quantity_found(self):
+        world = make_world()
+        location = a_place(world)
+        catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="50000",
+            barcode=CASE_BARCODE,
+        )
+        count = await opened_count(world, location)
+        for _ in range(3):
+            await scan(world, count, CASE_BARCODE, unit_cost="15000")
+        await close_and_confirm(world, count)
+
+        assert money(world, count)[0].amount == uzs("45000")
+
+    async def test_a_cost_may_be_stated_on_a_later_scan(self):
+        """The storekeeper who finds the shelf may not hold the pricing
+        permission — the same latitude a surprise handset gets."""
+        world = make_world()
+        location = a_place(world)
+        catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="50000",
+            barcode=CASE_BARCODE,
+        )
+        count = await opened_count(world, location)
+        await scan(world, count, CASE_BARCODE)
+        await scan(world, count, CASE_BARCODE, unit_cost="15000")
+        await close_and_confirm(world, count)
+
+        assert money(world, count)[0].amount == uzs("30000")
+
+    async def test_without_a_stated_cost_it_still_refuses(self):
+        world = make_world()
+        location = a_place(world)
+        catalogued(
+            world,
+            sku="CASE-CLR",
+            tracking=TrackingType.QUANTITY,
+            currency=Currency.UZS,
+            price="50000",
+            barcode=CASE_BARCODE,
+        )
+        count = await opened_count(world, location)
+        await scan(world, count, CASE_BARCODE)
+        await world.close_stock_count().handle(
+            CloseStockCountCommand(stock_count_id=count.id)
+        )
+
+        with pytest.raises(UnpricedUnitError, match="never held any"):
+            await world.confirm_stock_count().handle(
+                ConfirmStockCountCommand(stock_count_id=count.id)
+            )
+
+
 class TestClosingIsASeparateAct:
     async def test_a_count_cannot_be_confirmed_before_it_is_closed(self):
         world = make_world()

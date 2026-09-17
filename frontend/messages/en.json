@@ -710,6 +710,8 @@
       "surpriseProductHint": "Only needed for a surprise",
       "surpriseCost": "Cost",
       "surpriseCostHint": "What this handset cost. Required before a surplus can be applied.",
+      "accessoryCost": "Cost per unit",
+      "accessoryCostHint": "Only needed if this location has never held this accessory before.",
       "unscan": "Remove",
       "unscanned": "{imei} removed"
     },

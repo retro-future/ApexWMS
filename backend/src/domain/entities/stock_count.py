@@ -113,18 +113,29 @@ class StockCountLine(UuidEntity, TenantEntity):
     same as counting zero — a shelf nobody looked at and a shelf found empty
     are different findings, and confirming the first would book a loss on
     evidence that does not exist.
+
+    ``stated_unit_cost`` exists for the one case a cost pool cannot value on
+    its own: a location that has never held this accessory before has no
+    average to book a surplus at, and inventing one at zero would dilute
+    every later sale's cost forever (``CountPoster._line_value``). Stating
+    it here is the accessory's equivalent of a surprise handset's
+    ``acquisition_cost`` (FR-6.4b) — an operator's word for what something
+    is worth, taken because no document says so instead.
     """
 
     stock_count_id: UUID
     product_id: UUID
     expected_quantity: int
     counted_quantity: int | None = None
+    stated_unit_cost: Money | None = None
 
     def __post_init__(self) -> None:
         if self.counted_quantity is not None and self.counted_quantity < 0:
             raise InvalidLineError(
                 f"a count of {self.counted_quantity} is not a number of things on a shelf"
             )
+        if self.stated_unit_cost is not None and self.stated_unit_cost.is_negative:
+            raise InvalidMoneyError("a stated unit cost may not be negative")
 
     @property
     def delta(self) -> int:

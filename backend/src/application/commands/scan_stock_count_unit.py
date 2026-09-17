@@ -29,6 +29,12 @@ A repeat scan changes nothing about the count. Scanners double-fire, and
 counting a phone twice would invent a handset — so §6's idempotence holds
 in the sense that matters, even though a second beep may carry the product
 or the cost the first one lacked.
+
+An accessory line takes the same kind of optional cost, under the same
+permission, for the same reason: a location that has never held it before
+has no cost pool to value a surplus at (``CountPoster._line_value``), and
+this is the only chance an operator gets to say what it is worth before
+close ends the count's window for new findings.
 """
 
 from uuid import UUID, uuid4
@@ -61,6 +67,9 @@ class ScanStockCountUnitCommandPayload(CamelModel):
     product_id: UUID | None = None
     # --- pricing permission only (FR-6.4b) ---
     acquisition_cost: str | int | None = None
+    # Only ever read for an accessory line this location has never held —
+    # pricing permission only, same as above.
+    unit_cost: str | int | None = None
 
 
 class ScanStockCountUnitCommand(
@@ -105,7 +114,7 @@ class ScanStockCountUnitHandler(
             return await self._count_handset(count, imei, request)
 
         count.assert_countable()
-        return await self._count_accessory(count, request.code)
+        return await self._count_accessory(count, request.code, request)
 
     async def _count_handset(
         self, count: StockCount, imei: IMEI, request: ScanStockCountUnitCommand
@@ -169,7 +178,7 @@ class ScanStockCountUnitHandler(
         return await self._save(count, row)
 
     async def _count_accessory(
-        self, count: StockCount, code: str
+        self, count: StockCount, code: str, request: ScanStockCountUnitCommand
     ) -> ResultWithData[CountScanResultData]:
         product = await self._as_product(code)
         if product.tracking_type is TrackingType.SERIAL:
@@ -189,12 +198,28 @@ class ScanStockCountUnitHandler(
                 product_id=product.id,
                 expected_quantity=0,
                 counted_quantity=0,
+                stated_unit_cost=self._stated_line_cost(request, product),
             )
             count.lines.append(line)
+        elif request.unit_cost is not None:
+            line.stated_unit_cost = self._stated_line_cost(request, product)
 
         # None means nobody has counted yet, which is not zero (FR-6.2).
         line.counted_quantity = (line.counted_quantity or 0) + 1
+        line.__post_init__()
         return await self._save(count, line)
+
+    @staticmethod
+    def _stated_line_cost(request: ScanStockCountUnitCommand, product: Product) -> Money | None:
+        """What the operator says this accessory costs, in its own currency.
+
+        Only meaningful the moment the location has never held it before —
+        ``CountPoster._line_value`` is what actually decides whether a pool
+        average makes this figure unnecessary.
+        """
+        if request.unit_cost is None:
+            return None
+        return Money.from_major(request.unit_cost, product.currency)
 
     async def _save(
         self, count: StockCount, found: StockCountUnit | StockCountLine

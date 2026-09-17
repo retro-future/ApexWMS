@@ -54,12 +54,16 @@ class StockCountMapper:
         )
 
     def _line_to_entity(self, model: StockCountLineModel) -> StockCountLine:
+        stated_cost = None
+        if model.stated_unit_cost_minor is not None:
+            stated_cost = Money(model.stated_unit_cost_minor, Currency(model.product.currency))
         return StockCountLine(
             id=model.id,
             stock_count_id=model.stock_count_id,
             product_id=model.product_id,
             expected_quantity=model.expected_quantity,
             counted_quantity=model.counted_quantity,
+            stated_unit_cost=stated_cost,
         )
 
     def to_model(
@@ -128,6 +132,9 @@ class StockCountMapper:
             product_id=entity.product_id,
             expected_quantity=entity.expected_quantity,
             counted_quantity=entity.counted_quantity,
+            stated_unit_cost_minor=(
+                None if entity.stated_unit_cost is None else entity.stated_unit_cost.amount_minor
+            ),
         )
 
     def _sync_lines(self, entity: StockCount, model: StockCountModel) -> None:
@@ -138,6 +145,9 @@ class StockCountMapper:
                 model.lines.remove(row)
             else:
                 row.counted_quantity = line.counted_quantity
+                row.stated_unit_cost_minor = (
+                    None if line.stated_unit_cost is None else line.stated_unit_cost.amount_minor
+                )
         have = {row.id for row in model.lines}
         for line in entity.lines:
             if line.id not in have:

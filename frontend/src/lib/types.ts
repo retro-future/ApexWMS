@@ -716,6 +716,8 @@ export type StockCountLine = {
   countedQuantity: number | null;
   /** Zero while `countedQuantity` is null. The report figure, not the posting. */
   delta: number;
+  /** --- Permission.Cost.View only --- */
+  statedUnitCost?: Money | null;
 };
 
 /**

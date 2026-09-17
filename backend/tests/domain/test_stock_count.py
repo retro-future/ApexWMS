@@ -166,6 +166,17 @@ class TestAnAccessoryLineDistinguishesZeroFromUncounted:
         with pytest.raises(InvalidLineError):
             accessory_line(expected=10, counted=-1)
 
+    def test_a_negative_stated_cost_is_refused(self):
+        with pytest.raises(InvalidMoneyError):
+            StockCountLine(
+                id=uuid4(),
+                stock_count_id=uuid4(),
+                product_id=uuid4(),
+                expected_quantity=0,
+                counted_quantity=1,
+                stated_unit_cost=Money(-1, Currency.USD),
+            )
+
 
 class TestClosingFreezesTheReport:
     """FR-6.3: what is reported and what is applied describe one shelf."""

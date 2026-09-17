@@ -1,8 +1,9 @@
 """The reads the stock-count use cases need, one class each.
 
 Written against ``StockCountModel``, not ``StockCount`` (ADR 0007). Every
-spec eager-loads both child collections: ``units`` (with the nullable
-``product`` for the currency) and ``lines``.
+spec eager-loads both child collections and each one's ``product`` — a
+line's is never null (FR-6.2 always names a catalog row), a unit's is
+nullable (a surprise IMEI names none until priced, FR-6.4b).
 """
 
 from uuid import UUID
@@ -12,13 +13,14 @@ from sqlalchemy.orm import selectinload
 from application.common.specification import Specification
 from domain.enums import DocumentStatus
 from infrastructure.persistence.tenant.models import (
+    StockCountLineModel,
     StockCountModel,
     StockCountUnitModel,
 )
 
 _WITH_CHILDREN = (
     selectinload(StockCountModel.units).selectinload(StockCountUnitModel.product),
-    selectinload(StockCountModel.lines),
+    selectinload(StockCountModel.lines).selectinload(StockCountLineModel.product),
 )
 
 

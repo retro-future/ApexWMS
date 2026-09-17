@@ -45,7 +45,7 @@ class CountScanResultData(CamelModel):
             else None
         )
         line = (
-            StockCountLineData.from_entity(found)
+            StockCountLineData.from_entity(found, show_cost=show_cost)
             if isinstance(found, StockCountLine)
             else None
         )

@@ -66,15 +66,22 @@ class StockCountLineData(CamelModel):
     # Null until somebody counts, which is not the same as counting zero.
     counted_quantity: int | None
     delta: int
+    # --- Permission.Cost.View only (FR-1.7) ---
+    stated_unit_cost: MoneyData | None = None
 
     @classmethod
-    def from_entity(cls, line: StockCountLine) -> StockCountLineData:
-        return cls(
+    def from_entity(cls, line: StockCountLine, *, show_cost: bool) -> StockCountLineData:
+        data = cls(
             id=line.id,
             product_id=line.product_id,
             expected_quantity=line.expected_quantity,
             counted_quantity=line.counted_quantity,
             delta=line.delta,
+        )
+        if not show_cost or line.stated_unit_cost is None:
+            return data
+        return data.model_copy(
+            update={"stated_unit_cost": MoneyData.from_entity(line.stated_unit_cost)}
         )
 
 
@@ -116,7 +123,10 @@ class StockCountData(CamelModel):
                 StockCountUnitData.from_entity(unit, show_cost=show_cost)
                 for unit in count.units
             ],
-            lines=[StockCountLineData.from_entity(line) for line in count.lines],
+            lines=[
+                StockCountLineData.from_entity(line, show_cost=show_cost)
+                for line in count.lines
+            ],
             matched_count=len(count.matched()),
             missing_count=len(count.missing()),
             unexpected_count=len(count.unexpected()),

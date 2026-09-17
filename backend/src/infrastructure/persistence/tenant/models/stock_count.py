@@ -116,6 +116,12 @@ class StockCountLineModel(TenantBase):
     ``counted_quantity`` is nullable because a shelf nobody looked at and a
     shelf found empty are different findings: confirming the first would
     book a loss on evidence that does not exist.
+
+    ``stated_unit_cost_minor`` is null unless an operator states one — only
+    needed when the location has never held this accessory before, so no
+    cost pool exists to value a surplus at (FR-6.4b's accessory twin). It
+    inherits the product's currency, like every other unit amount
+    (§4.5 rule 3), which is why there is no currency column.
     """
 
     __tablename__ = "stock_count_lines"
@@ -129,7 +135,9 @@ class StockCountLineModel(TenantBase):
     # Both count goods, not money — neither name ends in _minor.
     expected_quantity: Mapped[int] = mapped_column(Integer)
     counted_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stated_unit_cost_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     stock_count: Mapped[StockCountModel] = relationship(
         back_populates="lines", lazy="raise"
     )
+    product: Mapped[ProductModel] = relationship(lazy="raise", viewonly=True)

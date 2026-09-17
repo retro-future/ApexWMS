@@ -29,6 +29,7 @@ type CountScanBody = {
   code: string;
   productId?: string;
   acquisitionCost?: string;
+  unitCost?: string;
 };
 
 /**
@@ -48,6 +49,12 @@ type CountScanBody = {
  * under `Pricing.Set`, and the cost key is omitted from the body entirely
  * rather than sent as null — the route escalates on the field being present,
  * so a null would be refused just as a figure would.
+ *
+ * `accessoryUnitCost` is the same idea for an accessory: only needed when
+ * the location has never held that SKU before, so there is no pool average
+ * to book a surplus at. It rides on every beep rather than only the first,
+ * because the operator holding the scanner may not hold the pricing
+ * permission and someone else may state it on a later pass.
  */
 export function CountScanConsole({
   count,
@@ -65,6 +72,7 @@ export function CountScanConsole({
   const [code, setCode] = useState("");
   const [product, setProduct] = useState<Product | null>(null);
   const [cost, setCost] = useState("");
+  const [accessoryUnitCost, setAccessoryUnitCost] = useState("");
   const [rejection, setRejection] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<string | null>(null);
   const [cameraOpened, { open: openCamera, close: closeCamera }] = useDisclosure(false);
@@ -97,6 +105,9 @@ export function CountScanConsole({
         // Never send the key without the permission: the route escalates on
         // the field being present, so a null is refused like a figure is.
         ...(canPrice && cost.trim() ? { acquisitionCost: cost.trim() } : {}),
+        ...(canPrice && accessoryUnitCost.trim()
+          ? { unitCost: accessoryUnitCost.trim() }
+          : {}),
       });
       if (result) {
         onScanned(result);
@@ -113,6 +124,7 @@ export function CountScanConsole({
       // The product and cost belong to the handset just scanned, not the next.
       setProduct(null);
       setCost("");
+      setAccessoryUnitCost("");
     } catch (error) {
       setAccepted(null);
       setRejection(errorMessage(error, tCommon("retry")));
@@ -200,6 +212,13 @@ export function CountScanConsole({
                   onChange={setCost}
                   currency={product?.currency}
                   disabled={product === null}
+                  w={{ base: "100%", sm: 200 }}
+                />
+                <MoneyInput
+                  label={t("accessoryCost")}
+                  description={t("accessoryCostHint")}
+                  value={accessoryUnitCost}
+                  onChange={setAccessoryUnitCost}
                   w={{ base: "100%", sm: 200 }}
                 />
               </Group>

@@ -87,10 +87,13 @@ export default function StockCountPage() {
       }
       if (result.line) {
         const line = result.line;
+        const known = current.lines.some((row) => row.id === line.id);
         return {
           ...current,
           ...totals,
-          lines: current.lines.map((row) => (row.id === line.id ? line : row)),
+          lines: known
+            ? current.lines.map((row) => (row.id === line.id ? line : row))
+            : [...current.lines, line],
         };
       }
       return { ...current, ...totals };
